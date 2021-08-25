@@ -1,0 +1,470 @@
+start_up = proc ()
+	tyi: stream := stream$primary_input()
+	instream: stream := tyi
+	outstream: stream := tyi
+	errstream: stream := tyi
+	begin
+	tyi.prompt := "input file: "
+	inf: file_name := file_name$parse(stream$getbuf(tyi, "\n"))
+	stream$getc(tyi)
+	instream := stream$open(inf, "read")
+	tyi.prompt := "output file: "
+	outf: file_name := file_name$parse(stream$getbuf(tyi, "\n"))
+	stream$getc(tyi)
+	outstream := stream$open(outf, "write")
+	tyi.prompt := "error file: "
+	errf: file_name := file_name$parse(stream$getbuf(tyi, "\n"))
+	stream$getc(tyi)
+	errstream := stream$open(errf, "write")
+	format(instream, outstream, errstream)
+	end except others: end
+	stream$close(instream)
+	stream$close(outstream)
+	stream$close(errstream)
+	end start_up
+
+% Read  the  instream,  processing  it and placing the output on
+% outstream and writing error messages on errstream.
+
+format = proc (instream, outstream, errstream: stream) signals (bad_arg(string))
+	if ~stream$can_read(instream)
+		then signal bad_arg("input stream")
+	   elseif ~stream$can_write(outstream)
+		then signal bad_arg("output stream")
+	   elseif ~stream$can_write(errstream)
+		then signal bad_arg("error stream")
+	   end
+	d: doc := doc$create(outstream)
+	while ~stream$empty(instream) do
+	    do_line(instream, d, errstream)
+	    end
+	doc$terminate(d)
+	end format
+
+% Process an input line.  The line is processed either as a text
+% line or as a command line, depending upon whether or  not  the
+% first character of the line is a period.
+
+do_line = proc (instream: stream, d: doc, errstream: stream)
+	c: char := stream$peekc(instream)
+	if c = '.'
+	   then do_command(instream, d, errstream)
+	   else do_text_line(instream, d)
+	   end
+	end do_line
+
+% Process  a  command  line.  This procedure reads one line from
+% instream and processes it as a command.
+
+do_command = proc (instream: stream, d: doc, errstream: stream)
+	stream$getc(instream)	 % skip the period
+	n: string := stream$gets(instream, " \t\n")
+	    except when end_of_file: n := "" end
+	if n = "br" then doc$break_line(d)
+	   elseif n = "fi" then doc$set_fill(d)
+	   elseif n = "nf" then doc$set_nofill(d)
+	   elseif n = "" then stream$puts(errstream, "Missing command.\n")
+	   else stream$puts(errstream, "'")
+		stream$puts(errstream, n)
+		stream$puts(errstream, "' not a command.\n")
+	   end
+	stream$getl(instream)	 % read and discard remainder of input line
+	    except when end_of_file: end
+	end do_command
+
+% Process  a  text  line.    This  procedure reads one line from
+% instream and processes it as  a  text  line.    If  the  first
+% character  is  a  word-break  character,  then a line-break is
+% caused.  If the line is empty, then a blank  line  is  output.
+% Otherwise, the words and word-break characters in the line are
+% processed in turn.
+
+do_text_line = proc (instream: stream, d: doc)
+	c: char := stream$getc(instream)
+	if c = '\n'
+	   then doc$skip_line(d)	    % empty input line
+		return
+	   elseif c = ' '  cor  c = '\t'
+	   then doc$break_line(d)
+	   end
+	while c ~= '\n' do
+	    if c = ' ' then doc$add_space(d)
+	       elseif c = '\t' then doc$add_tab(d)
+	       else w: word := word$scan(c, instream)
+		    doc$add_word(d, w)
+	       end
+	    c := stream$getc(instream)
+	    end except when end_of_file: end
+	doc$add_newline(d)
+	end do_text_line
+
+% The  doc  cluster  implements  the  document abstraction.  The
+% operations support the basic formatting  actions  (break_line,
+% skip_line,  set_fill,  set_nofill, terminate), and perform the
+% appropriate actions for the  basic  components  of  the  input
+% (words,  spaces,  tabs, newlines).  Rather than collecting the
+% entire document as a sequence of lines before outputting to  a
+% file,  each  line  is  output  as it is produced.  The current
+% output line is  maintained  for  the  purposes  of  performing
+% justification.    To  perform pagination and the production of
+% headings, the current line number and the current page  number
+% are also maintained.
+
+doc = cluster is create, add_word, add_space, add_tab, add_newline,
+		 break_line, skip_line, set_fill, set_nofill, terminate
+
+rep = record[line:	line,	     %	The current line.
+	     fill:	bool,	     %	True <==> in fill mode.
+	     r2l:	bool,	     %	True <==> justify next line right-to-left.
+	     lineno:	int,	     %	The number of lines output so far on this page
+				     % (not including any header lines).
+	     pageno:	int,	     %	The number of the current output page.
+	     outstream:	stream]      %	The output stream.
+
+chars_per_line = 60
+lines_per_page = 50
+left_margin_size = 10
+
+% Create a doc object.  The first page is number 1, there are no
+% lines yet output on it.	Fill mode is in effect.
+
+create = proc (outstream: stream) returns (cvt)
+	return(rep${line:	   line$create(),
+		    fill:	   true,
+		    r2l:	   true,
+		    lineno:	   0,
+		    pageno:	   1,
+		    outstream:	   outstream})
+	end create
+
+% Process	a word.  This procedure adds the word w to the output
+% document.  If in nofill mode, then the word is simply added to
+% the end of the current line (there is no line-length  checking
+% in  nofill mode).  If in fill mode, then we first check to see
+% if there is room for the word on the current  line.    If  the
+% word  will  not	fit on the current line, we first justify and
+% output the line and then start a  new  one;  justification  is
+% performed   alternately	 from  the  right  and	the  left  on
+% successive lines.  However, if the line is empty, then we just
+% add the word to the end of the line; if the word won't fit  on
+% an  empty  line,  then it won't fit on any line, so we have no
+% choice but to put it on the current line, even if  it  doesn't
+% fit.
+
+add_word = proc (d: cvt, w: word)
+	if d.fill  cand  ~line$empty(d.line)
+	   then h: int := word$width(w)
+		if line$length(d.line) + h > chars_per_line
+		   then line$justify(d.line, chars_per_line, d.r2l)
+			d.r2l := ~d.r2l
+			output_line(d)
+		   end
+	   end
+	line$add_word(d.line, w)
+	end add_word
+
+% Process a space -- just add it to the current line.
+
+add_space = proc (d: cvt)
+	line$add_space(d.line)
+	end add_space
+
+% Process a tab -- just add it to the current line.
+
+add_tab = proc (d: cvt)
+	line$add_tab(d.line)
+	end add_tab
+
+% Process	a  newline.  If in nofill mode, then the current line
+% is output as is.  Otherwise, a newline is treated just like  a
+% space.
+
+add_newline = proc (d: cvt)
+	if ~d.fill
+	   then output_line(d)
+	   else line$add_space(d.line)
+	   end
+	end add_newline
+
+% Cause  a  line  break.	 If the line is not empty, then it is
+% output as is.  Line breaks have no effect on  empty  lines  --
+% multiple line breaks are the same as one.
+
+break_line = proc (d: cvt)
+	if ~line$empty(d.line) then output_line(d) end
+	end break_line
+
+% Cause a line break and output a blank line.
+
+skip_line = proc (d: cvt)
+	break_line(up(d))
+	output_line(d)	      % line is empty
+	end skip_line
+
+% Cause a line break and enter fill mode.
+
+set_fill = proc (d: cvt)
+	break_line(up(d))
+	d.fill := true
+	end set_fill
+
+% Cause a line break and enter nofill mode.
+
+set_nofill = proc (d: cvt)
+	break_line(up(d))
+	d.fill := false
+	end set_nofill
+
+% Terminate the output document.
+
+terminate = proc (d: cvt)
+	break_line(up(d))
+	end terminate
+
+% Internal procedure.
+
+% Output  line  is used to keep track of the line number and the
+% page number and to put out the header at the top of each page.
+% At the top of each page, justification is reset to start  from
+% the right.
+
+output_line = proc (d: rep)
+	if d.lineno = 0
+	   then stream$puts(d.outstream, "\n\n")	% print header
+		stream$putspace(d.outstream, left_margin_size)
+		stream$puts(d.outstream, "Page ")
+		stream$puts(d.outstream, int$unparse(d.pageno))
+		stream$puts(d.outstream, "\n\n\n")
+	   end
+	d.lineno := d.lineno + 1
+	if ~line$empty(d.line)
+	   then stream$putspace(d.outstream, left_margin_size)
+		line$output(d.line, d.outstream)
+	   end
+	if d.lineno = lines_per_page
+	   then stream$putc(d.outstream, '\p')
+		d.r2l := true
+		d.lineno := 0
+		d.pageno := d.pageno + 1
+	   else stream$putc(d.outstream, '\n')
+	   end
+	end output_line
+
+end doc
+
+% A  line is a mutable sequence of words, spaces, and tabs.  The
+% length of a line is the amount  of  character  positions  that
+% would  be used if the line were output.  One may output a line
+% onto a stream, in which case the  line  is  made  empty  after
+% printing.    One  may  also  justify a line to a given length,
+% which means that some spaces in the line will be  enlarged  to
+% make the length of the line equal to the desired length.  Only
+% spaces  to the right of all tabs are subject to justification.
+% Furthermore, spaces preceding the first  word  in  the  output
+% line  or  preceding  the  first  word  following a tab are not
+% subject to justification.  If there are no spaces  subject  to
+% justification   or   if   the   line  is  too  long,  then  no
+% justification is performed and no error message is produced.
+
+line = cluster is create, add_word, add_space, add_tab, length, empty,
+		  justify, output
+
+token = variant[space: int,	% the int is the width of the space
+		tab:   int,	% the int is the width of the tab
+		word:  word]
+at = array[token]
+rep = record[length: int,	       % the current length of the line
+	     stuff:  at]	       % the contents of the line
+
+max_tab_width = 8		       % maximum chars per tab
+
+% Create an empty line.
+
+create = proc () returns (cvt)
+	return(rep${length: 0,
+		    stuff:  at$new()})
+	end create
+
+% Add a word at the end of the line.
+
+add_word = proc (l: cvt, w: word)
+	at$addh(l.stuff, token$make_word(w))
+	l.length := l.length + word$width(w)
+	end add_word
+
+% Add a space at the end of  the  line,  combining  it  with  an
+% existing trailing space, if any.
+
+add_space = proc (l: cvt)
+	l.length := l.length + 1
+	tagcase at$top(l.stuff)
+	    tag space (width: int): token$change_space(at$top(l.stuff), width + 1)
+		return
+	    others:
+	    end except when bounds: end    % Handle empty array case.
+	at$addh(l.stuff, token$make_space(1))
+	end add_space
+
+% Add a tab at the end of the line.
+
+add_tab = proc (l: cvt)
+	width: int := max_tab_width - (l.length // max_tab_width)
+	l.length := l.length + width
+	at$addh(l.stuff, token$make_tab(width))
+	end add_tab
+
+% Return the current length of the line.
+
+length = proc (l: cvt) returns (int)
+	return(l.length)
+	end length
+
+% Return true if the line is of length zero.
+
+empty = proc (l: cvt) returns (bool)
+	return(l.length = 0)
+	end empty
+
+% Justify the line, if possible, so that it's length is equal to
+% LEN.  Before justification, any trailing space is removed.  If
+% the  line  length  at  that  point  is greater or equal to the
+% desired length, then no action is taken. Otherwise, the set of
+% justifiable spaces is found, as described above.  If there are
+% no justifiable  spaces,	then  no  further  action  is  taken.
+% Otherwise,  the	justifiable spaces are enlarged, as evenly as
+% possible,  to  make  the  line  length  the  desired   length.
+% Enlarging  is  performed  either  from  the right or the left,
+% depending on R2L.
+
+justify = proc (l: cvt, len: int, r2l: bool)
+	tagcase at$top(l.stuff)
+	    tag space (width: int): at$remh(l.stuff)
+		l.length := l.length - width
+	    others:
+	    end except when bounds: end  % Handle empty array case.
+	if l.length >= len then return end
+	diff: int := len - l.length
+	first: int := find_first_justifiable_space(l)
+	    except when none: return end
+	enlarge_spaces(l, first, diff, r2l)
+	end justify
+
+% Output the line and reset it.
+
+output = proc (l: cvt, outstream: stream)
+	for t: token in at$elements(l.stuff) do
+	    tagcase t
+		tag word (w: word): word$output(w, outstream)
+		tag space, tab (width: int): stream$putspace(outstream, width)
+		end
+	    end
+	l.length := 0
+	at$trim(l.stuff, 1, 0)
+	end output
+
+% Internal procedures.
+
+% Find  the  first  justifiable  space.  This space is the first
+% space after the first word after the last  tab  in  the	line.
+% Return  the  index  of the space in the array.  Signal NONE if
+% there are no justifiable spaces.   Although  no	two  adjacent
+% tokens  will  both  be words (as lines are currently used), no
+% such assumption is made here.
+
+find_first_justifiable_space = proc (l: rep) returns (int) signals (none)
+	a: at := l.stuff
+	if at$empty(a) then signal none end
+	lo: int := at$low(a)
+	hi: int := at$high(a)
+	i: int := hi
+	while i > lo  cand  ~token$is_tab(a[i]) do      % find last tab in the line (if any)
+	    i := i - 1
+	    end
+	while i <= hi  cand  ~token$is_word(a[i]) do    % find first word after it (or first in line)
+	    i := i + 1
+	    end
+	while i <= hi  cand  ~token$is_space(a[i]) do   % find first space after that
+	    i := i + 1
+	    end
+	if i > hi then signal none end
+	return(i)
+	end find_first_justifiable_space
+
+% Enlarge	the  spaces  in  the array whose indexes are at least
+% FIRST.  Add a total of DIFF extra character widths  of  space.
+% Add  spaces  working  from the right or the left, depending on
+% R2L.
+
+enlarge_spaces = proc (l: rep, first, diff: int, r2l: bool)
+	nspaces, last: int := count_spaces(l, first)
+	if nspaces = 0 then return end
+	by: int := 1
+	if r2l
+	   then by := -1
+		first, last := last, first
+	   end
+	neach: int := diff / nspaces	    % Amount to increase each space.
+	nextra: int := diff // nspaces	    % Leftovers to be distributed.
+	for i: int in int$from_to_by(first, last, by) do
+	    tagcase l.stuff[i]
+		tag space (width: int): width := width + neach
+		    if nextra > 0
+		       then width := width + 1
+			    nextra := nextra - 1
+		       end
+		    token$change_space(l.stuff[i], width)
+		others:
+		end
+	    end
+	l.length := l.length + diff
+	end enlarge_spaces
+
+% Return a count of the number  of  spaces  in  the  line	whose
+% indexes in the array are at least IDX, and return the index of
+% the last space counted.
+
+count_spaces = proc (l: rep, idx: int) returns (int, int)
+	count: int := 0
+	for i: int in int$from_to(idx, at$high(l.stuff)) do
+	    tagcase l.stuff[i]
+		tag space: count := count + 1
+		    idx := i
+		others:
+		end
+	    end
+	return(count, idx)
+	end count_spaces
+
+end line
+
+% A  word  is an item of text.  It may be output to a stream. It
+% has a width, which is the number of character  positions  that
+% are taken up when the word is printed.
+
+word = cluster is scan, width, output
+
+rep = string
+
+% Construct  a  word  whose  first  character  is	C  and	whose
+% remaining characters are to be removed from the instream.
+
+scan = proc (c: char, instream: stream) returns (cvt)
+	s: string := string$c2s(c)
+	s := s || stream$gets(instream, " \t\n")
+	    except when end_of_file: end
+	return(s)
+	end scan
+
+% Return the width of the word.
+
+width = proc (w: cvt) returns (int)
+	return(string$size(w))
+	end width
+
+% Output the word.
+
+output = proc (w: cvt, outstream: stream)
+	stream$puts(outstream, w)
+	end output
+
+end word

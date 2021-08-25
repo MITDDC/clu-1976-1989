@@ -1,0 +1,115 @@
+;;
+;; Clu garbage collector - step 3
+;;	Actual garbage collection (trace phase)
+;;
+;;	Map in GC area and set up copy window
+;;
+	move	r0,gspg		;; make "aobjn" pointer
+	sub	r0,gepg
+	soj	r0,		;; r0 = - # of pages
+	hrlz	r0,r0		;; in left half
+	hrr	r0,gspg
+	movem	pgdest
+	hrrz	r0,r0		;; from same pages in inferior
+	movem	pgsrc
+	.call	mapin
+	 $die	Couldn't map in GC area!
+;;
+;; Get fresh page for write window
+;;
+	move	r0,rwind
+	movem	r0,pgdest
+	.call	getpgs
+	 $die	Couldn't get fresh copy page
+;;
+;; Init copy window variables
+;;
+;;	cpptr: actual address in window of last used word
+;;		(space is allocated from high to low addresses)
+;;	cpptr2: address intended for stuff cpptr points to after GC
+;;	cppage: cpptr2 mod pgsize (i.e., page to put window in when full)
+;;
+	move	r0,hipage
+	movem	r0,cppage
+	lsh	r0,pglog2
+	movem	r0,cpptr
+	movem	r0,cpptr2
+;;
+;; Local register definitions
+;;
+mode==	10		;; used for one of five modes
+scnptr==11		;; address of stuff being processed now
+;;
+;; Modes:
+;;    There are five modes in tracing:
+;;	1) BS - basic area/stack scanning (looking for objects or refs)
+;;	2) BT - basic area/stack tracing (when inside objects found there)
+;;	3) GT - GC area tracing (for normal objects there)
+;;	4) GS - GC area scanning (inside vecs, etc.)
+;;	5) GST - GC area trace while scanning (for objects inside objects)
+;;
+;;	codes fro them are as follows:
+;;	mode	octal	binary
+;;	BT	0	000
+;;	BS	1	001
+;;	GT	2	010
+;;	GS	3	011
+;;	GST	4	100
+;;
+;;	thus,	bit 0 = 0 => tracing
+;;		bit 0 = 1 => scanning
+;;		bit 1 = 0 => no copy
+;;		bit 1 = 1 => copy
+;;		bits 1 & 2 = 0 => no forwarding address propagation
+;;		bit 1 or 2 = 1 => forwarding address propagation
+;;
+;;	(all this should become clear from the code!)
+;; Define mode codes
+;;
+bt==	0
+bs==	1
+gs==	2
+gt==	3
+gst==	4
+;;
+;; Now set up for and scan basic area, then stack
+;;
+	move	r0,bspg		;; first page processed is bspg
+	movem	r0,scanpg
+	movem	r0,pgsrc
+	move	r0,rwind
+	movem	r0,pgdest
+	.call	mapin		;; map it in to the read window
+	 $die	Couldn't map in first basic area page
+	move	r1,bstart	;; compute starting scan point
+	move	r2,r1		;; = rwind*pgsize+(bstart mod pgsize)
+	andi	r1,pgsize-1
+	lsh	r0,pglog2
+	or	r1,r0
+	sub	r2,bend		;; get - # of words and make aobjn pointer
+	soj	r2,
+	hrl	r1,r2
+	move	scnptr,r1	;; scan pointer all set
+	movei	mode,bs		;; set mode
+	push	sp,[-1,,basdun]	;; push return stuff
+	jrst	trace
+basdun:	move	r0,sspg		;; get first stack page
+	movem	r0,scanpg
+	movem	r0,pgsrc
+	move	r0,rwind
+	movem	r0,pgdest
+	.call	mapin
+	 $die	Couldn't map in first stack page
+	move	r1,sstart	;; set up to scan stack
+	move	r2,r1
+	andi	r1,pgsize-1
+	lsh	r0,pglog2
+	or	r1,r0
+	sub	r2,send
+	soj	r2,
+	hrl	r1,r2
+	move	scnptr,r1
+	movei	mode,bs
+	push	sp,[-1,stkdun]
+	jrst	trace
+stkdun:

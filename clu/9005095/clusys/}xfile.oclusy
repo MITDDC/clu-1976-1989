@@ -1,0 +1,3 @@
+file$puts(file$tyo(), "\12CLU support system.\12")
+erret()
+

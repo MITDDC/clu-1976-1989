@@ -1,0 +1,80 @@
+# include "tidefs.clu"
+
+av = array[vector]
+
+test = proc ()
+
+	s: stream := stream$create_write ("tty:")
+	test_vectors (s)
+	end test
+
+test_vectors = proc (s: stream)
+
+	a: av := av$new ();
+	for i: int in int$from_to (0, 10) do
+		test_vector_of_size (a, i)
+		end
+	for i: int in int$from_to_by (12, 40, 3) do
+		test_vector_of_size (a, i)
+		end
+	for i: int in int$from_to_by (50, 150, 11) do
+		test_vector_of_size (a, i)
+		end
+	for i: int in int$from_to_by (160, 400, 43) do
+		test_vector_of_size (a, i)
+		end
+	for i: int in int$from_to_by (500, 1200, 251) do
+		test_vector_of_size (a, i)
+		end
+	for i: int in int$from_to (0, 10) do
+		test_vector_of_size (a, i)
+		end
+	for i: int in int$from_to_by (12, 40, 3) do
+		test_vector_of_size (a, i)
+		end
+	for i: int in int$from_to_by (50, 150, 11) do
+		test_vector_of_size (a, i)
+		end
+	for i: int in int$from_to_by (160, 400, 43) do
+		test_vector_of_size (a, i)
+		end
+	for v: vector in av$elements (a) do
+		vector$print (v, s)
+		end
+	end test_vectors
+
+test_vector_of_size = proc (a: av, sz: int)
+	v: vector := vector$create (sz)
+	av$addh (a, v)
+	if sz>0 then
+		test_exists (v, 0)
+		test_exists (v, sz-1)
+		end
+	test_nonexists (v, -1)
+	test_nonexists (v, sz)
+	for i: int in int$from_to_by (1, sz-1, 1+sz/20) do
+		test_exists (v, i)
+		end
+	if sz>0 then
+		v[0] := 3
+		v[sz-1] := 4
+		end
+	if sz>2 then
+		v[1] := av$high (a)
+		end
+	end test_vector_of_size
+
+test_exists = proc (v: vector, i: int)
+	a: any := v[i]
+		except when bounds:
+			signal failure ("element not found")
+		end
+	end test_exists
+
+test_nonexists = proc (v: vector, i: int)
+	a: any := v[i]
+		except when bounds:
+			return
+		end
+	signal failure ("nonexistent element found")
+	end test_nonexists

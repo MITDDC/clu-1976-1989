@@ -1,0 +1,465 @@
+.insrt	clusys;alpha >
+
+cluster	%listen,0,0
+
+link	root,0
+
+proc	listen,[tyi,tyo]
+	$if	skipe	root(lr)
+	$then	call	%table$create,0
+		assn	root(lr),rr
+	$fi
+	$loop
+		call	revp,2,[tyi(er),tyo(er)]
+	$pool
+	$rtnc	$none
+corp	listen,[tyi,tyo]
+
+
+proc	revp,[tyi,tyo],[a],[0]
+	call	crlf,1,[tyo(er)]
+	slink	lnk,: 
+	call	chan$writes,2,[tyo(er),lnk(lr)]
+	call	simple,3,[tyi(er),tyo(er),$zero]
+	assn	a(er),rr
+	call	crlf,1,[tyo(er)]
+	call	print,2,[tyo(er),a(er)]
+	$rtnc	$none
+corp	revp,[tyi,tyo],[a]
+
+proc	erret,[],[e],[trel]
+	hrre	r0,(er)
+
+	$loop
+		$if	skipe	r0,(r0)
+		$then	$rtnc	$none
+		$fi
+		hrrm	r0,e(er)
+		hlro	g0,-1(r0)
+		call	pname,1,[g0]
+		slink	lnk,listen
+		$ift	call	string$equal,2,[rr,lnk(lr)]
+		$then	move	er,e(er)
+			hlrz	mr,-1(er)
+			move	pr,en.lpr(mr)
+			movs	lr,pr
+			$rtnc	$true
+		$fi
+		move	r0,e(er)
+		$pool
+	
+corp	erret,[],[e]
+
+proc	valret,[s]
+	link	lnk,tchar+0
+	call	string$append,2,[s(er),lnk(lr)]
+	movei	r0,1(rr)
+	hrli	r0,(.value)
+	xct	r0
+	$rtn	s(er)
+corp	valret,[s]
+
+;; simple = proc (tyi,tyo: chan, depth: int) returns (any);
+proc	simple,[tyi,tyo,depth],[c,cc,p,s,mark,i],[tchar,tchar,trel,tstr,trel,tint]
+	tcheck	tyi(er),tchan
+	tcheck	tyo(er),tchan
+	tcheck	depth(er),tint
+
+;;  depth := depth + 1;
+	call	int$add,2,[depth(er),$one]
+	movem	rr,depth(er)
+
+;;  while true do begin
+;;	c: char := chan$peek(tyi);
+    $loop
+	call	chan$peek,1,[tyi(er)]
+	movem	rr,c(er)
+
+;;	case c in
+;;	    '\7': return eprint(tyo,"quit!",depth);
+	link	bell,tchar+7
+	$ift	call	char$equal,2,[bell(lr),c(er)]
+	$then	slink	lnk,quit!
+		call	chan$readc,1,[tyi(er)]
+		call	eprint,3,[tyo(er),lnk(lr),depth(er)]
+		$rtn	rr
+;;	    '(': begin
+	link	lnklp,tchar+"(
+	$elf	call	char$equal,2,[lnklp(lr),c(er)]
+		$test
+;;		chan$readc(tyi);
+	$then	call	chan$readc,1,[tyi(er)]
+;;		p: proc := simple(tyi);
+		call	simple,3,[tyi(er),tyo(er),depth(er)]
+		movem	rr,p(er)
+
+;;		if bad(p) then return	eprint(tyo,"not a legal procedure!",depth);
+		$if	came	rr,$bad
+		$then	slink	lnk,not a legal procedure!
+			call	eprint,3,[tyo(er),lnk(lr),depth(er)]
+			$rtn	rr
+		$fi
+
+;;		mark();
+		hrrm	sp,mark(er)
+
+;;		while (c := chan$peek(tyi)) ~= ')'
+		$loop
+			call	chan$peek,1,[tyi(er)]
+			movem	rr,c(er)
+			link	lnkrp,tchar+")
+			$ift	call	char$equal,2,[lnkrp(lr),c(er)]
+			$then	$go	l$1
+;;		    do begin
+;;			x: any := simple(tyi);
+;;			if bad(x) then return eprint(tyo,"bad argument!",depth);
+;;				else if ~none(x) then push(x);
+			$else	call	simple,3,[tyi(er),tyo(er),depth(er)]
+				$if	came	rr,$bad
+				$then	slink	lnk,bad argument!
+					call	eprint,3,[tyo(er),lnk(lr),depth(er)]
+					$rtn	rr
+				$elf	hlrz	n1,rr
+					caie	n1,(tmrtn)
+				$then
+				$else	came	rr,$none
+					push	sp,rr
+				$fi
+			$fi
+;;			end;
+			$pool
+		$label	l$1
+;;		chan$readc(tyi);
+		call	chan$readc,1,[tyi(er)]
+;;		if nogood(p)
+;;		   then return eprint(tyo,"invoked object not a procedure!",depth);
+;;		   else return tuplecall(p);
+		move	rr,p(er)
+		$if	hlrz	n1,rr
+			caie	n1,(tint)
+		$then	pop	sp,r0		; get the nth element
+			add	r0,rr
+			move	rr,(r0)
+			$rtn	rr
+		$elf	hrrz	r0,rr
+			cail	r0,pgsize
+			cail	r0,gchi
+		$then	$if	hrrz	r0,en.lpr(rr)
+				cail	r0,pgsize
+				cail	r0,gchi
+			$then	$if	hlrz	n0,pr.cod(r0)
+					caie	n0,(tprep)
+				$then	mcall	(rr)	; call the given routine
+					$if	hlrz	n1,rr
+						caie	n1,(tmrtn)
+					$then	$mrtn	(rr)
+					$else	$rtn	rr
+					$fi
+				$fi
+			$fi
+		$fi
+		slink	lnk,invoked object not a procedure!
+		call	eprint,3,[tyo(er),lnk(lr),depth(er)]
+		$rtn	rr
+;;		end;
+;;	    ')': begin
+;;			if depth = 1 then chan$readc(tyi);
+;;			return;
+;;			end;
+		$elf	$test	call	char$equal,2,[c(er),lnkrp(lr)]
+		$then	$ift	call	int$equal,2,[depth(er),$one]
+			$then	call	chan$readc,1,[tyi(er)]
+			$fi
+			$rtnc	$none
+;;	    '&': begin
+;;			chan$readc(tyi);
+;;			c := char$lower(chan$readc(tyi));
+;;			case c in
+;;				't': return true;
+;;				'f': return false;
+;;				'n': return null;
+;;				out: return;
+;;				end;
+;;			end;
+		$elf	link	lnkamp,tchar+"&
+			$test	call	char$equal,2,[c(er),lnkamp(lr)]
+		$then	call	chan$readc,1,[tyi(er)]
+			call	chan$readc,1,[tyi(er)]
+			call	char$lower,1,[rr]
+			movem	rr,c(er)
+			$if	link	lnkt,tchar+"t
+				$test	call	char$equal,2,[rr,lnkt(lr)]
+			$then	$rtnc	$true
+			$elf	link	lnkf,tchar+"f
+				$test	call	char$equal,2,[c(er),lnkf(lr)]
+			$then	$rtnc	$false
+			$elf	link	lnkf,tchar+"n
+				$test	call	char$equal,2,[c(er),lnkf(lr)]
+			$then	$rtnc	$null
+			$else	$rtnc	$none
+			$fi
+;;	    '.': begin
+;;			chan$readc(tyi);
+;;			return dotval(idscan(tyi));
+;;		end;
+		$elf	link	lnkd,tchar+".
+			$test	call	char$equal,2,[c(er),lnkd(lr)]
+		$then	call	chan$readc,1,[tyi(er)]
+			call	idscan,1,[tyi(er)]
+			call	dotval,1,[rr]
+			$rtn	rr
+;;	    ':': begin
+;;			chan$readc(tyi);
+;;			return ass(idscan(tyi),simple(tyi,depth));
+;;		end;
+
+		$elf	link	lnk,tchar+":
+			$test	call	char$equal,2,[c(er),lnk(lr)]
+		$then	call	chan$readc,1,[tyi(er)]
+			call	idscan,1,[tyi(er)]
+			args	[rr]
+			call	simple,3,[tyi(er),tyo(er),depth(er)]
+			call	ass,2,[rr]
+			$rtn	rr
+;;	    '-': begin
+;;			chan$readc(tyi);
+;;			return int$neg(simple(tyi))
+;;			end;
+		$elf	link	lnkm,tchar+"-
+			$test	call	char$equal,2,[c(er),lnkm(lr)]
+		$then	call	chan$readc,1,[tyi(er)]
+			call	simple,3,[tyi(er),tyo(er),depth(er)]
+			call	int$neg,1,[rr]
+			$rtn	rr
+		$fi
+;;	    '0'..'9': begin
+;;		i: int := char$c2i(c)-char$c2i('0');
+;;		chan$readc(tyi);
+		$ift	call	numeric,1,[c(er)]
+		$then
+			call	char$c2i,1,[c(er)]
+			push	sp,rr
+			link	lnkc0,tchar+"0
+			call	char$c2i,1,[lnkc0(lr)]
+			call	int$sub,2,[rr]
+			movem	rr,i(er)
+			call	chan$readc,1,[tyi(er)]
+			$loop
+				call	chan$peek,1,[tyi(er)]
+				movem	rr,c(er)
+				$ift	call	numeric,1,[c(er)]
+				$then
+				$else	$go	l$2
+				$fi
+;;		while numeric(c := chan$peek(tyi))
+;;		  do begin
+				link	lnk10,tint+10.
+				call	int$mul,2,[i(er),lnk10(lr)]
+				push	sp,rr
+				call	char$c2i,1,[c(er)]
+				call	int$add,2,[rr]
+				push	sp,rr
+				call	char$c2i,1,[lnkc0(lr)]
+				call	int$sub,2,[rr]
+				movem	rr,i(er)
+;;			i := i*10+char$c2i(c)-char$c2i('0');
+				call	chan$readc,1,[tyi(er)]
+;;			chan$readc(tyi)
+				$pool
+			$label	l$2
+			$rtn	i(er)
+;;			end;
+;;			return i;
+;;		end;
+		$elf	$test	call	alpha,1,[c(er)]
+		$then
+;;	    'a'..'z','_','a'..'z':
+			call	idscan,1,[tyi(er)]
+			call	xfind,1,[rr]
+			$rtn	rr
+;;			return xfind(idscan(tyi));
+		$elf	link	lnkq1,tchar+"'
+			link	lnkq2,tchar+""
+			$ift	call	char$equal,2,[c(er),lnkq1(lr)]
+			$then
+			$else	call	char$equal,2,[c(er),lnkq2(lr)]
+			$fi
+			$test
+		$then
+;;	    '\'', '\"' : begin
+			call	chan$readc,1,[tyi(er)]
+			movem	rr,cc(er)
+;;		cc: char := chan$readc(tyi);
+;;		mark();
+			hrrm	sp,mark(er)
+;;		while (c:= chan$peek(tyi)) ~= cc do begin
+;;			push(chan$readc(tyi));
+			$loop
+				call	chan$peek,1,[tyi(er)]
+				movem	rr,c(er)
+
+				$ift	call	char$equal,2,[rr,bell(lr)]
+				$then	$rtn	$bad
+				$fi
+				$ift	call	char$equal,2,[rr,cc(er)]
+				$then	$go	l$4
+				$fi
+				call	chan$readc,1,[tyi(er)]
+				push	sp,rr
+;;			if c = '\\' then push(chan$readc(tyi));
+				$if	link	lnkb,tchar+"\
+					$test	call	char$equal,2,[c(er),lnkb(lr)]
+				$then	call	chan$readc,1,[tyi(er)]
+					push	sp,rr
+				$fi
+;;			end;
+			$pool
+			$label	l$4
+;;		chan$readc(tyi);
+			call	chan$readc,1,[tyi(er)]
+;;		s: str := string$parse(tuplecall(makestr));
+			hrrz	r0,sp
+			stypi	r0,(trel)
+			call	makestr,2,[mark(er),r0]
+			call	string$parse,1,[rr]
+			movem	rr,s(er)
+;;		if cc = '\"' then return s
+			$ift	call	char$equal,2,[cc(er),lnkq2(lr)]
+			$then	$rtn	s(er)
+;;			else return string$fetch(s,1)
+			$else	call	string$fetch,2,[s(er),$one]
+				$rtn	rr
+			$fi
+;;		end;
+;;	    out: 
+		$else
+;;			chan$readc(tyi);
+			call	chan$readc,1,[tyi(er)]
+		$fi
+	$pool
+;;	end;
+;;  end simple;
+corp	simple,[tyi,tyo,depth],[c,cc,p,s,mark,i]
+
+proc	alpha,[c]
+	link	lnkaa,tchar+"A
+	link	lnka,tchar+"a
+	link	lnkzz,tchar+"Z
+	link	lnkz,tchar+"z
+	link	lnku,tchar+"_
+	link	lnkd,tchar+"$
+
+	$ift	call	numeric,1,[c(er)]
+	$then	$rtn	rr
+	$fi
+	
+	$ift	call	char$equal,2,[c(er),lnku(lr)]
+	$then	$rtn	rr
+	$fi
+	
+	$ift	call	char$equal,2,[c(er),lnkd(lr)]
+	$then	$rtn	rr
+	$fi
+	
+	$ift	call	char$lt,2,[c(er),lnkaa(lr)]
+	$then	$rtnc	$false
+	$fi
+
+	$ift	call	char$gt,2,[c(er),lnkzz(lr)]
+	$then
+	$else	$rtnc	$true
+	$fi
+
+	$ift	call	char$lt,2,[c(er),lnka(lr)]
+	$then	$rtnc	$false
+	$fi
+
+	$ift	call	char$gt,2,[c(er),lnkz(lr)]
+	$then	$rtnc	$false
+	$else	$rtnc	$true
+	$fi
+
+corp	alpha,[c]
+
+proc	numer,[c]
+	link	lnk0,tchar+"0
+	link	lnk9,tchar+"9
+
+	$ift	call	char$lt,2,[c(er),lnk0(lr)]
+	$then	$rtnc	$false
+	$fi
+	$ift	call	char$gt,2,[c(er),lnk9(lr)]
+	$then	$rtnc	$false
+	$fi
+	$rtnc	$true
+corp	numeric,[c]
+
+proc	mstr,[l,h]
+	move	g0,h(er)
+	sub	g0,l(er)
+	$if	skiple	g0
+	$then	$rtn	$nulls
+	$fi
+	stypi	g0,(tint)
+	movei	n0,4400
+	stypi	n0,(tint)
+	call	tp2s,3,[l(er),g0,n0]
+	$rtn	rr
+corp	makestr,[l,h]
+
+proc	idscan,[tyi],[mark,c],[trel,tchar]
+;; idscan = proc (tyi: chan) returns (str);
+	hrrm	sp,mark(er)
+;;	mark();
+	call	chan$readc,1,[tyi(er)]
+	call	char$lower,1,[rr]
+	push	sp,rr
+;;	push(char$lower(chan$readc(tyi)));
+	$loop
+		call	chan$peek,1,[tyi(er)]
+		movem	rr,c(er)
+		$ift	call	alpha,1,[rr]
+		$then
+		$else	$go	l$3
+		$fi
+;;	while alpha(c:=chan$peek(tyi)) do begin
+		call	chan$readc,1,[tyi(er)]
+		call	char$lower,1,[rr]
+		push	sp,rr
+;;		push(char$lower(chan$readc(tyi)));
+		$pool
+	$label	l$3
+
+	move	r0,sp
+	stypi	r0,(trel)
+	call	makestr,2,[mark(er),r0]
+	$rtn	rr
+;;	return tuplecall(makestr);
+;;	end idscan;
+corp	idscan,[tyi],[mark,c]
+
+proc	ass,[x,y]
+	tcheck	x(er),tstr
+	call	%table$enter,3,[root(lr),x(er),y(er)]
+	$rtn	y(er)
+corp	ass,[x,y]
+
+proc	dotval,[x]
+	call	%table$value,2,[root(lr),x(er)]
+	$rtn	rr
+corp	dotval,[x]
+
+proc	eprint,[tyo,s,i]
+	move	rr,i(er)
+	$if	came	rr,$one
+	$then	call	crlf,1,[tyo(er)]
+		call	chan$writes,2,[tyo(er),s(er)]
+		$rtnc	$none
+	$fi
+	$rtnc	$bad
+corp	eprint,[tyo,s,i]
+
+retsulc	%listen
+
+.insrt	clusys;omega >
+

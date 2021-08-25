@@ -1,0 +1,237 @@
+;;
+;; Clu garbage collector - step 1
+;;	Arguments and initialization
+;;
+;; Arguments are as follows:
+;;	register 0	end of basic&types,,start of basic&types
+;;		 1	end of stack,,start of stack
+;;		 2	end of GC area,,start of GC area
+;;		 3	anything,,frame pointer to trace from
+;;		 4	last page to use,,first page to use
+;;		 5	last page to map out,,first to map out
+;;
+;; The names for registers below are used only here
+;;
+bas==	0
+stk==	1
+gca==	2
+frm==	3
+use==	4
+map==	5
+;;
+;; First, store arguments
+;;
+	hrrzm	bas,bstart	;; save pointers defining basic area
+	hlrz	bas,bas
+	movem	bas,bend
+	camg	bas,bstart	;; make sure size of basic area > 0
+	 $die	Start of basic area > end!
+	hrrzm	stk,sstart	;; save pointers to stack
+	hlrz	stk,stk
+	movem	stk,send
+	camg	stk,sstart	;; make sure size of stack > 0
+	 $die	Start of stack > end!
+	hrrzm	gca,gstart	;; save pointers to garbage collected area
+	hlrz	gca,gca
+	movem	gca,gend
+	camg	gca,gstart	;; make sure its size is > 0
+	 $die	Start of GC area > end!
+	hrrz	frm,frm		;; save the frame pointer
+	movem	frm,frame
+	camge	frm,sstart	;; make sure it points inside the stack
+	 $die	Frame pointer not in stack!
+	camle	frm,send
+	 $die	Frame pointer not in stack!
+	hrrzm	use,lopage	;; save numbers of highest and lowest usable pages
+	hlrz	use,use		;; (usable means space we can use for storage during
+	movem	use,hipage	;;  GC; it includes GC area, stack, etc.)
+	camge	use,lopage	;; make sure its size is > 0
+	 $die	Start of usable > end!
+	hrrzm	map,lomap	;; save numbers of highest and lowest pages
+	hlrz	map,map		;; to be mapped out
+	movem	map,himap
+	camge	map,lomap	;; make sure its size >= 0
+	 $die	Start of mapped > end!
+;;
+;; Now compute page numbers of areas
+;;
+	move	r1,[-6,,bstart]
+loop11:	move	r0,(r1)
+	lsh	r0,-pglog2
+	movem	r0,6(r1)
+	aobjn	r1,loop11
+;;
+;; Compute checks on size and placement of pages, as follows:
+;;
+;;	we give an error if there is not enough room in the usable area;
+;;	we need at least 1 more page than twice what the stack uses,
+;;	(used like this:
+;;		our stack (>= 1 page),
+;;		frame save pages (= size of stack, compacted when done),
+;;		the stack (= size of stack)), and
+;;	we need at least 4 more pages than the gc area uses, and
+;;	the addresses must work out like this:
+;;		at least two pages, gc area, at least two pages;
+;;	(we use the space like this:
+;;		our stack (>= 1 page),
+;;		frame save (>= 1 page),
+;;		gc area,
+;;		read window (= 1 page),
+;;		write window (= 1 page)).
+;;
+	move	r0,hipage	;; # usable pages = high-low+1
+	sub	r0,lopage
+	aoj	r0,		;; r0 = # usable pages
+	move	r1,sepg		;; likewise for # stack pages
+	sub	r1,sspg
+	aoj	r1,
+	ash	r1,1
+	aoj	r1,		;; r1 = number of pages required for stack hacking
+	camge	r0,r1		;;    = 2*(# stack pages)+1
+	 $die	Not enough pages for stack hacking
+	move	r0,gspg		;; make sure at least 2 pages free below GC area
+	subi	r0,2
+	camge	r0,lopage
+	 $die	Not enough pages below GC area
+	move	r0,gepg		;; make sure at least 2 pages free above GC area
+	addi	r0,2
+	camle	r0,hipage
+	 $die	Not enough pages above GC area
+	move	r0,hipage	;; save the page numbers of the write window page
+	movem	r0,wwind
+	soj	r0,
+	movem	r0,rwind	;; and the read window page
+	move	r0,lopage	;; make sure all space used is mapped out
+	camge	r0,lomap
+	 $die	Used space not mapped out!
+	move	r0,hipage
+	camle	r0,himap
+	 $die	Used space not mapped out!
+;;
+;; Set up new interrupt table
+;;
+	move	r0,inttab	
+	exch	r0,intptr
+	movem	r0,optr
+;;
+;; Create inferior job (we use its address space as storage; it never runs)
+;;
+	move	r0,[sixbit /CLUGC0/]
+	movem	r0,jobnam
+tryit:	.call	jexist		;; this call skips if a job with the given name exists
+	 jrst	[movei	r2,4	;; error code meaning job exists
+		 came	r2,errcod
+		  $die	Call to see if job exists failed in wrong way!!
+		 jrst	makeit]	;; try to make job
+	.call	[setz		;; close the channel
+		 ciarg	usro
+		 clerr	errcod]
+again:	aos	jobnam		;; try another name
+	jrst	tryit
+makeit:	.call	jmake		;; this actually creates the job
+	 jrst	[move	r2,errcod	;; check error code
+		 cain	r2,12		;; 12 => job not inferior
+		  jrst	again
+		 cain	r2,6		;; 6 => no job slots
+		  $die	No jobs slots available for GC
+		 cain	r2,5		;; 5 => already have 8 inferiors
+		  $die	No inferiors available for GC
+		 $die	Couldn't get job for GC (strange error)
+		]
+;;
+;; Map out pages asked to
+;;
+	move	r0,lomap
+	movn	r1,himap	;; # of pages = hi - lo + 1 = n
+	add	r1,r0
+	soj	r1,
+	hrl	r0,r1		;; r0 = -n,,lo
+	movem	r0,pgdest
+	hrrzm	r0,pgsrc		;; for other pointer
+	.call	mapem		;; map pages out
+	 $die	Couldn't map pages out
+;;
+;; Jump to next phase
+;;
+	jrst	cont2
+;;
+;; Put variables here
+;;
+;; First, the pointers that define the various areas:
+;;	note: these six must be together, and bstart must be first!
+;;
+bstart:	block	1		;; address of first word of basic&types area
+bend:	block	1		;; address of last word of basic&types area
+sstart:	block	1		;; address of first word of the stack
+send:	block	1		;; address of last word of the stack
+gstart:	block	1		;; address of first word of the GC area
+gend:	block	1		;; address of last word of the GC area
+;;
+;;	These six must also be together, in the same order as the six above,
+;;		and just after them!
+;;
+bspg:	block	1		;; number of first page of basic&types
+bepg:	block	1		;; number of last page of basic&types
+sspg:	block	1		;; number of first page of the stack
+sepg:	block	1		;; number of last page of the stack
+gspg:	block	1		;; number of first page of the GC area
+gepg:	block	1		;; number of last page of the GC area
+;;
+;;	Rest of arguments
+;;
+frame:	block	1		;; pointer to top frame in the stack
+lopage:	block	1		;; number of lowest page to use
+hipage:	block	1		;; number of highest page to use
+lomap:	block	1		;; number of lowest page to map out
+himap:	block	1		;; number of highest page to map out
+rwind:	block	1		;; number of read window page
+wwind:	block	1		;; number of write window page
+;;
+;; Interrupt hacking stuff
+;;
+intptr==42			;; loc of pointer to interrupt table
+optr:	block	1		;; old pointer to interrupt table
+inttab:	-intlen,,intrup		;; new interrupt table word
+;;
+;;	New interrupt table
+;;
+intrup:	400020,,intpdl		;; push all regs, and debugging info
+				;; intpdl is intr stack ptr
+	%pipdl	? 0 ? %pipdl ? 0 ? pdlov
+		;; pdl is 1st word, masks self, handler is pdlov
+	%pimpv	? 0 ? %pimpv ? 0 ? mpvint
+		;; mpv is 1st word, masks self, handler is mpvint
+intlen==.-intrup
+;;
+;;	New interrupt stack pointer and stack
+;;
+intpdl:	-istkln,,intstk		;; new interrupt stack pointer
+intstk:	block	48.		;; new interrupt stack, room for 2 interrupts
+istkln=	.-intstk
+;;
+;;	Interrupt handlers
+;;
+;;		PDL Overflow handler
+;;
+pdlov:	$die	Push down stack overflow
+	.call	intdis		;; dismiss (assume DDT took care of it)
+	 $die	Couldn't dismiss PDL OV interrupt
+;;
+;;		MPV Interrupt handler
+;;
+mpvint:	$die	MPV interrupt
+	.call	intdis		;; dismiss (assume DDT took care of it)
+	 $die	Couldn't dismiss MPV interrupt
+;;
+;; Job hacking stuff
+;;
+usro==	17			;; channel # for job as output
+jobnam:	block	1		;; word for job name
+;;
+;; Constants for locality
+;;
+	consta
+;;
+;; Start of next phase
+;;
+cont2:

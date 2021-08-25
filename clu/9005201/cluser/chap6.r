@@ -1,0 +1,24 @@
+.chapter "Proving an Implementation Correct"
+	This chapter is concerned with establishing the correctness of programs that
+implement data abstractions.  What we desire is a process which establishes that a
+program correctly implements a concept that exists in someone's mind.  To do this
+formally, it is necessary to provide a mathematical description of the concept.  This
+can be done by a formal specification technique.  The correctness of the program is
+then established by proving that it is equivalent to the specification.
+	Here, the homomorphism property will be used in the proofs.
+In general, this involves
+showing the following.  Assume there is a class of abstract objects A with abstract
+operations 4w*a1, ..., 4w*an.  Furthermore, suppose that x*
+is the concrete representation of an abstract object belonging to A.  Hence, in
+general, x* will be a collection or record of concrete variables.  Let C be the
+collection of all such x*.  Finally, suppose that 4w*c1, ...,
+4w*c1 are the concrete operations that purport to be implementations of the
+abstract operations 4w*a1, ..., 4w*an.  Then, the
+homomorphism property involves defining a representation function, rep, mapping
+from C onto A and showing for each i, 1<_i<_n,
+			4w*ai(rep(x*) = rep(4w*ci(x*)).
+	Before attempting such a proof, two steps must be performed.  First, the
+concrete representation of a data abstraction must be characterized.  This is discussed
+in Section 6.1.  Then the representation function must be described.  For our purposes,
+this involves showing how to map the collection of concrete objects C onto the state set
+of a state machine specification.  Section 6.2 is concerned with this issue.

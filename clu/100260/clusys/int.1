@@ -1,0 +1,202 @@
+
+	.insrt	clusys;alpha >
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;	the integer (int) cluster    ;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+cluster	int,ttype(tint),0,[]
+
+edesc	e$1,overflow
+edesc	e$2,zero_divide
+
+proc	i.add,[x,y]
+	tcheck	x(er),tint
+	tcheck	y(er),tint
+	hrre	n0,x(er)
+	hrre	n1,y(er)
+	add	n0,n1
+	hrre	n1,n0
+	$if	camn	n0,n1
+	$then	signal	e$1
+	$fi
+	stypi	rr,(tint)
+	hrr	rr,n0
+	$rtn	rr
+corp	int$add,[x,y]
+
+proc	i.sub,[x,y]
+	tcheck	x(er),tint
+	tcheck	y(er),tint
+	hrre	n0,x(er)
+	hrre	n1,y(er)
+	sub	n0,n1
+	hrre	n1,n0
+	$if	camn	n0,n1
+	$then	signal	e$1
+	$fi
+	stypi	rr,(tint)
+	hrr	rr,n0
+	$rtn	rr
+corp	int$sub,[x,y]
+
+proc	i.mul,[x,y]
+	tcheck	x(er),tint
+	tcheck	y(er),tint
+	hrre	n0,x(er)
+	hrre	n1,y(er)
+	mul	n0,n1
+	hrre	n0,n1
+	$if	camn	n0,n1
+	$then	signal	e$1
+	$fi
+	stypi	rr,(tint)
+	hrr	rr,n0
+	$rtn	rr
+corp	int$mul,[x,y]
+
+proc	i.div,[x,y]
+	tcheck	x(er),tint
+	tcheck	y(er),tint
+	hrre	n0,x(er)
+	hrre	n1,y(er)
+	$if	skipe	n1
+	$then	signal	e$2,1,[x(er)]
+	$fi
+	idiv	n0,n1
+	hrre	n1,n0
+	$if	camn	n0,n1
+	$then	signal	e$1
+	$fi
+	stypi	rr,(tint)
+	hrr	rr,n0
+	$rtn	rr
+corp	int$div,[x,y]
+
+proc	i.mod,[x,y]
+	tcheck	x(er),tint
+	tcheck	y(er),tint
+	hrre	n0,x(er)
+	hrre	n2,y(er)
+	$if	skipe	n2
+	$then	signal	e$2,1,[x(er)]
+	$fi
+	idiv	n0,n2
+	hrre	n0,n1
+	$if	camn	n0,n1
+	$then	signal	e$1
+	$fi
+	stypi	rr,(tint)
+	hrr	rr,n0
+	$rtn	rr
+corp	int$mod,[x,y]
+
+proc	i.neg,[x]
+	tcheck	x(er),tint
+	hrre	n0,x(er)
+	movn	n0,n0
+	hrre	n1,n0
+	$if	camn	n1,n0
+	$then	signal	e$1
+	$fi
+	stypi	n1,(tint)
+	$rtn	n1
+corp	int$neg,[x]
+
+proc	i.abs,[x]
+	tcheck	x(er),tint
+	hrre	n0,x(er)
+	$if	skipge	n0
+	$then	movn	n0,n0
+		$if	skipl	n0
+		$then	signal	e$1
+		$fi
+	$fi
+	stypi	n0,(tint)
+	$rtn	n0
+corp	int$abs,[x]
+
+proc	i.eq,[x,y]
+	tcheck	x(er),tint
+	tcheck	y(er),tint
+	move	n0,x(er)
+	$if	came	n0,y(er)
+	$then	$rtnc	$true
+	$fi
+	$rtnc	$false
+corp	int$equal,[x,y]
+
+proc	i.gt,[x,y]
+	tcheck	x(er),tint
+	tcheck	y(er),tint
+	hrre	n0,x(er)
+	hrre	n1,y(er)
+	$if	camg	n0,n1
+	$then	$rtnc	$true
+	$else	$rtnc	$false
+	$fi
+corp	int$gt,[x,y]
+
+proc	i.lt,[x,y]
+	tcheck	x(er),tint
+	tcheck	y(er),tint
+	hrre	n0,x(er)
+	hrre	n1,y(er)
+	$if	caml	n0,n1
+	$then	$rtnc	$true
+	$else	$rtnc	$false
+	$fi
+corp	int$lt,[x,y]
+
+proc	i.i2s,[i]
+	cshift==chsize
+	tcheck	i(er),tint
+	hrre	n0,i(er)
+	$if	skipl	n0
+		cail	n0,10.		; for single character
+	$then	stypi	n0,(tstr)	; a quick return is possible
+		addi	n0,60
+		$rtn	n0
+	$fi
+	movm	n0,n0		; otherwise get the magnitude of the number
+	movei	n2,0		; clear the char accumulators
+	movei	n3,0
+	movei	r0,0		; and the counter
+i2s1==.-proc$
+		idivi	n0,10.		; get a low order
+		addi	n3,60(n1)	; char into n3
+		rotc	n2,-cshift	; and shift it around in <n2,n3>
+		aos	r0		; bump the count
+		jumpn	n0,i2s1(pr)	; and loop until number is done
+	hrre	n0,i(er)
+	jumpge	n0,i2s2(pr)	; if we need a - sign
+	addi	n3,"-		; then shift that in
+	rotc	n2,-cshift
+	aos	r0		; and maintain the count
+i2s2==.-proc$
+	rotc	n2,-1		; shift last bit out to n3
+	lsh	n2,1		; and back in to n2
+	hrli	r0,(tsrep)	; get the code to fill with in r0
+	movei	n1,2		; default is 2 words
+	skipe	n3
+	aos	n1		; but we may need 3
+	alloc	(n1),r0		; allocate the mem, filling with the code
+	movem	n2,1(rr)	; fill the string, too
+	skipe	n3
+	movem	n3,2(rr)
+	stypi	rr,(tstr)	; show the type
+	$rtn	rr		; and return the string
+corp	int$i2s,[i]
+
+proc	i.sim,[x,y]
+	move	n1,x(er)
+	$crtnb	came	n1,y(er)
+corp	int$similar,[x,y]
+
+proc	i.cop,[x]
+	$rtn	x(er)
+corp	int$copy,[x]
+
+retsulc	int
+
+	.insrt	clusys;omega >
+

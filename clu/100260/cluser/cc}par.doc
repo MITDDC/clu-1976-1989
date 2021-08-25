@@ -1,0 +1,302 @@
+% CC_PAR DOC
+%
+% CLU 3.1 compiler:  parser documentation
+%
+% description of lookaheads and possible errors for
+% each element of the parser syntax
+%
+% Semantic info not yet included (i.e., processing
+% needed for idns, etc., or errors such
+% as declaring an idn twice)
+
+
+% peekn is nth token in stream (n=1 is next token, etc.)
+%
+% optional clauses are included in [...]
+
+definition:	if peek1="#" then include
+		ident := idn		% ident may be an idn or "rep"
+		accept("=")
+		case peek1 in
+			"proc":	 proc(ident)
+			"iter":	 iter(ident)
+			"cluster":	cluster(ident)
+			others:	 equates(ident)	% list of equates
+						% each equate may be followed by a ";"
+
+proc:		args: ident			% "=" already accepted
+		accept("proc")
+		[parm_list]
+		arg_list
+		[returns]
+		[signals]
+		[where] [";"]
+		body
+		accept("end")
+		[idn]		% make sure idn is not beginning of next defintion
+
+iter:		args: ident			% "=" already accepted
+		accept("iter")
+		[parm_list]
+		arg_list
+		[yields]
+		[signals]
+		[where] [";"]
+		body
+		accept("end")
+		[idn]		% ditto from proc
+
+cluster:	args: ident			% "=" already accepted
+		accept("cluster")
+		[parm_list]
+		is_list
+		[where] [";"]
+		sections	% list of procs, iters, or equates,
+				% each optionally ending in ";"
+		accept("end")
+		[idn]		% ditto from proc
+
+
+decl:		idn_list
+		accept(":")
+		type
+
+exception:	name
+		[type_list]
+
+restrict:	idn_list
+		case peek1 in
+			"has":  accept("has")
+				operdecl_list
+			"in":   accept("in")
+				case peek1 in
+					"{":  type_set
+					others:  idn
+
+operdecl:	opname_list
+		accept(":")
+		type
+
+opname:		name
+		[const_list]
+
+sections:	% grab iters, procs, and equates until run out
+		% may be separated by ";"
+
+equate:		args: ident		% "=" already accepted
+					% ident may be "rep"
+		case peek1 in
+			"{":  type_set
+			"[":  rename_list
+			others:  const
+
+const:		% if definitely a type then parse as such
+		% else parse as an expr
+
+
+type_set:	accept("{")
+		idn
+		accept("|")
+		idn
+		accept("has")
+		operdecl_list
+		[";"]
+		[equates]		% each may be terminated by ";"
+
+type:		case peek1 in
+			"bool":	accept("bool")
+			"int":	accept("int")
+			"string":  accept("string")
+			"char":	accept("char")
+			"rep":	accept("rep")
+			"null":	accept("null")
+			"cvt":	accept("cvt")
+			"any":	accept("any")
+			"type":	accept("type")
+			"array":   accept("array")
+				   accept("[")
+				   type
+				   accept("]")
+			"record":  accept("record")
+				   fieldspeclist
+			"oneof":   accept("oneof")
+				   fieldspeclist
+			"proctype":  accept("proctype")
+				     type_list	 % zero or more types enclosed by parens
+				     [returns]
+				     [signals]
+			"itertype":  accept("itertype")
+				     type_list 	 % zero or more types enclosed by parens
+				     [yields]
+				     [signals]
+			idn:	idn
+				[const_list]
+
+fieldspec:	name_list
+		accept(":")
+		type
+
+
+body:		equates		% zero or more equates
+		stmts		% zero or more stmts
+				% each may be optionally terminated with ";"
+
+stmt:		case peek1 in
+			"while":    accept("while")
+				    expr
+				    accept("do")
+				    body
+				    accept("end")
+			"for":	    accept("for")
+				    forvars
+				    accept("in")
+				    invoke
+				    accept("do")
+				    body
+				    accept("end")
+			"if":	    accept("if")
+				    expr
+				    accept("then")
+				    body
+				    elseifs	% zero or more elseif's
+				    [accept("else")
+				     body]
+				    accept("end")
+			"tagcase":  accept("tagcase")
+				    expr
+				    tag_list	% one or more tagarm's
+				    [accept("others")
+				     accept(":")
+				     body]
+				    accept("end")
+			"return":   accept("return")
+				    expr_list	% zero or more expr's
+			"yield":    accept("yield")
+				    expr_list	% ditto for return
+			"signal":   accept("signal")
+				    name
+				    [accept("(")
+				     expr_list	% one or more expr's
+				     accept(")")]
+			"break":    accept("break")
+			"begin":    accept("begin")
+				    body
+				    accept("end")
+			%	assn's, decl's, invoke's
+		[accept("except")
+		 whens			% zero or more handlers
+		 [othersarm]
+		 accept("end")]
+
+forvars:	% zero or more idn's or zero or more decl's
+
+whenspec:	name_list
+		[accept("(")
+		 whendecl_list
+		 accept(")")]
+
+whendecl:	case peek1 in
+			"*":  accept("*")
+			others:  decl
+
+
+expr:	% use following syntax:
+	%
+	% expr: E0
+	%
+	% EO:	E0 COR E1
+	%	| E0 | E1
+	%	| E1
+	%
+	% E1:	E1 CAND E2
+	%	| E1 & E2
+	%	| E2
+	%
+	% E2:	E2 ~= E3
+	%	| E2 = E3
+	%	| E2 ~< E3
+	%	| E2 >= E3
+	%	| E2 > E3
+	%	| E2 ~> E3
+	%	| E2 <= E3
+	%	| E2 < E3
+	%	| E3
+	%
+	% E3:	E3 - E4
+	%	| E3 + E4
+	%	| E3 || E4
+	%	| E4
+	%
+	% E4:	E4 * E5
+	%	| E4 / E5
+	%	| E4 // E5
+	%	| E5
+	%
+	% E5:	prim ** E5
+	%	| prim
+	%
+
+
+prim:		case peek1 in
+			"~":  accept("~")
+			      prim
+			"-":  accept("-")
+			      prim
+			"(":  accept("(")
+			      expr
+			      accept(")")
+			others:	primary
+
+primary:		% primaries are parsed in an iterative manner,
+			% essentially bottom-up, in contrast to most of
+			% the rest of this, which is top-down.
+			% The largest primary possible is parsed, leading to
+			% minor differences between the syntax for an invoke
+			% and the way it is parsed (explained below).
+	%	grab one of the following:
+	%		"NIL"
+	%		"TRUE"
+	%		"FALSE"
+	%		string
+	%		char
+	%		int
+	%		"FORCE [" type "]"
+	%		"UP (" expr ")"
+	%		"DOWN (" expr ")"
+	%		type "${" field_list "}"
+	%		type "$[" [expr ":"] expr_list "]"	% zero or more exprs
+	%		type "$" name["[" const_list "]"]	% one or more consts
+	%		idn
+	%	iterate, grabbing one of the following each time
+	%	(until none are left - cons them together in a left-
+	%	associative manner):
+	%		"." name
+	%		"[" expr "]"
+	%		"(" expr_list ")" ["!" renaming]	% zero or more exprs
+
+
+invoke:			% the syntax for an invoke is:
+			%	primary ( exprlist ) [ ! renaming ]
+			% since parsing a primary will grab the
+			% exprlist and renaming (to get the largest
+			% possible primary since invokes are primaries)
+			% an invoke is parsed by grabbing a primary
+			% and then checking to make sure it is an invoke
+		primary
+	%	make sure that the primary is an invoke 
+
+renaming:	tagcase peek1 in
+			ident:	idn
+			others:	accept("[")
+				rename_list		% one or more renames
+				accept("]")
+
+rename:		name_list			% one or more names
+		accept("to")
+		name
+
+field:		name_list			% one or more names
+		accept(":")
+		expr
+
+etc.....

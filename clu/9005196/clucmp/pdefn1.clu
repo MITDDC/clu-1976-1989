@@ -1,0 +1,294 @@
+%	PDEFN1	CLU
+%
+%	CLU 3 compiler:  parsing routines for definitions
+
+% In the comments, <> is used for the cursor position
+
+% definition => directive | equatelist | applydefn sc | typedefn sc
+% applydefn => procedure | iterator
+% typedefn => cluster | selector | applytype | monitor
+
+p_definition = proc (e: env) returns (definition) signals (eof);
+	not_oper = false;
+	e.clustr := "";
+	e.applystr := "";
+	tagcase e.peek1
+	   tag sharp: env$next_token(e);
+		      return(p_directive(e));
+			   except when eof: signal eof; end;
+	   others:    ;
+	   end;
+	if ~p_find_a_defn(e, not_oper)
+	   then signal eof; end;
+	def: definition;
+	tagcase env$peek(e, 3)
+	   tag defnkey (k: defnkey):
+		tagcase k
+		   tag proc_:      def := definition$make_apply(p_applydefn(e, true));
+		   tag iter_:      def := definition$make_apply(p_applydefn(e, false));
+		   tag cluster_:   def := definition$make_cluster_(p_typedefn(e));
+		   tag selector_:  def := definition$make_selector_(p_typedefn(e));
+		   tag applytype_: def := definition$make_atype(p_typedefn(e));
+		   tag monitor_:   def := definition$make_cluster_(p_typedefn(e));
+		   end;
+	   others:
+		def := definition$make_equates(p_equatelist(e));
+	   end;
+	return(def);
+	end p_definition;
+
+% directive => # <> INCLUDE string | # <> EXTEND | # <> NORMAL
+% The include file must have only equates
+
+p_directive = proc (e: env) returns (definition) signals (eof);
+	tagcase e.peek1
+	   tag idn (k: idn):
+		env$next_token(e);
+		dir: str := k.str;
+		if dir = "include"
+		   then return(p_include(e));
+			   except when include_failed: ; end;
+		elseif dir = "extend"
+		   then env$hack(e);
+		elseif dir = "normal"
+		   then env$unhack(e);
+		else env$err(e, "unrecognized directive", serious); end;
+	   others:
+		env$err(e, "missing directive after #", serious);
+	   end;
+	return(p_definition(e));
+	   except when eof: signal eof; end;
+	end p_directive;
+
+p_include = proc (e: env) returns (definition) signals (include_failed);
+	tagcase e.peek1
+	   tag str (k: str):
+		env$next_token(e);
+		inf: file := file$open_read(k);
+		e1: env := env$new_env(e, inf);
+		def: definition := definition$make_equates(p_equatelist(e1));
+		tagcase e1.peek1
+		   tag eof: ;
+		   others:  env$err(e1, "more than equates in include file",
+						minor);
+		   end;
+		file$close(inf);
+		e.err := e1.err;
+		return(def);
+	   others:
+		env$err(e, "missing file name string after # include", serious);
+	   end;
+	   except when open_failed: env$err(e, "cannot open include file", serious);
+		  end;
+	   signal include_failed;
+	end p_include;
+
+% procedure => idn = PROC parms args returns signals where body END idn
+% iterator => idn = ITER parms args yields signals where body END idn
+
+p_applydefn = proc (e: env, procdef: bool) returns (applydefn);
+	line: int := e.line;
+	id: idn := p_idn(e);
+	env$next_token(e);
+	env$next_token(e);
+	gen: DUfake;
+	if procdef
+	   then gen := e.proc_fake;
+	   else gen := e.iter_fake;
+	   end;
+	parms: decllist := p_parms(e);
+	args: decllist := p_args(e);
+	vals: typelist := p_values(e, procdef);
+	sigs: exceptionlist := p_signals(e);
+	wher: restrictlist := p_where(e);
+	e.applystr := id.str;
+	env$set_deftype(e, procdef, typelist$size(vals) > 0);
+	p_semi(e);
+	env$begin_body(e, misc_body);
+	eqs: equatelist := p_equatelist(e);
+	inits: initlist := p_initlist(e);
+	bod: stmtlist := p_stmtlist(e);
+	env$end_body(e);
+	p_defn_end(e, id.str);
+	return(applydefn${idn:     id,
+			  gen:     gen,
+			  type_:   e.unknown_type,
+			  parms:   parms,
+			  args:    args,
+			  vals:    vals,
+			  sigs:    sigs,
+			  where_:  wher,
+			  equates: eqs,
+			  init:    inits,
+			  vars:    idnlist$predict(1, 10),
+			  body:    bod,
+			  line:    line});
+	end p_applydefn;
+
+% cluster => idn = CLUSTER parms IS idnlist where sc equatelist applydefnlist END idn
+% selector => idn = SELECTOR ...
+% applytype => idn = APPLYTYPE ...
+% monitor => idn = MONITOR ...
+
+p_typedefn = proc (e: env) returns (typedefn);
+	line: int := e.line;
+	id: idn := p_idn(e);
+	env$next_token(e);
+	env$next_token(e);
+	parms: decllist := p_parms(e);
+	ops: idnlist;
+	tagcase e.peek1
+	   tag is_: env$next_token(e);
+		    ops := p_idnlist(e);
+	   others:  env$assume(e, "IS idnlist in module header");
+		    ops := idnlist$create(1);
+	   end;
+	wher: restrictlist := p_where(e);
+	p_semi(e);
+	e.clustr := id.str;
+	equates: equatelist := p_equatelist(e);
+	inits: initlist := p_initlist(e);
+	bod: applydefnlist := p_applydefnlist(e);
+	p_defn_end(e, id.str);
+	return(typedefn${idn:     id,
+			 parms:   parms,
+			 up_:     e.unknown_type,
+			 down_:   e.unknown_type,
+			 ops:     ops,
+			 where_:  wher,
+			 equates: equates,
+			 init:    inits,
+			 body:    bod,
+			 line:    line});
+	end p_typedefn;
+
+% equatelist => empty | equate sc equatelist
+% equate => idn = expr | idn = typeset | idn = PATHNAME string
+
+p_equatelist = proc (e: env) returns (equatelist);
+	equates: equatelist := equatelist$create(1);
+	while true do
+		id: idn;
+		line: int := e.line;
+		tagcase e.peek1
+		   tag idn (k: idn):
+			id := k;
+		   tag typekey (k: typekey):
+			tagcase k
+			   tag rep_: id := env$get_idn(e, "REP");
+			   others:   return(equates);
+			   end;
+		   others:
+			return(equates);
+		   end;
+		tagcase env$peek(e, 2)
+		   tag op (k: infixop):
+			   if "equal" ~= k.op  cor  k.neg
+			      then return(equates); end;
+		   others: return(equates);
+		   end;
+		k: token := env$peek(e, 3);
+		tagcase k
+		   tag defnkey: return(equates);		% Don't gobble a module!
+		   others:      ;
+		   end;
+		env$next_token(e);
+		env$next_token(e);
+		val: equateval;
+		tagcase k
+		   tag l_curly:
+			env$next_token(e);
+			val := equateval$make_typeset(p_typeset(e));
+		   tag idn (tk: idn):
+			if "pathname" = tk.str
+			   then env$next_token(e);
+				val := equateval$make_du(p_pathname(e));
+			   else val := equateval$make_expr(p_expr(e, min_prec));
+			   end;
+		   others:
+			val := equateval$make_expr(p_expr(e, min_prec));
+		   end;
+		equatelist$addh(equates, equate$create(id, val, line));
+		p_semi(e);
+		end;
+	end p_equatelist;
+
+% initlist => empty | OWN declinit sc initlist
+
+p_initlist = proc (e: env) returns (initlist);
+	inits: initlist := initlist$create(1);
+	while true do
+		line: int := e.line;
+		tagcase e.peek1
+		   tag stmtkey (k: stmtkey):
+			tagcase k
+			   tag own_: env$next_token(e);
+			   others:   return(inits);
+			   end;
+		   others:
+			return(inits);
+		   end;
+		 di: declinit := p_declinit(e);
+		 initlist$addh(inits, init${stmt: di,
+					    line: line});
+		 p_semi(e);
+		 end;
+	end p_initlist;
+
+% applydefnlist => applydefn sc | applydefn sc applydefnlist
+
+p_applydefnlist = proc (e: env) returns (applydefnlist);
+	want_oper = true;
+	opers: applydefnlist := applydefnlist$create(1);
+	while p_find_a_defn(e, want_oper) do
+		tagcase env$peek(e, 3)
+		   tag defnkey (k: defnkey):
+			op: applydefn;
+			tagcase k
+			   tag proc_: op := p_applydefn(e, true);
+			   tag iter_: op := p_applydefn(e, false);
+			   others:    return(opers);
+			   end;
+			applydefnlist$addh(opers, op);
+		   others:
+			env$err(e, "equates illegal between operations", serious);
+			p_equatelist(e);
+		   end;
+		end;
+	return(opers);
+	end p_applydefnlist;
+
+% parms => empty | [decllist]
+
+p_parms = proc (e: env) returns (decllist);
+	tagcase e.peek1
+	   tag l_bkt: env$next_token(e);
+	   others:    return(decllist$create(1));
+	   end;
+	parms: decllist := p_decllist(e);
+	tagcase e.peek1
+	   tag r_bkt: env$next_token(e);
+	   others:    env$assume(e, "] in [parameters]");
+	   end;
+	return(parms);
+	end p_parms;
+
+% args => () | (decllist)
+
+p_args = proc (e: env) returns (decllist);
+	tagcase e.peek1
+	   tag l_paren: env$next_token(e);
+	   others:      return(decllist$create(1));
+	   end;
+	tagcase e.peek1
+	   tag r_paren: env$next_token(e);
+			return(decllist$create(1));
+	   others:      ;
+	   end;
+	args: decllist := p_decllist(e);
+	tagcase e.peek1
+	   tag r_paren: env$next_token(e);
+	   others:      env$assume(e, ") in (arguments)");
+	   end;
+	return(args);
+	end p_args;

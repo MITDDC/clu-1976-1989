@@ -1,0 +1,409 @@
+
+%	NCG3	CLU		special for NCLU
+
+BEGIN
+
+# include "clu/absyn2.clu"
+idntype	= oneof [ var, parm, op: typespec,
+		undec: null ];
+
+END
+
+%	Expressions are emitted much like statements, in a big
+% switch with lots of routine calls.  A few are emitted here,
+% most have their own routines.
+
+cg_expr = proc (z: zen, x: expr);
+	e: exprabs := expr$d(x);
+	tagcase e in
+
+%	Binary expressions.
+
+		add:	cg_binexp(z, "add",	e);
+		sub:	cg_binexp(z, "sub",	e);
+		mul:	cg_binexp(z, "mul",	e);
+		div:	cg_binexp(z, "div",	e);
+		pow:	cg_binexp(z, "power",	e);
+		and:	cg_binexp(z, "and",	e);
+		or:	cg_binexp(z, "or", 	e);
+		cat:	cg_binexp(z, "concat",	e);
+		mod:	cg_binexp(z, "mod",	e);
+		eq:	cg_binexp(z, "equal",	e);
+		ne:	begin
+			    em$las("NOT");
+			    cg_binexp(z, "equal", e);
+			    em$ra();
+			    end;
+		lt:	cg_binexp(z, "lt", e);
+		le:	cg_binexp(z, "le", e);
+		ge:	cg_binexp(z, "ge", e);
+		gt:	cg_binexp(z, "gt", e);
+
+%	Unary expressions
+
+		not:	cg_not(z, e);
+		minus:	cg_minus(z, e);
+		upop:	cg_expr(z, e);
+		downop:	cg_expr(z, e);
+
+%	Assignments
+
+		assn:	cg_assn(z, e, true);
+
+%	Condition expressions
+
+		condexp:begin
+			em$lcondl();
+			cg_expr(z, e.test);
+			cg_expr(z, e.t);
+			em$ss(") (T");
+			cg_expr(z, e.f);
+			em$ss(")>");
+			end;
+
+%	Procedure and operation invocations
+
+		invoke: cg_invoke(z, e);
+
+%	Object constructors
+
+		reccon:	cg_reccon(z, e);
+		arrcon:	cg_arrcon(z, e);
+		fill:	cg_fill(z, e);
+		boolcon:	if e then em$t() else em$nix();
+		stringcon:	cg_stringcon(z, e);
+		intcon:	em$ds(e);
+		charcon: begin
+			em$ss("#CHARACTER");
+			em$ds(char$c2i(e));
+			end;
+		typecon: cg_typespec (z, e);
+		nilcon:	em$ss ("NIL");
+		op:	cg_op(z, e);
+
+%	Right hand sides for cell refs
+
+		recref:	cg_callstring (z, gt_expr (z, e.r),
+					"get_" || name$d(e.sel), [e.r]);
+		arrayref:
+			cg_callstring (z, gt_expr (z, e.l), "fetch", [e.l,e.r]);
+			% array fetch can signal an error
+		idn:	cg_idn (z, e);
+
+		caste:	cg_caste (z, e);
+		Zforce:	cg_force (z, e);
+
+%	Fancy procedure objects
+
+		oneup:	cg_oneup (z, e);
+		recget:	cg_recget (z, e);
+		recput:	cg_recput (z, e);
+		Zdu:	cg_du (z, e);
+
+		out: oops (z, "Illegal expression to cg_expr");
+
+		end;
+
+	end cg_expr;
+
+%	Now let's get rid of some small routines that have been
+% used above. There isn't much to say about them.
+
+cg_binexp = proc (z: zen, s: string, be: binexp);
+	l: expr := be.l;
+	r: expr := be.r;
+	cg_callstring(z, gt_binexp(z, l, r), s, [l, r] );
+	end cg_binexp;
+
+
+cg_not = proc (z: zen, e: expr);
+	cg_callit(z, "not", [e]);
+	end cg_not;
+
+
+cg_minus = proc (z: zen, e: expr);
+	cg_callit(z, "minus", [e]);
+	end cg_minus;
+
+
+cg_exprlist = proc (z: zen, el: exprlist);
+	for i:int := exprlist$low(el) to exprlist$high(el)
+	do cg_expr(z, el[i]);
+	end cg_exprlist;
+
+%	The record constructor routine must emit a sorted list
+% of expressions since that is what the canonical form of the
+% record is. As in declarations, the expressions are evaluated
+% once per identifier. In this case, once per selector.
+% This approach is quite common in CLU.
+%
+cg_reccon = proc (z: zen, r: reccon);
+	ft = record[ s: string, e: expr];
+	at = array of ft;
+	f: ft;
+	a: at := at$new();
+
+	for i:int := reccon$low(r) to reccon$high(r)
+	do begin
+		fd: field := r[i];
+		sels: namelist := fd.sels;
+		for j:int := namelist$low(sels) to namelist$high(sels)
+		do at$extendh(a, {s: name$d (sels[j]),
+				  e: fd.val});
+		end;
+
+	for i:int := at$low(a) to at$high(a)-1
+	do	for j:int := i+1 to at$high(a)
+		do	if a[i].s > a[j].s
+			then begin
+				f := a[i];
+				a[i] := a[j];
+				a[j] := f;
+				end;
+
+	em$lb();	% A record is a MUDDLE vector
+	for i:int := at$low(a) to at$high(a)
+	do begin
+		f := a[i];	% f is a type kludge
+		cg_expr(z, f.e);
+		end;
+
+	em$rb();
+
+	end cg_reccon;
+
+%	There are two array constructors. One creates an array
+% from an optional low bound and list of values, the other fills
+% an array with a single value between two limits (inclusive).
+% The fill constructor evaluates the expression it is filling
+% with only once, assigning to the elements by sharing. The
+% constructor which fills with a list of values also assigns by
+% sharing.
+%
+cg_arrcon = proc (z: zen, ac: arrcon);
+	cg_sexp(z, "<NEWARR", ac.l);	% low limit
+	cg_exprlist(z, ac.vals);	% list of expressions
+	em$ra();
+	end cg_arrcon;
+
+cg_fill = proc (z: zen, f: fill);
+	cg_sbexp(z, "<ARRAY$FILL", f.r.l, f.r.h);
+	cg_expr(z, f.val);		% value to fill with
+	em$ra();
+	end cg_fill;
+
+%	This routine emits a load of an identifier
+% (needs expression and closing bracket).
+
+cg_lhsidn = proc (z: zen, id: idn);
+	em$lset();		% emit <SET
+	cg_idlit(z, id);	% and identifier
+	idn$set_change(id);	% show identifier changed
+	end cg_lhsidn;
+
+%	This routine emits an identifier as a literal.
+
+cg_idlit = proc (z: zen, id: idn);
+	idt: idntype := idn$get_type (id);
+	tagcase idt in
+		var, parm:	em$s ("$");
+		undec, op:	em$s (":");
+		end;
+	em$ss (idn$getstring (id));
+	end cg_idlit;
+
+%	This routine puts out the right-hand-side identifiers
+
+cg_idn = proc (z: zen, id: idn);
+	idt: idntype := idn$get_type (id);
+	tagcase idt in
+		var, parm:	em$s (".$");
+		undec, op:	em$s (",:");
+		end;
+	em$ss (idn$getstring (id));
+	end cg_idn;
+
+%	This routine obtains the values of procedure modules.
+
+cg_du = proc (z: zen, d: du);
+	em$s (",:");
+	em$ss (name$d (du$get_unique (d)));
+	end cg_du;
+
+
+%	To generate a range test, call cg_range...
+
+cg_range = proc (z: zen, ex: expr, r: range);
+	cg_trange(z, gt_expr(z, ex), ex, r);
+	end cg_range;
+
+%	cg_trange emits code which yields a boolean result which
+% is true if the expression is in the range.
+%
+cg_trange = proc (z: zen,
+		  ty: typespec,
+		  ex: expr,
+		  r:  range);
+	em$las("NOT <OR");
+	cg_callstring(z, ty, "lt", [ex, r.l]);
+	cg_callstring(z, ty, "gt", [ex, r.h]);
+	em$rra();
+	end cg_trange;
+
+%	If only the cluster operation and arguments are known,
+% use cg_callop, which finds out a few things and passes the buck.
+
+cg_callop = proc (z: zen, 
+		  x: clustop,
+		  el: exprlist);
+	cg_callstring(	z,
+			x.typ,
+			name$d (x.op),
+			el);
+	end cg_callop;
+
+%	If only the operation name and the expression list
+% are known, use cg_callit. It assumes that the type of
+% the operation is the same as the type of the first
+% expression in the argument list.
+
+cg_callit = proc (z: zen, s: string, el: exprlist);
+	cg_callstring(z, gt_expr(z, exprlist$bottom(el)), s, el);
+	end cg_callit;
+
+%	When the same information is known as in
+% cg_callstring but the special cases fail, this routine
+% is used. It gets the operation directly from the type,
+% which may be very inefficient, but it is very general.
+% This is used mostly for record and oneof operations,
+% and for parameter type operations.
+
+cg_gencall = proc(z: zen,		% code gen environment
+		  ty: typespec,		% operation type
+		  s: string,		% operation name
+		  el: exprlist);	% argument list
+	em$las("APPLYOP");		% Open form, call support for invocations
+	cg_typespec (z, ty);		% Type object
+	em$ss(s);			% Selector name
+	cg_exprlist(z, el);		% Arguments to operation
+	cg_escope(zen$escope(z));	% Error Handler Specification
+	em$ra();			% Close up the form
+	end cg_gencall;
+
+%	If the operation type, name and arguments are available,
+% cg_callstring will take care of everything for you.
+
+cg_callstring = proc (	z: zen,		% environment
+			t: typespec,	% operation type
+			s: string,	% operation name
+			el: exprlist);	% argument list
+
+	ty: typespecabs := typespec$dn (t);
+	es: int := zen$escope(z);	% Error scope number in this context
+
+	tagcase ty in
+	    oneoftype:
+		begin;
+		if (exprlist$size (el) = 1 & s ~= "copy")
+		   then begin
+			op, sel: string;
+			need_sigs: bool := false;
+			if string$substr (s, 0, 5) = "make_"
+			   then begin op := "MAKE"; sel := string$rest (s, 5); end;
+			else if string$substr (s, 0, 3) = "is_"
+			   then begin op := "IS"; sel := string$rest (s, 3); end;
+			else if string$substr (s, 0, 6) = "value_"
+			   then begin
+				op := "VALUE";
+				sel := string$rest (s, 6);
+				need_sigs := true;
+				end;
+			else begin
+			     oops (z, "Bad ONEOF operation: " || s);
+			     return;
+			     end;
+			em$las("ONEOF$" || op);
+			em$ds(gk_tag(z, ty, name$u(sel)) + 1);
+			cg_expr(z, exprlist$bottom(el));
+			if (need_sigs & es > 0) then cg_escope (es);
+			em$ra ();
+			end;
+		else case s in
+			"equal", "similar", "copy", "encode", "decode":
+				cg_gencall(z, t, s, el);
+			out:	oops (z, "Bad ONEOF operation: " || s);
+			end;
+		end;
+
+	    recordtype:
+		 case s in
+			"equal","copy1": cg_op_call(z, "RECORD", s, el, false);
+
+			"copy","similar1","similar","encode","decode":
+				cg_gencall(z, t, s, el);
+
+			out:	begin	% "get_*" or "put_*" operations
+				em$las("RECORD$" || string$substr(s, 0, 3));
+				em$ds(gk_recordop(z, ty, s) + 1);
+				cg_exprlist(z, el);
+				em$ra ();
+				end;
+			end;
+
+	    atype:	begin;
+			id: idn := ty.name;
+			if (if gk_is_fake (z, id) then true else gk_is_parm (z, id))
+				then cg_gencall (z, t, s, el)
+				else cg_op_callp (z, gs$idname (id), s, el,
+					ty.args, true);
+			end;
+
+	    parm:	cg_gencall (z, t, s, el);
+
+	    dutype:	begin;
+			d: DU := ty.mod;
+			if (d ~= get_array_DU ()) then
+				begin
+				cg_du_callp (z, ty.mod, s, el, ty.args, true);
+				return;
+				end;
+			case s in
+			   "trim","fill","fetch","bottom","top","store","remh","reml":
+				cg_op_call (z, "ARRAY", s, el, true);
+			   "fill_copy":
+				cg_du_callp (z, ty.mod, s, el, ty.args, true);
+			   "similar","similar1","copy":
+				cg_du_callp (z, ty.mod, s, el, ty.args, false);
+			   out: cg_op_call (z, "ARRAY", s, el, false);
+			   end;
+			end;
+
+	    inttype: case s in
+			"div","power","mod":
+				cg_op_call(z, "INT", s, el, true);
+			out: cg_op_call(z, "INT", s, el, false);
+			end;
+
+	    stringtype: case s in
+			"fetch","substr","rest":
+				cg_op_call(z, "STRING", s, el, true);
+			out:	cg_op_call(z, "STRING", s, el, false);
+			end;
+
+	    chartype:	case s in
+			"i2c":	cg_op_call(z, "CHAR", s, el, true);
+			out:	cg_op_call(z, "CHAR", s, el, false);
+			end;
+
+	    booltype:	cg_op_call(z, "BOOL", s, el, false);
+
+	    out:	begin
+			em$la();
+			cg_simpop(z, t, s);
+			cg_exprlist(z, el);
+			if (es>0) then cg_escope(es);
+			em$ra();
+			end;
+	    end;
+
+	end cg_callstring;

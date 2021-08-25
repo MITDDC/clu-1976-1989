@@ -1,0 +1,904 @@
+;CLU Compiler Version 3.76
+
+.symtab 8000.,4095.
+.insrt clusys;alpha >
+cluster
+;							5
+ptdesc t$1,[ttype(tstr)],[],[]
+;							rify
+proc f$1,[v$1],[v$2,v$3,v$4,v$5,v$6,v$7],[tbad,tbad,tbad,tbad,tbad,tbad],t$1,[]
+;							6
+args [v$1(er)]
+pcdesc f$2,string$s2ac,1.
+pcall f$2
+assn v$2(er),rr
+;							7
+args [v$2(er)]
+pcdesc f$3,get_option,1.
+pcall f$3
+assn v$3(er),rr
+;							8
+args [v$2(er)]
+pcdesc f$4,get_outfile,1.
+pcall f$4
+assn v$4(er),rr
+;							9
+args [$one]
+link c$1,tint+100.
+args [c$1(lr)]
+tdesc t$2,array,[ttype(tstr)]
+pcdesc f$5,[t$2,predict],2.
+pcall f$5
+assn v$5(er),rr
+;							10
+assn v$6(er),$true
+;							11
+args [v$2(er)]
+pcdesc f$6,all_filestrings,1.
+pcall f$6
+$for l1,[]
+assn v$1(er),rr
+;							13
+vargen x$1,tbad
+$catch x$1(er)
+args [v$3(er)]
+args [v$1(er)]
+pcdesc f$7,get_infile,2.
+pcall f$7
+assn v$7(er),rr
+string s$1,open_failed
+$except x$1(er),[s$1],[],[]
+$resume
+$uncatch x$1(er)
+;							14
+args [v$4(er)]
+string s$2,.sr _name 
+link c$2,s$2
+args [c$2(lr)]
+pcdesc f$8,file$puts,2.
+pcall f$8
+;							15
+args [v$4(er)]
+args [v$1(er)]
+pcall f$8
+;							16
+args [v$4(er)]
+string s$3,\012.nr _page 0
+link c$3,s$3
+args [c$3(lr)]
+pcall f$8
+;							17
+$if
+assn rr,v$6(er)
+$test
+$then
+;							18
+assn v$6(er),$false
+$else
+;							19
+args [v$4(er)]
+string s$4,\012.bp
+link c$4,s$4
+args [c$4(lr)]
+pcall f$8
+$fi
+;							21
+assn v$1(er),$nulls
+;							37
+$catch x$1(er)
+$loop
+$loop
+args [v$1(er)]
+args [$nulls]
+pcdesc f$9,string$equal,2.
+pcall f$9
+$iff
+$then $go l3
+$fi
+args [v$4(er)]
+link c$5,tchar+10.
+args [c$5(lr)]
+pcdesc f$10,file$putc,2.
+pcall f$10
+args [v$7(er)]
+args [c$5(lr)]
+pcdesc f$11,file$gets,2.
+pcall f$11
+assn v$1(er),rr
+$pool
+$label l3
+$loop
+args [v$1(er)]
+args [$nulls]
+pcall f$9
+$iff
+$then
+args [v$1(er)]
+args [$one]
+pcdesc f$12,string$fetch,2.
+pcall f$12
+args [rr]
+link c$6,tchar+37.
+args [c$6(lr)]
+pcdesc f$13,char$equal,2.
+pcall f$13
+$fi
+$iff
+$then
+args [v$1(er)]
+args [$one]
+pcall f$12
+args [rr]
+link c$7,tchar+59.
+args [c$7(lr)]
+pcall f$13
+$fi
+$iff
+$then $go l4
+$fi
+args [v$5(er)]
+args [v$1(er)]
+pcdesc f$14,[t$2,addh],2.
+pcall f$14
+args [v$7(er)]
+args [c$5(lr)]
+pcall f$11
+assn v$1(er),rr
+$pool
+$label l4
+$loop
+args [v$1(er)]
+args [$nulls]
+pcall f$9
+args [rr]
+pcdesc f$15,bool$not,1.
+pcall f$15
+$iff
+$then $go l5
+$fi
+args [v$5(er)]
+args [v$1(er)]
+pcall f$14
+args [v$7(er)]
+args [c$5(lr)]
+pcall f$11
+assn v$1(er),rr
+$pool
+$label l5
+args [v$4(er)]
+args [v$5(er)]
+pcdesc f$16,output,2.
+pcall f$16
+$pool
+$label l2
+string s$5,eof
+$except x$1(er),[s$5],[],[]
+args [v$4(er)]
+args [v$5(er)]
+pcall f$16
+$uncatch x$1(er)
+;							38
+args [v$7(er)]
+pcdesc f$17,file$close,1.
+pcall f$17
+$rof l1
+;							40
+args [v$4(er)]
+pcall f$17
+$rtnc $none
+corp rify,[s]
+;							43
+tdesc t$3,array,[ttype(tchar)]
+tdesc t$4,file,[]
+ptdesc t$5,[t$3],[t$4],[]
+;							get_outfile
+proc f$18,[v$8],[v$9,v$10,v$11,v$12,v$13,v$14,v$15],[tbad,tbad,tbad,tbad,tbad,tbad,tbad],t$5,[]
+;							44
+$loop
+args [v$8(er)]
+pcdesc f$19,[t$3,size],1.
+pcall f$19
+args [rr]
+args [$zero]
+pcdesc f$20,int$gt,2.
+pcall f$20
+$ift
+$then
+args [v$8(er)]
+pcdesc f$21,[t$3,top],1.
+pcall f$21
+args [rr]
+link c$8,tchar+32.
+args [c$8(lr)]
+pcdesc f$22,char$le,2.
+pcall f$22
+$fi
+$iff
+$then $go l6
+$fi
+;							45
+args [v$8(er)]
+pcdesc f$23,[t$3,remh],1.
+pcall f$23
+$pool
+$label l6
+;							47
+args [v$8(er)]
+pcdesc f$24,[t$3,high],1.
+pcall f$24
+assn v$9(er),rr
+;							48
+args [v$8(er)]
+pcdesc f$25,[t$3,low],1.
+pcall f$25
+assn v$10(er),rr
+;							49
+args [v$9(er)]
+args [$one]
+pcdesc f$26,int$sub,2.
+pcall f$26
+args [rr]
+args [v$10(er)]
+args [$one]
+pcdesc f$27,int$minus,1.
+pcall f$27
+args [rr]
+pcdesc f$28,int$from_to_by,3.
+pcall f$28
+$for l7,[v$11(er)]
+;							50
+args [v$8(er)]
+args [v$11(er)]
+pcdesc f$29,[t$3,fetch],2.
+pcall f$29
+assn v$12(er),rr
+;							51
+$if
+args [v$12(er)]
+link c$9,tchar+44.
+args [c$9(lr)]
+pcall f$13
+$test
+$then
+;							52
+$itpop
+$go l7
+;							53
+$elf
+args [v$8(er)]
+args [v$11(er)]
+pcall f$29
+args [rr]
+link c$10,tchar+62.
+args [c$10(lr)]
+pcall f$13
+$test
+$then
+;							54
+args [$one]
+args [v$9(er)]
+args [v$11(er)]
+pcall f$26
+args [rr]
+pcdesc f$30,[t$3,predict],2.
+pcall f$30
+assn v$13(er),rr
+;							55
+args [v$11(er)]
+args [$one]
+pcdesc f$31,int$add,2.
+pcall f$31
+args [rr]
+args [v$9(er)]
+args [$one]
+pcall f$28
+$for l8,[v$14(er)]
+;							56
+args [v$13(er)]
+args [v$8(er)]
+args [v$14(er)]
+pcall f$29
+args [rr]
+pcdesc f$32,[t$3,addh],2.
+pcall f$32
+$rof l8
+;							58
+args [v$8(er)]
+args [v$10(er)]
+args [v$11(er)]
+args [v$10(er)]
+pcall f$26
+args [rr]
+pcdesc f$33,[t$3,trim],3.
+pcall f$33
+;							59
+args [v$13(er)]
+pcdesc f$34,scan$deblank,1.
+pcall f$34
+;							60
+args [v$13(er)]
+pcdesc f$35,string$ac2s,1.
+pcall f$35
+assn v$15(er),rr
+;							62
+vargen x$2,tbad
+$catch x$2(er)
+args [v$15(er)]
+pcdesc f$36,get_output_file,1.
+pcall f$36
+$rtn rr
+$except x$2(er),[s$1],[],[]
+$itpop
+$go l7
+$uncatch x$2(er)
+$fi
+$rof l7
+;							65
+assn v$11(er),$one
+;							66
+$loop
+string s$6,text
+link c$11,s$6
+args [c$11(lr)]
+args [v$11(er)]
+pcdesc f$37,int$unparse,1.
+pcall f$37
+args [rr]
+pcdesc f$38,string$concat,2.
+pcall f$38
+args [rr]
+string s$7, >
+link c$12,s$7
+args [c$12(lr)]
+pcall f$38
+args [rr]
+pcdesc f$39,file$exists,1.
+pcall f$39
+$iff
+$then $go l9
+$fi
+;							67
+args [v$11(er)]
+args [$one]
+pcall f$31
+assn v$11(er),rr
+$pool
+$label l9
+;							69
+args [c$11(lr)]
+args [v$11(er)]
+pcall f$37
+args [rr]
+pcall f$38
+args [rr]
+string s$8, r
+link c$13,s$8
+args [c$13(lr)]
+pcall f$38
+args [rr]
+pcall f$36
+$rtn rr
+corp get_outfile,[line]
+;							72
+edesc t$6,s$1,[]
+ptdesc t$7,[ttype(tstr)],[t$4],[t$6]
+;							get_output_file
+proc f$40,[v$16],[v$17,v$18],[tbad,tbad],t$7,[]
+;							74
+vargen x$3,tbad
+$catch x$3(er)
+args [v$16(er)]
+pcdesc f$41,file$open_write,1.
+pcall f$41
+assn v$17(er),rr
+$except x$3(er),[s$1],[],[]
+pcdesc f$42,file$tyo,0.
+pcall f$42
+assn v$18(er),rr
+;							75
+args [v$18(er)]
+string s$9,Can't open 
+link c$14,s$9
+args [c$14(lr)]
+pcall f$8
+;							76
+args [v$18(er)]
+args [v$16(er)]
+pcall f$8
+;							77
+args [v$18(er)]
+args [c$5(lr)]
+pcall f$10
+;							78
+edesc t$8,s$1,[]
+signal t$8,0.
+$uncatch x$3(er)
+;							80
+args [v$17(er)]
+string s$10,.dv xgp\012.fo 0 20fg\012.de hd\012.ev header\012.rs\012.nf\012
+link c$15,s$10
+args [c$15(lr)]
+pcall f$8
+;							81
+args [v$17(er)]
+string s$11,.nr _page \134\016+_page\012.vp 0.5i\012
+link c$16,s$11
+args [c$16(lr)]
+pcall f$8
+;							82
+args [v$17(er)]
+string s$12,\003- \134\016_page -\022\134\023_name\012
+link c$17,s$12
+args [c$17(lr)]
+pcall f$8
+;							83
+args [v$17(er)]
+string s$13,.ev\012'vp 1i\012'sp\012.ns\012.em\012
+link c$18,s$13
+args [c$18(lr)]
+pcall f$8
+;							84
+args [v$17(er)]
+string s$14,.de ft\012'bp\012.em\012
+link c$19,s$14
+args [c$19(lr)]
+pcall f$8
+;							85
+args [v$17(er)]
+string s$15,.st hd 0\012.st ft 10.5i\012.eo .75i\012.oo .75i\012.ll 7.25i\012
+link c$20,s$15
+args [c$20(lr)]
+pcall f$8
+;							86
+args [v$17(er)]
+string s$16,'nf\012
+link c$21,s$16
+args [c$21(lr)]
+pcall f$8
+;							87
+assn rr,v$17(er)
+$rtn rr
+corp get_output_file,[fs]
+;							90
+ptdesc t$9,[t$4,t$2],[],[]
+;							output
+proc f$43,[v$19,v$20],[v$21,v$22],[tbad,tbad],t$9,[]
+;							91
+args [v$20(er)]
+pcdesc f$44,[t$2,size],1.
+pcall f$44
+assn v$21(er),rr
+;							92
+$if
+args [v$21(er)]
+link c$22,tint+70.
+args [c$22(lr)]
+pcdesc f$45,int$le,2.
+pcall f$45
+$test
+$then
+;							93
+args [v$19(er)]
+string s$17,.ne 
+link c$23,s$17
+args [c$23(lr)]
+pcall f$8
+;							94
+args [v$19(er)]
+args [v$21(er)]
+pcdesc f$46,file$puti,2.
+pcall f$46
+;							95
+args [v$19(er)]
+args [c$5(lr)]
+pcall f$10
+$fi
+;							97
+args [v$20(er)]
+pcdesc f$47,[t$2,elements],1.
+pcall f$47
+$for l10,[v$22(er)]
+;							98
+$if
+args [v$22(er)]
+args [$nulls]
+pcall f$9
+args [rr]
+pcall f$15
+$ift
+$then
+args [v$22(er)]
+args [$one]
+pcall f$12
+args [rr]
+link c$24,tchar+46.
+args [c$24(lr)]
+pcall f$13
+$fi
+$test
+$then
+;							99
+args [v$19(er)]
+link c$25,tchar+17.
+args [c$25(lr)]
+pcall f$10
+$fi
+;							100
+$loop
+link c$26,tchar+92.
+args [c$26(lr)]
+args [v$22(er)]
+pcdesc f$48,string$indexc,2.
+pcall f$48
+args [rr]
+args [$zero]
+pcall f$20
+$iff
+$then $go l11
+$fi
+;							101
+args [c$26(lr)]
+args [v$22(er)]
+pcall f$48
+assn v$21(er),rr
+;							102
+args [v$19(er)]
+args [v$22(er)]
+args [$one]
+args [v$21(er)]
+args [$one]
+pcall f$26
+args [rr]
+pcdesc f$49,string$substr,3.
+pcall f$49
+args [rr]
+pcall f$8
+;							103
+args [v$19(er)]
+string s$18,\021\134
+link c$27,s$18
+args [c$27(lr)]
+pcall f$8
+;							104
+args [v$22(er)]
+args [v$21(er)]
+args [$one]
+pcall f$31
+args [rr]
+pcdesc f$50,string$rest,2.
+pcall f$50
+assn v$22(er),rr
+$pool
+$label l11
+;							106
+args [v$19(er)]
+args [v$22(er)]
+pcall f$8
+;							107
+args [v$19(er)]
+args [c$5(lr)]
+pcall f$10
+$rof l10
+;							109
+args [v$20(er)]
+args [$one]
+args [$zero]
+pcdesc f$51,[t$2,trim],3.
+pcall f$51
+$rtnc $none
+corp output,[f,a]
+;							112
+itdesc t$10,[t$3],[ttype(tstr)],[]
+;							all_filestrings
+iter f$52,[v$23],[v$24,v$25],[tbad,tbad],t$10,[]
+;							113
+args [$one]
+link c$28,tint+10.
+args [c$28(lr)]
+pcall f$30
+assn v$24(er),rr
+;							114
+$loop
+;							115
+$if
+args [c$8(lr)]
+args [v$23(er)]
+pcall f$34
+args [rr]
+pcall f$13
+$test
+$then
+;							116
+$rtnc $none
+$fi
+;							123
+vargen x$4,tbad
+$catch x$4(er)
+$loop
+args [v$23(er)]
+pcdesc f$53,[t$3,bottom],1.
+pcall f$53
+args [rr]
+args [c$9(lr)]
+pcall f$13
+args [rr]
+pcall f$15
+$iff
+$then $go l13
+$fi
+args [v$23(er)]
+pcdesc f$54,[t$3,reml],1.
+pcall f$54
+assn v$25(er),rr
+$if
+args [v$25(er)]
+link c$29,tchar+97.
+args [c$29(lr)]
+pcdesc f$55,char$ge,2.
+pcall f$55
+$ift
+$then
+args [v$25(er)]
+link c$30,tchar+122.
+args [c$30(lr)]
+pcall f$22
+$fi
+$test
+$then
+args [v$25(er)]
+pcdesc f$56,char$c2i,1.
+pcall f$56
+args [rr]
+link c$31,tint+32.
+args [c$31(lr)]
+pcall f$26
+args [rr]
+pcdesc f$57,char$i2c,1.
+pcall f$57
+assn v$25(er),rr
+$fi
+args [v$24(er)]
+args [v$25(er)]
+pcall f$32
+$pool
+$label l13
+string s$19,bounds
+$except x$4(er),[s$19],[],[]
+args [v$24(er)]
+pcall f$35
+$yield rr
+;							124
+$rtnc $none
+$uncatch x$4(er)
+;							126
+args [v$23(er)]
+pcall f$54
+;							127
+args [v$24(er)]
+pcall f$35
+$yield rr
+;							128
+args [v$24(er)]
+args [$one]
+args [$zero]
+pcall f$33
+$pool
+$label l12
+$rtnc $none
+reti all_filestrings,[line]
+;							132
+edesc t$11,s$1,[]
+ptdesc t$12,[ttype(tstr),ttype(tstr)],[t$4],[t$11]
+;							get_infile
+proc f$58,[v$26,v$27],[v$28],[tbad],t$12,[]
+;							133
+$if
+args [c$7(lr)]
+args [v$27(er)]
+pcall f$48
+args [rr]
+args [$zero]
+pcdesc f$59,int$equal,2.
+pcall f$59
+$ift
+$then
+link c$32,tchar+58.
+args [c$32(lr)]
+args [v$27(er)]
+pcall f$48
+args [rr]
+args [$zero]
+pcall f$59
+$fi
+$test
+$then
+;							134
+args [v$26(er)]
+args [v$27(er)]
+pcall f$38
+assn v$27(er),rr
+$fi
+;							135
+;							136
+$if
+args [c$8(lr)]
+args [v$27(er)]
+pcall f$48
+args [rr]
+args [$zero]
+pcall f$59
+$test
+$then
+;							137
+args [v$27(er)]
+string s$20, clu
+link c$33,s$20
+args [c$33(lr)]
+pcall f$38
+assn v$28(er),rr
+$else
+;							138
+assn v$28(er),v$27(er)
+$fi
+;							141
+vargen x$5,tbad
+$catch x$5(er)
+args [v$28(er)]
+pcdesc f$60,file$open_read,1.
+pcall f$60
+$rtn rr
+$except x$5(er),[s$1],[],[]
+$uncatch x$5(er)
+;							144
+$catch x$5(er)
+$if
+args [c$8(lr)]
+args [v$27(er)]
+pcall f$48
+args [rr]
+args [$zero]
+pcall f$59
+$test
+$then
+args [v$27(er)]
+pcall f$60
+$rtn rr
+$fi
+$except x$5(er),[s$1],[],[]
+$uncatch x$5(er)
+;							145
+pcall f$42
+args [rr]
+string s$21,Couldn't open 
+link c$34,s$21
+args [c$34(lr)]
+args [v$27(er)]
+pcall f$38
+args [rr]
+string s$22,\012
+link c$35,s$22
+args [c$35(lr)]
+pcall f$38
+args [rr]
+pcall f$8
+;							146
+edesc t$13,s$1,[]
+signal t$13,0.
+corp get_infile,[dir,s]
+;							149
+ptdesc t$14,[t$3],[ttype(tstr)],[]
+;							get_option
+proc f$61,[v$29],[v$30,v$31,v$32,v$33,v$34],[tbad,tbad,tbad,tbad,tbad],t$14,[]
+;							150
+$if
+link c$36,tchar+45.
+args [c$36(lr)]
+args [v$29(er)]
+pcall f$34
+args [rr]
+pcall f$13
+args [rr]
+pcall f$15
+$test
+$then
+;							151
+assn rr,$nulls
+$rtn rr
+$fi
+;							152
+args [v$29(er)]
+pcall f$54
+;							153
+args [$one]
+args [c$28(lr)]
+pcall f$30
+assn v$30(er),rr
+;							157
+vargen x$6,tbad
+$catch x$6(er)
+$loop
+args [v$29(er)]
+pcall f$53
+args [rr]
+args [c$8(lr)]
+pcall f$13
+args [rr]
+pcall f$15
+$iff
+$then $go l14
+$fi
+args [v$30(er)]
+args [v$29(er)]
+pcall f$54
+args [rr]
+pcall f$32
+$pool
+$label l14
+$except x$6(er),[s$19],[],[]
+$uncatch x$6(er)
+;							158
+args [v$30(er)]
+pcall f$35
+assn v$31(er),rr
+;							159
+args [v$31(er)]
+pcdesc f$62,string$size,1.
+pcall f$62
+assn v$32(er),rr
+;							160
+args [c$7(lr)]
+args [v$31(er)]
+pcall f$48
+assn v$33(er),rr
+;							161
+args [c$32(lr)]
+args [v$31(er)]
+pcall f$48
+assn v$34(er),rr
+;							162
+$if
+args [v$33(er)]
+args [$zero]
+pcall f$59
+$ift
+$then
+args [v$34(er)]
+args [v$32(er)]
+pcdesc f$63,int$lt,2.
+pcall f$63
+$fi
+$test
+$then
+;							163
+args [v$31(er)]
+args [c$7(lr)]
+pcdesc f$64,string$append,2.
+pcall f$64
+$rtn rr
+;							164
+$elf
+args [v$34(er)]
+args [$zero]
+pcall f$59
+$ift
+$then
+args [v$33(er)]
+args [v$32(er)]
+pcall f$63
+$fi
+$test
+$then
+;							165
+args [v$31(er)]
+args [c$32(lr)]
+pcall f$64
+$rtn rr
+$else
+;							166
+assn rr,v$31(er)
+$rtn rr
+$fi
+corp get_option,[line]
+retsulc
+
+.insrt clusys;omega >

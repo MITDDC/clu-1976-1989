@@ -1,0 +1,430 @@
+# extend
+# include "tidefs.clu"
+
+%
+%	Arrays are very much like CLU arrays.  They are variable-
+%	length, mutable collections of objects.  The low bound of an
+%	array can be arbitrary word.  Elements can be added and
+%	deleted from both ends of an array.
+%
+
+%
+%	The following array implementation attempts to use words for
+%	the low bound, high bound, and offset, instead of unbounded
+%	integers.  It is rather difficult to describe in user-oriented
+%	terms the exact limitations of this implementation decision.
+%	It is also rather painful to check for overflow in all the
+%	many places where it might occur.
+%
+%	For example, one can have a 1-element array whose low bound
+%	is the largest possible word.  However, if one does a REML
+%	on that array, the low bound overflows.  It is also possible
+%	to have otherwise legitimate arrays whose offset overflows,
+%	e.g., the above array with the any amount of physical storage
+%	allocated below the low bound.
+%
+%	Not all of our problems would go away if we used unbounded
+%	integers for the low bound and offset.  It would still be
+%	difficult to describe the exact circumstances under which the
+%	maximum physical storage size is exceeded, since there may be
+%	unused storage at either end of the array.  Furthermore, the
+%	use of unbounded integers makes a fast hardware-assisted
+%	implementation difficult.
+%
+%	These reasons, combined with our belief that current CLU
+%	arrays are excessively general for the primary large-object
+%	type, lead us to abandon the attempt to support CLU arrays.
+%	The array implementation is thus isolated here for reference.
+%
+
+MINSIZE = 2
+BIGSIZE = BLOCKSIZE+1
+MAXSIZE = BLOCKSIZE*BLOCKSIZE
+
+_array = cluster is fill, low, high, size, set_low, fetch, store,
+	bottom, top, growh, growl, trimh, triml
+
+	% The array representation is very similar to the
+	% representation of segments.  For that reason, we
+	% will often call the data part of an array representation 
+	% a segment.  The difference between an array and
+	% a segment representation is that the array has
+	% two new fields for the low bound and the offset.
+	% The offset is needed because elements can be added
+	% and deleted from the beginning of the array, thus
+	% the first element of the segment is not always the
+	% first element of the array.
+
+	rep = record [
+		rc: word,	% the reference count
+		big: bool,
+		low: word,
+		size: word,
+		offset: word,	% the virtual index in the
+				% segment of the 0th
+				% element of the array
+		data: block]
+
+	% The rep is not really a record, it is a small
+	% block that is treated like a record.
+
+fill = proc (lo: word, sz: word, e: any) returns (cvt)
+			signals (negsize, toobig)
+	if sz<0 then signal negsize end
+	if sz>MAXSIZE then signal toobig end
+	b: block
+	if sz=0 then b := block$NILBLOCK ()
+	    elseif sz<BIGSIZE then
+		b := block$create (sz, e)
+	    else
+		nblocks, lsize: word := countblocks (sz)
+		b := block$create (nblocks, block$NILBLOCK ())
+		for i: word in word$from_to (0, nblocks-2) do
+			b[i] := block$create (BLOCKSIZE, e)
+			end
+		b[nblocks-1] := block$create (lsize, e)
+		end
+	return (rep${rc: 1, big: sz>=BIGSIZE, low: lo,
+		size: sz, offset: -lo, data: b})
+	end fill
+
+low = proc (x: cvt) returns (word)
+	return (x.low)
+	end low
+
+high = proc (x: cvt) returns (word)
+	return (x.low + (x.size - 1))
+	end high
+
+size = proc (x: cvt) returns (word)
+	return (x.size)
+	end size
+
+set_low = proc (x: cvt, lo: word)
+	x.offset := x.offset - (lo - x.low)
+	    except when overflow: signal failure ("bounds overflow") end
+	check_high (lo, x.size)
+	x.low := lo
+	end set_low
+
+fetch = proc (x: cvt, i: word) returns (any) signals (bounds)
+	if i<x.low | i>=x.low+x.size then signal bounds end
+	return (segfetch (x, i+x.offset))
+	end fetch
+
+store = proc (x: cvt, i: word, e: any) signals (bounds)
+	if i<x.low | i>=x.low+x.size then signal bounds end
+	segstore (x, i+x.offset, e)
+	end store
+
+bottom = proc (x: cvt) returns (any) signals (bounds)
+	if x.size=0 then signal bounds end
+	return (segfetch (x, x.low + x.offset))
+	end bottom
+
+top = proc (x: cvt) returns (any) signals (bounds)
+	if x.size=0 then signal bounds end
+	return (segfetch (x, x.low + (x.size - 1) + x.offset))
+	end top
+
+growh = proc (x: cvt, n: word, e: any) signals (negsize, toobig)
+	if n<0 then signal negsize end
+	if n=0 then return end
+	nsegsize: word := x.size + (x.low+x.offset) + n
+	if nsegsize > MAXSIZE then signal toobig end
+	check_high (x.low, x.size+n)
+
+	if nsegsize < BIGSIZE & ~x.big then	% small -> small
+		enlarge_small (x, nsegsize, e)
+	    elseif ~x.big then			% small -> big
+		small_to_big (x, nsegsize, e)
+	    else				% big -> big
+		enlarge_big (x, nsegsize, e)
+		end
+	x.size := x.size + n
+	end growh
+
+growl = proc (x: cvt, n: word, e: any) signals (negsize, toobig)
+	if n<0 then signal negsize end
+	if n=0 then return end
+	if x.size + n > MAXSIZE then signal toobig end
+	x.low := x.low - n
+	    except when overflow: signal failure ("bounds overflow") end
+	x.size := x.size + n
+
+	n := use_slop (x, n, e)	% use extra space in segment
+	if n>0 then	% we need more room
+		if ~x.big cand x.data.size < BLOCKSIZE then
+			n := enlargelow (x, n, e) % get a larger block
+			end
+		if n>0 then	% add more blocks
+			if ~x.big then makebig(x) end
+			nb, nw: word := countblocks (n)
+			shiftseg (x, nb, e)
+			end
+		end
+	end growl
+
+trimh = proc (x: cvt, n: word) signals (negsize)
+	if n<0 then signal negsize end
+	if n>x.size then n := x.size end
+	check_high (x.low, x.size-n)
+	x.size := x.size - n
+	end trimh
+
+triml = proc (x: cvt, n: word) signals (negsize)
+	if n<0 then signal negsize end
+	if n>x.size then n := x.size end
+	x.low := x.low + n
+	    except when overflow: signal failure ("bounds overflow") end
+	x.size := x.size - n
+	end triml
+
+%
+% Internal procedures for the ARRAY cluster.
+%
+
+check_high = proc (lo, sz: word)
+
+	hi: word := lo + sz - 1
+	    except when overflow: signal failure ("bounds overflow") end
+	end check_high
+
+use_slop = proc (x: rep, n: word, e: any) returns (word)
+
+	% Use the unused space at the beginning of the segment to add
+	% up to N elements of value E.  Return the number of elements
+	% that remain to be added.  The visible array state is not
+	% changed.
+
+	slop: word := x.low + x.offset
+	while n>0 cand slop>0 do
+		n := n - 1
+		slop := slop - 1
+		segstore (x, slop, e)
+		end
+	return (n)
+	end use_slop
+
+enlargelow = proc (x: rep, n: word, e: any) returns (word)
+
+	% Add up to N elements of value E onto the beginning of the
+	% 1-level array rep X by allocating a larger block.  Return
+	% the number of elements remaining to be added.  The visible
+	% array state is not changed.
+
+	new_size: word := x.data.size + n
+	if new_size>BLOCKSIZE then new_size := BLOCKSIZE end
+	incr: word := new_size - x.data.size
+	extendlow (x, incr, e)
+	return (n - incr)
+	end enlargelow
+
+segfetch = proc (x: rep, i: word) returns (any)
+
+	% Fetch the i-th element of the segment part
+	% of the array.
+
+	if x.big then
+		b: block := x.data[i/BLOCKSIZE]
+		return (b[i//BLOCKSIZE])
+	    else
+		return (x.data[i])
+		end
+	end segfetch
+
+segstore = proc (x: rep, i: word, v: any)
+
+	% Store the i-th element of the segment part of the array.
+
+	if x.big then
+		b: block := x.data[i/BLOCKSIZE]
+		b[i//BLOCKSIZE] := v
+	    else
+		x.data[i] := v
+		end
+	end segstore
+
+makebig = proc (x: rep)
+
+	% Convert from a 1-level to a 2-level segment.
+
+	if x.big then return end
+	if x.data.size ~= BLOCKSIZE
+		then signal failure ("bad block size") end
+	b: block := block$create (1, block$NILBLOCK ())
+	b[0] := x.data
+	x.data := b
+	x.big := TRUE
+	end makebig
+
+extendlow = proc (x: rep, incr: word, e: any)
+
+	% Add INCR elements with the value E to the low end of the
+	% 1-level array rep X.  The visible array state is not changed.
+
+	if x.big then signal failure ("big array") end
+	b: block, n_added: word := extendblocklow (x.data, incr, e)
+		except when toobig: signal failure ("incr too large") end
+	x.data := b
+	x.offset := x.offset + n_added
+	end extendlow
+
+extendblocklow = proc (b: block, incr: word, e: any) returns (block, word)
+		signals (toobig)
+
+	% Return a block whose contents consist of at least INCR E's
+	% followed by the contents of B.  Also return then actual
+	% number of E's added.
+
+	newb: block := block$create (b.size+incr, e)
+	shift: word := newb.size - b.size
+	for i:word in word$from_to (0, b.size-1) do
+		newb[i+shift] := b[i]
+		end
+	return (b, shift)
+	end extendblocklow
+
+shiftseg = proc (x: rep, nblocks: word, e: any)
+		signals (toobig)
+
+	% Add NBLOCKS blocks filled with E to the beginning of the
+	% segment part of the 2-level array rep X.  The visible array
+	% state is not changed.
+
+	if ~x.big then signal failure ("array not big") end
+	b: block := x.data
+	bs: word := b.size
+	nfree: word := countfree (b)
+	if nfree>nblocks then
+		shiftup (b, bs-nfree, nblocks)
+	    else
+		needed: word := nblocks - nfree
+		ob: block := b
+		b := block$create (bs+needed, block$NILBLOCK ())
+			except when badsize: signal toobig end
+		for i:word in word$from_to (0, bs-1) do
+			b[i+nblocks] := ob[i]
+			end
+		x.data := b
+		end
+	for i:word in word$from_to (0, nblocks-1) do
+		b[i] := block$create (BLOCKSIZE, e)
+		end
+	x.offset := x.offset + nblocks*BLOCKSIZE
+	end shiftseg
+
+countfree = proc (b: block) returns (word)
+
+	% Count the number of free elements at the top of a block map.
+
+	for i: word in word$from_to (b.size-1, 0) do
+		if b[i] ~= block$NILBLOCK () then return (b.size-i-1) end
+		end
+	return (b.size)
+	end countfree
+
+
+shiftup = proc (b: block, nelem, shift: word)
+
+	% Shift the first NELEM elements of the block B up by SHIFT
+	% positions.
+
+	for i: word in word$from_to (nelem-1, 0) do
+		b[i+shift] := b[i]
+		end
+	end shiftup
+
+
+%
+%	Internal procedures stolen from the SEGMENT cluster.
+%
+
+enlarge_small = proc (v: rep, nsize: word, e: any)
+
+	% Given a segment V with a 1-level representation, enlarge it
+	% to size NSIZE by adding elements of value E.
+
+	v.data := enlargeblock (v.data, v.size, nsize, e)
+	end enlarge_small
+
+small_to_big = proc (v: rep, nsize: word, e: any)
+
+	% Given a segment V with a 1-level representation, change it
+	% to a 2-level representation, adding elements with value E
+	% to make a total size NSIZE.
+
+	nblocks, lsize: word := countblocks (nsize)
+	b: block := block$create (nblocks, block$NILBLOCK ())
+	for i: word in word$from_to (1, nblocks-2) do
+		b[i] := block$create (BLOCKSIZE, e)
+		end
+	b[nblocks-1] := block$create (lsize, e)
+	b[0] := enlargeblock (v.data, v.size, BLOCKSIZE, e)
+	v.data := b
+	v.big := TRUE
+	end small_to_big
+
+enlarge_big = proc (v: rep, nsize: word, e: any)
+
+	% Given a segment V with a 2-level representation, enlarge it
+	% to size NSIZE by adding elements of value E.
+
+	old_nblocks, old_lsize: word := countblocks (v.size)
+	new_nblocks, new_lsize: word := countblocks (nsize)
+	if new_nblocks > old_nblocks then
+		v.data := enlargeblock (v.data, old_nblocks,
+			new_nblocks, block$NILBLOCK ())
+		for i: word in word$from_to (old_nblocks, new_nblocks-2) do
+			v.data[i] := block$create (BLOCKSIZE, e)
+			end
+		v.data[new_nblocks-1] := block$create (new_lsize, e)
+		if old_nblocks > 0 then
+			i: word := old_nblocks-1
+			v.data[i] := extendblock (v.data[i],
+					old_lsize, BLOCKSIZE, e)
+			end
+	    else
+		i: word := old_nblocks-1
+		v.data[i] := extendblock (v.data[i], old_lsize,
+					new_lsize, e)
+		end
+	end enlarge_big
+
+enlargeblock = proc (b: block, oldsize: word, newsize: word, e: any)
+			returns (block)
+
+	% Return a block whose contents are the first OLDSIZE elements
+	% of B, followed by NEWSIZE-OLDSIZE elements of value E.
+	% The returned block may be the block B.
+	% The NEWSIZE must not be larger than BLOCKSIZE.
+
+	bsize: word := block$size (b)
+	if newsize > bsize then
+		newb: block := block$create (newsize, e)
+		for i: word in word$from_to (0, oldsize-1) do
+			newb[i] := b[i]
+			end
+		return (newb)
+		end
+	for i: word in word$from_to (oldsize, newsize-1) do
+		b[i] := e
+		end
+	return (b)
+	end enlargeblock
+
+countblocks = proc (sz: word) returns (word, word)
+	% return the total number of blocks needed
+	% and the size of the last block (0 < n <= BLOCKSIZE)
+
+	nblocks: word := sz / BLOCKSIZE
+	lsize: word := sz // BLOCKSIZE
+	if lsize > 0 then
+		nblocks := nblocks + 1
+		if lsize < MINSIZE then lsize := MINSIZE end
+	    else lsize := BLOCKSIZE
+		end
+	return (nblocks, lsize)
+	end countblocks
+
+	end _array

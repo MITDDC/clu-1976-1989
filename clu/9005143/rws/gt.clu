@@ -1,0 +1,353 @@
+ 
+%	GT CLU
+
+%	These routines are the code generator's interface to the
+%	typechecker.  Until typechecking is complete, the types
+%	determined by the typechecker cannot be used, as they
+%	may contain BAD types resulting from undefined externals.
+%	Thus, these routines must determine types on their own,
+%	as best they can.
+
+BEGIN
+
+# include "clusys/absyn3.clu"
+
+END
+
+gt_exprlist = proc (z: zen, el: exprlist) returns (typelist);
+	a: typelist := typelist$predict (0, exprlist$size (el));
+	for i: int := exprlist$low (el) to exprlist$high (el) do
+		typelist$extendh (a, gt_expr (z, el[i]));
+	return (a);
+	end gt_exprlist;
+
+gt_expr = proc (z: zen, x: expr) returns (typespec);
+	if (in_system ()) then return (expr$get_type (x));
+	e: exprabs := expr$d (x);
+	tagcase e in
+		add,sub,mul,div,pow,mod,cat: return (gt_binexp(z,e.l,e.r));
+		not,and,or,eq,gt,lt,ne,le,ge: return (typespec$make_bool ());
+		assn: return (gt_expr(z,e.l));
+		minus: return (gt_expr(z,e));
+		condexp: return (gt_binexp(z,e.t,e.f));
+		reccon: return (gt_reccon(z,e));
+		arrcon: return (gt_arrcon(z,e));
+		fill: return (typespec$make_array (gt_expr (z, e.val)));
+		boolcon: return (typespec$make_bool ());
+		intcon:  return (typespec$make_int ());
+		nilcon:  return (typespec$make_null ());
+		charcon: return (typespec$make_char ());
+		stringcon: return (typespec$make_string ());
+		typecon: return (typespec$make_type ());
+		op:	 return (gt_op(z,e));
+		invoke:	 return (gt_invoke(z,e));
+		recref:	 return (gt_stringcall (z, gt_expr (z, e.r),
+							"get_" || name$d (e.sel)));
+		arrayref: return (gt_stringcall (z, gt_expr (z, e.l), "fetch"));
+		idn:	 return (gt_idn(z,e));
+		upop:	 return (zen$abstract_type (z));
+		downop:	 return (zen$concrete_type (z));
+		caste:	return (e.typ);
+		out:	oops(z,"Illegal expression given to gt_expr");
+		end;
+	return (gt_empty());
+	end gt_expr;
+
+%	The type of a binary expression is generally that
+%	that of its left operand.  However, if we all we
+%	have been able to find out is that it is the return
+%	type of some procedure, then we use the type of the
+%	right operand.
+
+gt_binexp = proc (z: zen, l, r: expr) returns (typespec);
+	ty: typespec := gt_expr (z, l);
+	if (typespec$is_atype (ty)) then begin;
+		a: atype := typespec$get_atype (ty);
+		if (cg_is_fake (a.name)) then return (gt_expr (z, r));
+		end;
+	return (ty);
+	end gt_binexp;
+
+%	Record constructor types must be built from the types
+% of the expressions in the constructor, then sorted according
+% to alphabetic order of the selectors.
+
+
+gt_reccon = proc (z: zen, x: reccon) returns (typespec);
+	RT = recordtype;
+	ORT = orecordtype;
+	typ: typespec;
+
+	r: ORT := ORT$new ();
+	for i: int := reccon$low (x) to reccon$high (x) do
+		ORT$extendh (r, {
+			sels: x[i].sels,
+			typ: gt_expr (z, x[i].val)});
+	typ := typespec$u (typespecabs$make_orecordtype (r));
+	typespec$nicefy (typ);
+	return (typ);
+	end gt_reccon;
+
+%	Array constructors get typed by the first expression
+% in the list.
+
+gt_arrcon = proc (z: zen, x: arrcon) returns (typespec);
+	return (typespec$make_array (gt_expr (z, exprlist$bottom (x.vals))));
+	end gt_arrcon;
+
+%	Array construct-and-fills get typed by the fill value.
+
+gt_fill = proc (z: zen, x: fill) returns (typespec);
+	return (typespec$make_array (gt_expr (z, x.val)));
+	end gt_fill;
+
+%	The type of an operation object (which is a procedure
+% object) is proctype, but we fudge it here since we only need
+% to know that much.
+
+gt_op = proc (z: zen, x: clustop) returns (typespec);
+	tl: typelist := typelist$new();
+	return (typespec$make_proc ({
+			args, rtns: tl,
+			sigs: errorlist$new ()}));
+	end gt_op;
+
+%	The type of an invocation can be known several ways.
+% It can be a call on an operation, a procedure, a procedure
+% variable, or a procedure object resulting from a record
+% fetch, an array fetch, or another invocation. So it should
+% be no surprise to find out that this procedure is little
+% more than a switch.
+
+gt_invoke = proc (z: zen, x: invoke) returns (typespec);
+	e: exprabs := expr$d (x.p);
+	tagcase e in
+		idn: return (gt_idncall(z,e));
+		op: return (gt_opcall(z,e));
+		recref: return (gt_call(z,gt_sel(z,e)));
+		arrayref: return (gt_call(z,gt_ref(z,e)));
+		invoke: return (gt_dollar(z,gt_invoke(z,e)));
+		end;
+	oops(z,"Illegal procedure object given to gt_invoke");
+	return (gt_empty());
+	end gt_invoke;
+
+%	If the type is known to be a procedure type, then we
+% get the return type quite easily.
+
+gt_call = proc (z: zen, t: typespec) returns (typespec);
+	ty: typespecabs := typespec$dn (t);
+	tagcase ty in
+		proctype: return (typelist$bottom (ty.rtns));
+		end;
+	oops (z, "Type not a procedure type: gt_call");
+	return (gt_empty());
+	end;
+
+%	To get the type of a record component, we must look for
+% the selector in the record type, then return the associated
+% type.
+
+gt_sel = proc (z: zen, x: recref) returns (typespec);
+	return (gt_tag(z,gt_expr(z,x.r),x.sel));
+	end gt_sel;
+
+%	This routine is used to get a subtype from a
+% record or oneof type given a selector. Very useful.
+
+gt_tag = proc (z: zen, t: typespec, y: name) returns (typespec);
+	rt = recordtype;
+	x: typespecabs := typespec$dn (t);
+	tagcase x in
+	    recordtype,oneoftype:
+		for i:int := rt$low(x) to rt$high(x) do
+			if y = x[i].sel then return (x[i].typ);
+		end;
+	oops (z, "Tag " || name$d(y) || " undefined");
+	return (gt_empty());
+	end gt_tag;
+
+%	To get the type of an array element, just take a peek
+% inside the array type.
+
+gt_ref = proc (z: zen, x: binexp) returns (typespec);
+	at: typespec := gt_expr (z, x.l);
+	return (typespec$get_array (at));
+	except not_array: end;
+	oops (z, "Attempt to perform array fetch on non-array");
+	return (typespec$make_bad ());
+	end;
+
+%	To get the selector name from an operation name, just
+% strip off the get_ or put_.
+
+gt_get_tag = proc (z: zen, op: string) returns (name);
+	s: string := string$substr (op, 0, 4);
+	if (s = "get_") | (s = "put_")
+		then return (name$u (string$rest (op, 4)));
+	oops(z, "Bad record operation: " || s);
+	return ("");
+	end gt_get_tag;
+
+%	To get the type of an identifier, just ask the idn
+% cluster, unless it is 'marked', in which case look it up
+% in the current type array.
+
+gt_idn = proc (z: zen, id: idn) returns (typespec);
+	idt: idntype := idn$get_type(id);
+	if idn$is_marked(id) then return (zen$curtype (z, id));
+	tagcase idt in
+		undec:	oops(z,"Type of externally declared identifier unknown: " ||
+				idn$getstring(id) || "\n gt_idn");
+		out:	return (idt);
+		end;
+	return (gt_empty());
+	end gt_idn;
+
+%	When an identifier is invoked, it could be external, in
+% which case there is an external type object; or it could be
+% local, in which case we can get the type easily.
+
+gt_idncall = proc (z: zen, id: idn) returns (typespec);
+	idt: idntype := idn$get_type(id);
+	tagcase idt in
+		undec: return (typespec$make_atype(
+			{name: idn$fake(string$concat(
+					idn$getstring(id),
+					"$type")),
+			 args: exprlist$new() } ));
+		var,parm,op: return (gt_call(z,idt));
+		end;
+	end gt_idncall;
+
+%	When an operation returns a procedure object, we either
+% know the type, or it has been faked into an 'atype'. In the
+% case where we know the type, we just return the return type;
+% in the other case we fake one more level.
+
+gt_dollar = proc (z: zen, t: typespec) returns (typespec);
+	x: typespecabs := typespec$dn (t);
+	tagcase x in
+		atype: return (typespec$make_atype(
+			{name: idn$fake(string$concat(
+					idn$getstring(x.name),
+					"$type")),
+			 args: x.args } ) );
+		end;
+	return (gt_call(z,x));
+	end gt_dollar;
+
+%	The type resulting from an operation is known if the
+% operation belongs to a built-in type, or is one of the
+% generic functions (copy, equal, encode, decode). Otherwise
+% we fake it by making an 'atype' with a bogus id, which
+% contains the cluster name and the operation name.
+
+gt_opcall = proc (z: zen, x: clustop) returns (typespec);
+	return (gt_stringcall(z,x.typ,name$d(x.op)));
+	end gt_opcall;
+
+%	This is essentially another entry to generate the type
+% of an operation call given the operation name as a string
+% and a typespec as the type specification.
+
+gt_stringcall = proc(z: zen, ty: typespec, s: string) returns (typespec);
+	rt = recordtype;
+	nty: typespecabs := typespec$dn (ty);
+
+%	First, check for special operations...
+
+	case s in
+		"lt","le","ge","gt","equal","similar","similar1":
+				return (typespec$make_bool ());
+		"copy","decode","copy1":
+				return (ty);
+		"encode":	begin;
+				oops (z, "Encode operation returns nothing");
+				return (typespec$make_null ());
+				end;
+		end;
+
+	tagcase nty in
+
+		stringtype: case s in
+			"size","indexs","indexc":
+				return (typespec$make_int ());
+			"rest", "substr", "concat", "ac2s","append","c2s":
+				return (ty);
+			"s2ac":	return (typespec$make_array (
+					typespec$make_char ()));
+			"fetch","chars": return (typespec$make_char ());
+			end;
+
+		chartype: case s in
+			"i2c":	return (ty);
+			"c2i":	return (typespec$make_int ());
+			end;
+
+		inttype: case s in
+			"add","sub","mul","minus","div","power","mod","from_to_by":
+				return (ty);
+			end;
+	
+		booltype: case s in
+			"and","or","not": return (ty);
+			end;
+
+		dutype: case s in	% must be array
+			"create", "fill", "new", "predict","fill_copy":
+				return (ty);
+			"size", "high", "low","indexes":
+				return (typespec$make_int ());
+			"fetch","bottom","top","remh","reml","elements":
+				return (gt_const (z, constlist$bottom (nty.args)));
+			"set_low","trim","store","addh","addl":
+				begin
+				oops (z, s || " operation returns nothing");
+				return (gt_empty ());
+				end;
+			end;
+
+		oneoftype: case string$cn(s, 0) in
+			'i':	return (typespec$make_bool ());
+			'm':	return (ty);
+			'v':	return (gt_tag(z,ty,name$u(string$rest(s,6))));
+			end;
+
+		recordtype: case string$cn(s, 0) in
+			'p':	begin
+				oops (z, s || " operation returns nothing");
+				return (gt_empty ());
+				end;
+			'g':	return (gt_tag (z, ty, gt_get_tag (z, s)));
+			end;
+
+		atype: begin
+			ns: string := idn$getstring(nty.name);
+			    return (typespec$make_atype (
+				{name: idn$fake(ns || "$"
+					 || s || "$type"),
+				 args: nty.args} ) );
+			end;
+		end;
+	
+	oops(z,"Unrecognized operation '" || s || "' on type ");
+	typespec$print(ty);
+	return (gt_empty());
+
+	end gt_stringcall;
+
+gt_empty = proc () returns (typespec);
+	return (typespec$make_null ());
+	end gt_empty;
+
+gt_const = proc (z: zen, c: const) returns (typespec);
+	cc: constabs := const$d (c);
+	tagcase cc in
+		t:	return (cc);
+		p:	return (typespec$make_parm (cc));
+		out:	;
+		end;
+	oops (z, "Bad const to GT_CONST");
+	return (typespec$make_bad ());
+	end gt_const;

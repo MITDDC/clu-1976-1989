@@ -1,0 +1,30 @@
+# include "tidefs.clu"
+
+%
+%	Mvectors are vectors in RAMs.
+%
+
+mvector = cluster is create, get_size, fetch, store
+
+	rep = array[any]
+	% These things are actually separate hardware RAMs.
+
+create = proc (size: word) returns (cvt)
+	return (rep$fill (0, size, nil))
+	end create
+
+get_size = proc (mv: cvt) returns (word)
+	return (rep$size (mv))
+	end get_size
+
+fetch = proc (mv: cvt, i: word) returns (any) signals (bounds)
+	return (mv[i])
+		except when bounds: signal bounds end
+	end fetch
+
+store = proc (mv: cvt, i: word, e: any) signals (bounds)
+	mv[i] := e
+		except when bounds: signal bounds end
+	end store
+
+	end mvector

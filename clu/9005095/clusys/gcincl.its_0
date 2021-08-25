@@ -1,0 +1,283 @@
+;;
+;;	System dependent part of Clu garbage collector
+;;		This file is for ITS only!!
+;;
+	.insrt	clusys;.call symdef
+;;
+;; Macro for run-time error messages
+;;
+define	$die	msg/
+	.lstof
+	.value	[asciz `
+: msg 
+
+`]
+	.lston
+	termin
+
+;;
+;; GC CALLS
+;;
+;; All calls for the garbage collector are gathered together here
+;; for easy reference; they are grouped by category - job hacking
+;; calls, page hacking calls, etc.
+;;
+;; JOB HACKING CODE
+;;
+;;	a subroutine to set up interrupts properly
+;;
+intsup:	move	a,suptr1	;; read out defer words and save them
+	.suset	a
+	move	a,suptr2	;; set them to defer all interrupts
+	.suset	a
+	move	a,inttab	;; install my interrupt table
+	exch	a,intptr
+	movem	a,optr
+	popj	sp,
+;;
+;;	a subroutine to restore interrupts
+;;
+intrst:	move	0,suptr3
+	.suset	0
+	move	0,optr
+	movem	0,intptr
+	jrst	(1)	;; was called by a jsp 1,intrst
+;;
+;;	new interrupt mask, etc. set up info and save locs
+;;
+su1::	.rdf1,,df1sav
+	.rdf2,,df2sav
+	.rrunt,,sruntm
+suptr1::	su1-.,,su1
+df1sav::	0
+df2sav::	0
+sruntm::	0
+su2::	.sdf1,,[<-1>#<%pimpv+%pipdl>]
+	.sdf2,,[-1]
+suptr2::	su2-.,,su2
+su3::	.sdf1,,df1sav
+	.sdf2,,df2sav
+	.rrunt,,eruntm
+suptr3::	su3-.,,su3
+eruntm::	0
+;;
+;;	interrupt pointer and table
+;;
+intptr==42			;; loc of pointer to interrupt table
+optr::	0			;; old pointer to interrupt table
+inttab::	-intlen,,intrup	;; new interrupt table word
+intrup::	400020,,intpdl	;; push all regs, and debugging info
+				;; intpdl is intr gcstak ptr
+	%pipdl ? 0 ? %pipdl ? 0 ? pdlov
+		;; pdl is 1st word, masks self, handler is pdlov
+	%pimpv ? 0 ? %pimpv ? 0 ? mpvint
+		;; mpv is 1st word, masks self, handler is mpvint
+intlen==.-intrup
+;;
+;;	new interrupt stack pointer and stack
+;;
+istkln==48.		;; room for 2 interrupts
+intpdl::	-istkln,,.	;; new interrupt stack pointer
+		block	istkln	;; new interrupt stack, room for 2 interrupts
+;;
+;;	interrupt handlers
+;;
+;;		PDL Overflow handler
+;;
+pdlov:	$die	Push down gcstak overflow
+	.call	intdis		;; dismiss (assume DDT took care of it)
+	 $die	Couldn't dismiss PDL OV interrupt
+;;
+;;		MPV interrupt handler
+;;
+mpvint:	$die	MPV interrupt
+	.call	intdis		;; dismiss (assume DDT took care of it)
+	 $die	Couldn't dismiss MPV interrupt
+
+;;
+;;	subroutine for creating the inferior
+;;
+makjob:	move	a,[sixbit /CLUGC0/]	;; set up name
+	movem	a,jobnam
+	.call	chpush		;; push channel for job
+	 $die	Could not push channel for job
+tryit:	.call	jexist		;; this call skips if a job with the given name exists
+	 jrst	chkit
+	.call	jclose
+	 $die	Close failed
+again:	aos	jobnam		;; try another name
+	jrst	tryit
+
+chkit:	move	c,errcod	;; error code meaning job exists
+	caie	c,4
+	 $die	Call to see if job exists failed in wrong way!!
+makeit:	.call	jmake		;; this actually creates the job
+	 jrst	.+2
+	  popj	sp,
+	move	c,errcod	;; check error code
+	cain	c,12		;; 12 => job not inferior
+	 jrst	again
+	cain	c,6		;; 6 => no job slots
+	 $die	No jobs slots available for GC
+	cain	c,5		;; 5 => already have 8 inferiors
+	 $die	No inferiors available for GC
+	$die	Couldn't get job for GC (strange error)
+;;
+;;	here are the call blocks for job hacking
+;;
+usro==	17			;; channel number for job for regular stuff
+jobnam:	0		;; word for job name
+ubpfj.==10			;; code for random control bit in call below
+;;
+;;	Call that skips if job exists
+;;
+jexist:	setz
+	sixbit	/open/		;; open job with
+	cicnt	ubpfj.+.uii	;; random bit (see system documentation), unit image
+				;; input mode
+	ciarg	usro		;; on channel usro
+	carg	[sixbit	/usr/]	;; device name is USR
+	ciarg	0		;; use my first name
+	carg	jobnam		;; use jobnam as second name
+	clerr	errcod
+;;
+;;	Call to create a new job
+;;
+jmake:	setz
+	sixbit	/open/		;; open job
+	cicnt	.uio		;; in unit image output mode
+	ciarg	usro		;; on channel usro
+	carg	[sixbit	/usr/]	;; device name is USR
+	ciarg	0		;; use my first name
+	carg	jobnam		;; use jobnam for second name
+	clerr	errcod
+;;
+;;	Uuo to kill the inferior
+;;
+jkill:	.uclose	usro,
+
+;;
+;; PAGE HACKING CALLS
+;;
+;;	Call to get fresh pages for self
+;;
+getpgs:	.call	.+1
+	setz
+	sixbit	/corblk/		;; CORBLK
+	ciarg	%cbndr+%cbndw		;; need read and write
+	ciarg	%jself			;; give to self
+	carg	pgdest			;; pgdest is aobjn pointer
+	ciarg	%jsnew			;; get new pages
+	clerr	errcod			;; put error code in corerr
+;;
+;;	Call to map inferior's pages in
+;;
+mapin:	.call	.+1
+	setz
+	sixbit	/corblk/	;; CORBLK
+	ciarg	%cbndr+%cbndw	;; need to read and write it
+	ciarg	%jself		;; give to self
+	carg	pgdest		;; put where pgdest points
+	ciarg	usro		;; get from inferior
+	carg	pgsrc		;; from pgsrc
+	clerr	errcod
+;;
+;;	Call to map a page out
+;;
+mapout:	.call	.+1
+	setz
+	sixbit	/corblk/	;; CORBLK
+	ciarg	%cbndr+%cbndw	;; need read and write
+	ciarg	usro		;; map to inferior
+	carg	pgdest		;; pgdest has page number
+	ciarg	%jself		;; map from self
+	carg	pgsrc		;; gives page number
+	clerr	errcod
+;;
+;;	Call to delete page(s) form self
+;;
+pagdel:	.call	.+1
+	setz
+	sixbit	/corblk/
+	ciarg	0		;; 0 deletes from page map
+	ciarg	%jself		;; delete from self
+	carg	pgdest		;; gives number(s) of page(s)
+	clerr	errcod
+
+;;
+;;	Call to move pages within self
+;;
+movpgs:	.call	.+1
+	setz
+	sixbit	/corblk/
+	ciarg	%cbndr+%cbwrt	;; need to read, get write if can
+	ciarg	%jself
+	carg	pgdest
+	ciarg	%jself
+	carg	pgsrc
+	clerr	errcod
+;;
+;;	Call to map pure pages out
+;;
+pmpout:	.call	.+1
+	setz
+	sixbit	/corblk/
+	ciarg	%cbndr
+	ciarg	usro
+	carg	pgdest
+	ciarg	%jself
+	carg	pgsrc
+	clerr	errcod
+;;
+;;	Call to map pure pages in
+;;
+pmpin:	.call	.+1
+	setz
+	sixbit	/corblk/
+	ciarg	%cbndr		;; note: this purifies as it maps in
+	ciarg	%jself
+	carg	pgdest
+	ciarg	usro
+	carg	pgsrc
+	clerr	errcod
+;;
+;;	Call to close channel opened to job
+;;
+jclose:	setz
+	sixbit	/close/
+	ciarg	usro
+	clerr	errcod
+;;
+;;	Call to push (and hence free) channel for job
+;;
+chpush:	setz
+	sixbit	/iopush/
+	ciarg	usro
+	clerr	errcod
+;;
+;;	Matching call to pop channel
+;;
+chpop:	setz
+	sixbit	/iopop/
+	ciarg	usro
+	clerr	errcod
+
+;;
+;;	Variables for page hacking calls
+;;
+pgsrc:	0			;; source pages for calls
+pgdest:	0			;; destination pages for calls
+;;
+;; MISCELLANEOUS CALLS
+;;
+;;	Call to dismiss interrupts
+;;
+intdis:	setz
+	sixbit	/dismis/
+	cicnt	400020		;; throw away debugging words, pop all AC's
+	carg	intpdl		;; intr gcstak pointer is intpdl
+	clerr	errcod
+;;
+;; Error code word for all .call's
+;;
+errcod:	0

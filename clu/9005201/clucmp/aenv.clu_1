@@ -1,0 +1,727 @@
+%	AENV CLU
+%
+%	CLUMAC assembler: assembler environment
+
+a_env = cluster is	create,			% -> env
+			set_input,		% env, file ->
+			get_input,		% env -> file
+			set_output,		% file -> env
+			get_output,		% file -> env
+			get_lh_equate,		% env -> bool
+			set_lh_equate,		% env, bool ->
+			begin_cluster,		% env ->
+			end_cluster,		% env ->
+			use_owndata,		% env ->
+			begin_proc,		% env ->
+			end_proc,		% env ->
+			get_arg_count,		% env -> int
+			set_arg_count,		% env, int ->
+			set_proc_type,		% env, wrd ->
+			add_option,		% env, int ->
+			add_clink,		% env, wrd ->
+			add_plink,		% env, wrd -> int
+			add_link,		% env, wrd -> int
+			add_odlink,		% env, wrd -> int
+			add_vinit,		% env, wrd -> int
+			add_mlink,		% env, wrd ->
+			add_rlink,		% env, int, aw -> wrd
+			add_wrd,		% env, wrd
+			add_eblock,		% env ->
+			begin_loop,		% env ->
+			end_loop,		% env ->
+			get_loop_disp,		% env -> wrd
+			begin_if,		% env ->
+			begin_else,		% env ->
+			end_if,			% env ->
+			get_fi_disp,		% env -> wrd
+			get_else_disp,		% env -> wrd
+			begin_tagcase,		% env ->
+			end_tagcase,		% env ->
+			get_tags_exist,		% env -> bool
+			set_tags_exist,		% env, bool ->
+			begin_catch,		% env ->
+			begin_except,		% env, wrd, aw ->
+			end_catch,		% env ->
+			get_uncatch_disp,	% env -> wrd
+			define,			% env, str, wrd ->
+			defmac,			% env, str, mtype ->
+			label,			% env, str -> wrd
+			lookup,			% env, str -> wrd
+			dlookup,		% env, str -> def
+			err,			% env, str ->
+			get_err,		% env -> bool
+			set_err,		% env, bool ->
+			undefined,		% env, str ->
+			get_char_tab,		% env -> ai
+			get_temp_ac,		% env -> ac
+			newline,		% env ->
+			dump;			% env, chan ->
+
+_ld_cod		= 0;			% offsets in initial vector of binary output
+_ld_siz		= 1;
+_ld_low		= 2;
+_ld_ent		= 3;
+_ld_ver		= 4;
+_ld_ref		= 5;
+
+dtab		= table[def];
+unknownlist	= array[unknown];
+unknown		= record[loc: int,
+			 wrd: wrd];
+
+rep 		= record[input:		file,
+			 lineno:	int,
+			 output:	file,
+			 err:		bool,
+			 lh_equate:	bool,
+			 in_cluster:	bool,
+			 oduse:		int,
+			 in_proc:	bool,
+			 proc_type:	wrd,
+			 arg_count:	int,
+			 options:	int,
+			 memory:	memory,
+			 defs:		dtab,
+			 unknowns:	unknownlist,
+			 ppart:		aw,
+			 eblock:	aw,
+			 clinks:	aw,
+			 plinks:	aw,
+			 links:		aw,
+			 odlinks:	aw,
+			 vinits:	aw,
+			 mlinks:	aw,
+			 rlinks:	aaw,
+			 ppart_sym:	str,
+			 eblock_point:	int,
+			 clink_sym:	str,
+			 plink_sym:	str,
+			 link_sym:	str,
+			 odlink_sym:	str,
+			 vinit_sym:	str,
+			 fi_sym:	str,
+			 else_sym:	str,
+			 catch_sym:	str,
+			 uncatch_sym:	str,
+			 rlink_disp:	wrd,
+			 loop_disps:	aw,
+			 fi_disps:	as,
+			 else_disps:	as,
+			 tag_flags:	ab,
+			 uncatch_disps:	as,
+			 rlink_count:	int,
+			 catch_counts:	ai,
+			 catch_disps:	aw,
+			 char_tab:	ai,
+			 temp_ac:	ac];
+
+create = proc () returns (cvt);
+	zero: wrd := wrd$create(0, 0);
+	e: rep := rep${	input:		file$open_read("nul:"),
+			lineno:		1,
+			output:		file$tyo(),
+			err:		false,
+			lh_equate:	false,
+			in_cluster:	false,
+			oduse:		0,
+			in_proc:	false,
+			proc_type:	zero,
+			arg_count:	0,
+			options:	0,
+			memory:		memory$create(),
+			defs:		dtab$create(),
+			unknowns:	unknownlist$predict(1, 1000),
+			ppart:		aw$predict(1, 1000),
+			eblock:		aw$predict(1, 100),
+			clinks:		aw$predict(1, 20),
+			plinks:		aw$predict(1, 20),
+			links:		aw$predict(1, 1000),
+			odlinks:	aw$predict(1, 10),
+			vinits:		aw$predict(1, 30),
+			mlinks:		aw$predict(1, 100),
+			rlinks:		aaw$predict(1, 2000),
+			ppart_sym:	",ppart_1",
+			eblock_point:	0,
+			clink_sym:	",clink_1",
+			plink_sym:	",plink_1",
+			link_sym:	",link_1",
+			odlink_sym:	",odlink_1",
+			vinit_sym:	",vinit_1",
+			fi_sym:		",fi_1",
+			else_sym:	",else_1",
+			catch_sym:	",catch_1",
+			uncatch_sym:	",uncatch_1",
+			rlink_disp:	wrd$make_unknown(",rlink"),
+			loop_disps:	aw$predict(1, 5),
+			fi_disps:	as$predict(1, 5),
+			else_disps:	as$predict(1, 5),
+			tag_flags:	ab$predict(1, 5),
+			uncatch_disps:	as$predict(1, 5),
+			rlink_count:	0,
+			catch_counts:	ai$predict(1, 5),
+			catch_disps:	aw$predict(1, 5),
+			char_tab:	create_char_tab(),
+			temp_ac:	ac$predict(1, 30)};
+	ppart: aw := e.ppart;
+	for i: int in int$from_to(1, _pr_go - 1) do
+		aw$addh(ppart, zero);
+		end;
+	mem: memory := e.memory;
+	mem.loc := _userlo;
+	memory$deposit(mem, _tvec, 6);
+	memory$deposit(mem, 0, 0);
+	memory$deposit(mem, 0, _userlo);
+	memory$deposit(mem, 0, 0);
+	memory$deposit(mem, _vers_format, _vers_feature);
+	memory$deposit(mem, 0, 0);
+	return(e);
+	end create;
+	
+get_input = proc (e: cvt) returns (file);
+	return(e.input);
+	end get_input;
+
+set_input = proc (e: cvt, f: file);
+	e.input := f;
+	e.lineno := 1;
+	end set_input;
+
+get_output = proc (e: cvt) returns (file);
+	return(e.output);
+	end get_output;
+
+set_output = proc (e: cvt, f: file);
+	e.output := f;
+	end set_output;
+
+get_err = proc (e: cvt) returns (bool);
+	return(e.err);
+	end get_err;
+
+set_err = proc (e: cvt, b: bool);
+	e.err := b;
+	end set_err;
+
+get_lh_equate = proc (e: cvt) returns (bool);
+	return(e.lh_equate);
+	end get_lh_equate;
+
+set_lh_equate = proc (e: cvt, b: bool);
+	e.lh_equate := b;
+	end set_lh_equate;
+
+begin_cluster = proc (e: cvt);
+	if e.in_cluster
+	   then err(up(e), "unterminated cluster");
+		end_cluster(up(e));
+	   end;
+	e.in_cluster := true;
+	end begin_cluster;
+
+end_cluster = proc (e: cvt);
+	if ~e.in_cluster
+	   then err(up(e), "not in cluster");
+		return;
+	   end;
+	if e.in_proc
+	   then err(up(e), "unterminated proc/iter");
+		end_proc(up(e));
+	   end;
+	voutput(e, e.links, e.link_sym);
+	voutput(e, e.clinks, e.clink_sym);
+	voutput(e, e.odlinks, e.odlink_sym);
+	e.link_sym := new_sym(e.link_sym);
+	e.clink_sym := new_sym(e.clink_sym);
+	e.odlink_sym := new_sym(e.odlink_sym);
+	e.in_cluster := false;
+	end end_cluster;
+
+use_owndata = proc (e: cvt);
+	e.oduse := 1;
+	end use_owndata;
+
+begin_proc = proc (e: cvt);
+	if ~e.in_cluster
+	   then err(up(e), "not in cluster");
+		begin_cluster(up(e));
+	   end;
+	if e.in_proc
+	   then err(up(e), "unterminated proc/iter");
+		end_proc(up(e));
+	   end;
+	e.in_proc := true;
+	end begin_proc;
+
+end_proc = proc (ee: env);
+	e: rep := down(ee);
+	if ~e.in_proc
+	   then err(ee, "not in proc/iter");
+		return;
+	   end;
+	if as$size(e.fi_disps) > 0
+	   then err(ee, "not all $if's properly ended");
+		as$trim(e.fi_disps, 1, 0);
+		as$trim(e.else_disps, 1, 0);
+	   end;
+	if aw$size(e.loop_disps) > 0
+	   then err(ee, "not all $loop's properly ended");
+		aw$trim(e.loop_disps, 1, 0);
+	   end;
+	if as$size(e.uncatch_disps) > 0
+	   then err(ee, "not all $catch's properly ended");
+		as$trim(e.uncatch_disps, 1, 0);
+		aw$trim(e.catch_disps, 1, 0);
+		ai$trim(e.catch_counts, 1, 0);
+	   end;
+	put_entry_block(e);
+	put_pure_part(e);
+	voutput(e, e.vinits, e.vinit_sym);
+	voutput(e, e.plinks, e.plink_sym);
+	e.vinit_sym := new_sym(e.vinit_sym);
+	e.plink_sym := new_sym(e.plink_sym);
+	e.proc_type := wrd$create(0, 0);
+	e.options := 0;
+	e.oduse := 0;
+	e.arg_count := 0;
+	e.in_proc := false;
+	end end_proc;
+
+put_entry_block = proc (e: rep);
+	ee: env := up(e);
+	zero: wrd := wrd$create(0, 0);
+	add_mlink(ee, wrd$create(_tref, e.memory.loc));
+	put_wrd(e, wrd$create(_terep, _en_dat + e.oduse));
+	viz: int := aw$size(e.vinits);
+	viwrd: wrd;
+	if viz = 0
+	   then put_wrd(e, wrd$xinst(PUSHJ, SP, 0, _qsetup));
+		viwrd := wrd$create(0, 0);
+	   else put_wrd(e, wrd$xinst(PUSHJ, SP, 0, _setup));
+		viwrd := wrd$r2l(lookup(ee, e.vinit_sym)) + wrd$create(1, viz);
+	   end;
+	ppaddr: wrd := lookup(ee, e.ppart_sym);
+	laddr: wrd := lookup(ee, e.link_sym);
+	put_wrd(e, wrd$r2l(laddr) + ppaddr);
+	put_wrd(e, viwrd);
+	paddr: wrd := lookup(ee, e.plink_sym);
+	caddr: wrd := lookup(ee, e.clink_sym);
+	put_wrd(e, wrd$r2l(paddr) + caddr);
+	put_wrd(e, zero);
+	put_wrd(e, e.proc_type);
+	put_wrd(e, zero);
+	if e.oduse > 0
+	   then odaddr: wrd := lookup(ee, e.odlink_sym);
+		put_wrd(e, wrd$iaddl(odaddr, _tref));
+	   end;
+	end put_entry_block;
+
+put_pure_part = proc (e: rep);
+	ee: env := up(e);
+	define(ee, e.ppart_sym, wrd$create(0, e.memory.loc));
+	ppart: aw := e.ppart;
+	eblock: aw := e.eblock;
+	bz: int := e.eblock_point;
+	pz: int := aw$size(ppart);
+	ez: int := aw$size(eblock);
+	put_wrd(e, wrd$create(_tprep, pz + ez + 1));
+	put_wrd(e, wrd$create(e.options, bz));
+	put_wrd(e, wrd$create(0, e.arg_count + 2));
+	put_wrd(e, wrd$create(0, bz + ez));
+	for i: int in int$from_to(_pr_go, bz - 1) do
+		put_wrd(e, ppart[i]);
+		end;
+	for w: wrd in aw$elements(eblock) do
+		put_wrd(e, w);
+		end;
+	for i: int in int$from_to(bz, pz) do
+		put_wrd(e, ppart[i]);
+		end;
+	aw$trim(ppart, 1, _pr_go - 1);
+	aw$trim(eblock, 1, 0);
+	e.ppart_sym := new_sym(e.ppart_sym);
+	e.eblock_point := 0;
+	end put_pure_part;
+
+voutput = proc (e: rep, vec: aw, sym: str);
+	z: int := aw$size(vec);
+	if z = 0
+	   then define(up(e), sym, wrd$create(0, 0));
+		return;
+	   end;
+	define(up(e), sym, wrd$create(0, e.memory.loc));
+	put_wrd(e, wrd$create(_tvec, z + 1));
+	for w: wrd in aw$elements(vec) do
+		put_wrd(e, w);
+		end;
+	aw$trim(vec, 1, 0);
+	end voutput;
+
+get_arg_count = proc (e: cvt) returns (int);
+	return(e.arg_count);
+	end get_arg_count;
+
+set_arg_count = proc (e: cvt, cnt: int);
+	e.arg_count := cnt;
+	end set_arg_count;
+
+set_proc_type = proc (e: cvt, w: wrd);
+	e.proc_type := w;
+	end set_proc_type;
+
+add_option = proc (e: cvt, opt: int);
+	e.options := i_or(e.options, opt);
+	end add_option;
+
+add_clink = proc (e: cvt, w: wrd) returns (int);
+	clinks: aw := e.clinks;
+	aw$addh(clinks, w);
+	return(aw$size(clinks));
+	end add_clink;
+
+add_plink = proc (e: cvt, w: wrd) returns (int);
+	plinks: aw := e.plinks;
+	aw$addh(plinks, w);
+	return(aw$size(plinks));
+	end add_plink;
+
+add_link = proc (e: cvt, w: wrd) returns (int);
+	links: aw := e.links;
+	aw$addh(links, w);
+	return(aw$size(links));
+	end add_link;
+
+add_odlink = proc (e: cvt, w: wrd) returns (int);
+	odlinks: aw := e.odlinks;
+	aw$addh(odlinks, w);
+	return(aw$size(odlinks));
+	end add_odlink;
+
+add_vinit = proc (e: cvt, w: wrd) returns (int);
+	vinits: aw := e.vinits;
+	aw$addh(vinits, w);
+	return(aw$size(vinits));
+	end add_vinit;
+
+add_mlink = proc (e: cvt, w: wrd);
+	aw$addh(e.mlinks, w);
+	end add_mlink;
+
+add_rlink = proc (e: cvt, typ: int, vec: aw) returns (wrd);
+	cnt: int := e.rlink_count;
+	aaw$addh(e.rlinks, vec);
+	head: wrd := wrd$create(typ, cnt);
+	e.rlink_count := cnt + aw$size(vec);
+	return(head + e.rlink_disp);
+	end add_rlink;
+
+add_wrd = proc (e: cvt, w: wrd);
+	aw$addh(e.ppart, w);
+	end add_wrd;
+
+add_eblock = proc (e: cvt);
+	e.eblock_point := aw$size(e.ppart) + 1;
+	end add_eblock;
+
+begin_loop = proc (e: cvt);
+	disp: int := aw$size(e.ppart) + 1;
+	aw$addh(e.loop_disps, wrd$create(0, disp));
+	end begin_loop;
+
+end_loop = proc (e: cvt);
+	aw$remh(e.loop_disps);
+	   except when bounds: err(up(e), "not in $loop");
+		  end;
+	end end_loop;
+
+get_loop_disp = proc (e: cvt) returns (wrd);
+	return(aw$top(e.loop_disps));
+	   except when bounds: ; end;
+	err(up(e), "not in $loop");
+	return(wrd$create(0, 0));
+	end get_loop_disp;
+
+begin_if = proc (e: cvt);
+	as$addh(e.fi_disps, e.fi_sym);
+	as$addh(e.else_disps, e.else_sym);
+	e.fi_sym := new_sym(e.fi_sym);
+	e.else_sym := new_sym(e.else_sym);
+	end begin_if;
+
+begin_else = proc (e: cvt);
+	label(up(e), as$remh(e.else_disps));
+	   except when bounds: err(up(e), "not in $if");
+			       return;
+		  end;
+	as$addh(e.else_disps, e.else_sym);
+	e.else_sym := new_sym(e.else_sym);
+	end begin_else;
+
+end_if = proc (e: cvt);
+	label(up(e), as$remh(e.fi_disps));
+	   except when bounds: err(up(e), "not in $if");
+			       return;
+		  end;
+	label(up(e), as$remh(e.else_disps));
+	end end_if;
+
+get_fi_disp = proc (e: cvt) returns (wrd);
+	return(lookup(up(e), as$top(e.fi_disps)));
+	   except when bounds: ; end;
+	err(up(e), "not in $if");
+	return(wrd$create(0, 0));
+	end get_fi_disp;
+
+get_else_disp = proc (e: cvt) returns (wrd);
+	return(lookup(up(e), as$top(e.else_disps)));
+	   except when bounds: ; end;
+	err(up(e), "not if $if");
+	return(wrd$create(0, 0));
+	end get_else_disp;
+
+begin_tagcase = proc (e: cvt);
+	ab$addh(e.tag_flags, false);
+	begin_if(up(e));
+	end begin_tagcase;
+
+get_tags_exist = proc (e: cvt) returns (bool);
+	return(ab$top(e.tag_flags));
+	   except when bounds: ; end;
+	err(up(e), "not in $tagcase");
+	return(false);
+	end get_tags_exist;
+
+set_tags_exist = proc (e: cvt, b: bool);
+	e.tag_flags[ab$size(e.tag_flags)] := b;
+	   except when bounds: err(up(e), "not in $tagcase");
+			       return;
+		  end;
+	end set_tags_exist;
+
+end_tagcase = proc (e: cvt);
+	ab$remh(e.tag_flags);
+	   except when bounds: err(up(e), "not in $tagcase");
+			       return;
+		  end;
+	end_if(up(e));
+	end end_tagcase;
+
+begin_catch = proc (e: cvt);
+	as$addh(e.uncatch_disps, e.uncatch_sym);
+	e.uncatch_sym := new_sym(e.uncatch_sym);
+	ai$addh(e.catch_counts, aw$size(e.ppart) + 1);
+	aw$addh(e.catch_disps, label(up(e), e.catch_sym));
+	e.catch_sym := new_sym(e.catch_sym);
+	end begin_catch;
+
+begin_except = proc (e: cvt, var: wrd, names: aw);
+	counts: ai := e.catch_counts;
+	disps: aw := e.catch_disps;
+	cnt: int := ai$top(counts);
+	   except when bounds: err(up(e), "not in $catch");
+			       return;
+		  end;
+	disp: wrd := aw$top(disps);
+	ncnt: int := aw$size(e.ppart) + 1;
+	if cnt > 0
+	   then cnt := cnt - ncnt;
+		z: int := ai$high(counts);
+		counts[z] := cnt;
+		disp := wrd$iaddl(disp, cnt);
+		disps[z] := disp;
+	   end;
+	eblock: aw := e.eblock;
+	aw$addh(eblock, disp);
+	aw$addh(eblock, wrd$create(aw$size(names), ncnt));
+	aw$addh(eblock, var.right);
+	for name: wrd in aw$elements(names) do
+		aw$addh(eblock, name);
+		end;
+	end begin_except;
+
+end_catch = proc (e: cvt);
+	label(up(e), as$remh(e.uncatch_disps));
+	   except when bounds: err(up(e), "not in $catch");
+			       return;
+		  end;
+	ai$remh(e.catch_counts);
+	aw$remh(e.catch_disps);
+	end end_catch;
+
+get_uncatch_disp = proc (e: cvt) returns (wrd);
+	return(lookup(up(e), as$top(e.uncatch_disps)));
+	   except when bounds: ; end;
+	err(up(e), "not in $catch");
+	return(wrd$create(0, 0));
+	end get_uncatch_disp;
+
+define = proc (e: cvt, sym: str, val: wrd);
+	dtab$alter(e.defs, sym, def$make_value(val));
+	end define;
+
+defmac = proc (e: cvt, sym: str, mac: mtype);
+	dtab$alter(e.defs, sym, def$make_macro(mac));
+	end defmac;
+
+label = proc (e: cvt, sym: str) returns (wrd);
+	val: wrd := wrd$create(0, aw$size(e.ppart) + 1);
+	dtab$alter(e.defs, sym, def$make_value(val));
+	return(val);
+	end label;
+
+lookup = proc (e: cvt, sym: str) returns (wrd);
+	d: def := dtab$lookup(e.defs, sym);
+	   except when not_found: val: wrd := wrd$make_unknown(sym);
+				  dtab$enter(e.defs, sym, def$make_undef(val));
+				  return(val);
+		  end;
+	tagcase d
+	   tag value, undef (val: wrd):
+		return(val);
+	   tag macro:
+		err(up(e), "use of macro in expression");
+		return(wrd$create(0, 0));
+	   end;
+	end lookup;
+
+dlookup = proc (e: cvt, sym: str) returns (def);
+	return(dtab$lookup(e.defs, sym));
+	   except when not_found: ; end;
+	d: def := def$make_undef(wrd$make_unknown(sym));
+	dtab$enter(e.defs, sym, d);
+	return(d);
+	end dlookup;
+
+err = proc (e: cvt, why: str);
+	e.err := true;
+	f: file := e.output;
+	file$puti(f, e.lineno);
+	file$puts(f, ":\t");
+	file$puts(f, why);
+	file$putc(f, '\n');
+	end err;
+
+undefined = proc (e: cvt, sym: str);
+	e.err := true;
+	f: file := e.output;
+	file$puti(f, e.lineno);
+	file$puts(f, ":\tundefined symbol: ");
+	file$puts(f, sym);
+	file$putc(f, '\n');
+	end undefined;
+
+get_char_tab = proc (e: cvt) returns (ai);
+	return(e.char_tab);
+	end get_char_tab;
+
+get_temp_ac = proc (e: cvt) returns (ac);
+	a: ac := e.temp_ac;
+	ac$trim(a, 1, 0);
+	return(a);
+	end get_temp_ac;
+
+newline = proc (e: cvt);
+	e.lineno := e.lineno + 1;
+	end newline;
+
+new_sym = proc (s: str) returns (str);
+	n: int := str$indexc('_', s);
+	ns: str := int$unparse(1 + int$parse(str$rest(s, n + 1)));
+	return(str$substr(s, 1, n) || ns);
+	end new_sym;
+
+put_wrd = proc (e: rep, w: wrd);
+	if wrd$has_unknowns(w)
+	   then unknownlist$addh(e.unknowns, unknown${loc: e.memory.loc,
+						      wrd: w});
+		memory$deposit(e.memory, 0, 0);
+	   else left, right: int := wrd$w2i(w);
+		memory$deposit(e.memory, left, right);
+	   end;
+	end put_wrd;
+
+dump = proc (e: cvt, c: chan);
+	if e.in_cluster
+	   then err(up(e), "unterminated cluster");
+		end_cluster(up(e));
+	   end;
+	mem: memory := e.memory;
+	mlinks: aw := e.mlinks;
+	z: int := aw$size(mlinks);
+	if z = 0
+	   then return; end;
+	memory$store(mem, _userlo + _ld_ent, _tref, mem.loc);
+	put_wrd(e, wrd$create(_tvec, z + 1));
+	for w: wrd in aw$elements(mlinks) do
+		put_wrd(e, w);
+		end;
+	put_wrd(e, wrd$create(0, 0));
+	aw$trim(mlinks, 1, 0);
+	memory$store(mem, _userlo + _ld_ref, _tref, mem.loc);
+	define(up(e), ",rlink", wrd$create(0, mem.loc));
+	rlinks: aaw := e.rlinks;
+	for a: aw in aaw$elements(rlinks) do
+		for w: wrd in aw$elements(a) do
+			put_wrd(e, w);
+			end;
+		end;
+	high: int := mem.loc;
+	memory$deposit(mem, 0, 0);
+	top: int := mem.loc;
+	aaw$trim(rlinks, 1, 0);
+	l, r: int := i_sub4(0, top, 0, _userlo);
+	memory$store(mem, _userlo + _ld_siz, l, r);
+	unks: unknownlist := e.unknowns;
+	for unk: unknown in unknownlist$elements(unks) do
+		l, r := eval_wrd(e, unk.wrd);
+		memory$store(mem, unk.loc, l, r);
+		end;
+	unknownlist$trim(unks, 1, 0);
+	memory$dump(mem, _userlo, high, c);
+	end dump;
+
+eval_wrd = proc (e: rep, w: wrd) returns (int, int);
+	l, r: int, ul, ur: str := wrd$w2all(w);
+	ulv, urv, spare: int;
+	if ul = ""
+	   then ulv := 0;
+	   else spare, ulv := eval_wrd(e, vlookup(e, ul));
+	   end;
+	if ur = ""
+	   then urv := 0;
+	   else spare, urv := eval_wrd(e, vlookup(e, ur));
+	   end;
+	l, r := i_add4(l, r, ulv, urv);
+	return(l, r);
+	end eval_wrd;
+
+vlookup = proc (e: rep, sym: str) returns (wrd);
+	return(def$value_value(dtab$lookup(e.defs, sym)));
+	   except when wrong_tag, not_found: ; end;
+	undefined(up(e), sym);
+	w: wrd := wrd$create(0, 0);
+	define(up(e), sym, w);
+	return(w);
+	end vlookup;
+
+create_char_tab = proc () returns (ai);
+	return(ai$[0:
+		_badch,  _badch,  _badch,  _badch,  _badch,  _badch,  _badch,  _badch,
+		_badch,  _space,  _eol,    _badch,  _space,  _badch,  _badch,  _badch,
+		_badch,  _badch,  _badch,  _badch,  _badch,  _badch,  _badch,  _badch,
+		_badch,  _badch,  _badch,  _lower,  _badch,  _badch,  _badch,  _badch,
+		_space,  _badch,  _badch,  _funny,  _lower,  _lower,  _and,    _badch,
+		_lparen, _rparen, _times,  _plus,   _comma,  _minus,  _lower,  _badch,
+		_digit,  _digit,  _digit,  _digit,  _digit,  _digit,  _digit,  _digit,
+		_digit,  _digit,  _badch,  _semi,   _langle, _equal,  _rangle, _lower,
+		_at,     _upper,  _upper,  _upper,  _upper,  _upper,  _upper,  _upper,
+		_upper,  _upper,  _upper,  _upper,  _upper,  _upper,  _upper,  _upper,
+		_upper,  _upper,  _upper,  _upper,  _upper,  _upper,  _upper,  _upper,
+		_upper,  _upper,  _upper,  _lbkt,   _bslash, _rbkt,   _funny,  _lower,
+		_badch,  _lower,  _lower,  _lower,  _lower,  _lower,  _lower,  _lower,
+		_lower,  _lower,  _lower,  _lower,  _lower,  _lower,  _lower,  _lower,
+		_lower,  _lower,  _lower,  _lower,  _lower,  _lower,  _lower,  _lower,
+		_lower,  _lower,  _lower,  _lcurly, _funny,  _rcurly,  _badch,  _badch
+	       ]);
+	end create_char_tab;
+
+end a_env;

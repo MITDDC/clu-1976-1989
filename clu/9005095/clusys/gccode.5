@@ -1,0 +1,1613 @@
+;;
+;;	CLU garbage collector
+;;
+;; Clu garbage collector - macros, global symbols, variables, call blocks
+;;
+define	$die	msg/
+	.value	[asciz `
+: msg 
+
+`]
+	termin
+;;
+;; Symbols to use in .call's
+;;
+carg==	move		;; regular argument
+clarg==	setz		;; last argument
+ciarg==	movei		;; immediate argument
+cliarg==setzi		;; last argument, immediate
+cval==	movem		;; regular value
+clval==	setzm		;; last value
+cerr==	moves		;; error
+clerr==	setzb		;; last error
+ccnt==	movs		;; control
+cicnt==	movsi		;; immediate control
+;;
+;; Other symbols
+;;
+pglog2==10.		;; log base 2 of page size
+pgsize==1024.		;; page size
+bpword==5		;; bytes per word for strings
+rwind==	254.		;; number of read window page
+wwind==	255.		;; number of write window page
+freepg==1		;; number of first free page in inferior
+
+;;
+;; Register names
+;;
+o=	0		;; temporary registers
+a=	1
+b=	2
+c=	3
+d=	4
+e=	5
+f=	6
+g=	7
+h=	10
+i=	11
+mode=	12		;; mode (0=reading from self, 1=reading from inferior)
+rptr=	13		;; real read pointer
+rwptr=	14		;; read window pointer
+wptr=	15		;; real write pointer
+wwptr=	16		;; write window pointer
+sp=	17		;; gcstak pointer
+;;
+;; Other stuff to be included
+;;
+;;	Type codes
+;;
+usrflg==-1
+	.insrt	types >
+;;
+;;	Now my type codes
+;;
+t%gref=	gcbit		;; marks first words of objects referred to once
+t%grf2=	gcbit+1		;; marks first words of objects referred to more than once
+t%grel=	gcbit+2		;; marks all but first words of objects
+t%gbad=	gcbit+3		;; marks zapped words of array real stuff
+morbit==1		;; bit for "referred to more than once"
+;;
+;; LOC to start it
+;;
+	loc pgsize
+begin:	jrst cont..
+
+;;
+;; CLU Garbage collector variables
+;;
+;;	convention: C - static, K - stack, H - heap.
+;;
+;;	first, arguments (they MUST be in this order)
+;;
+sargs==	.
+basptr:	0		;; pointer to vector of basic areas
+rtnadr:	0		;; return address
+kstrt:	0		;; start of stack
+kend:	0		;; end of stack
+hstrt:	0		;; start of heap
+hend:	0		;; end of heap
+frmptr:	0		;; pointer to frame to trace frames from
+	0		;; new end of the heap (previously)
+arry1:	0		;; first array not to trim
+arry2:	0		;; second array not to trim
+nargs==	.-sargs
+;;
+;;	now, variables
+;;
+;;		for stack frame fixup
+;;
+fstrt:	0		;; start of frame save area
+;;
+;;		for copy and fixup phases
+;;
+.hstrt:	0		;; start of copy area in inferior
+.hend:	0		;; end of copy area in inferior
+pgsoff:	0		;; number of pages offset
+nhstrt:	0		;; new start of the heap
+oldend:	0		;; old end of heap (from previous time called)
+;;
+;;		statistics
+;;
+sstrt==	.		;; start of statistics area
+nsrefs:	0		;; no. refs from static area and stack
+nhrefs:	0		;; no. refs from heap
+nsobjs:	0		;; no. objects in static area and stack
+nhobjs:	0		;; no. objects in heap
+nmobjs:	0		;; no. objects multiply referred to
+nrels:	0		;; no. of rels found
+nfrels:	0		;; no. rels handled in fixup pass
+nbrels:	0		;; no. of bad rels
+nframe:	0		;; no. of frames in the stack
+natrim:	0		;; number of arrays trimmed
+ntrsav:	0		;; number of words trimming saved
+send==	.-1		;; end of statistics area
+stinit==:.
+	sstrt,,sstrt+1	;; for blt to init stats
+;;
+;;	gcstak area
+;;
+gcstak==:.
+	block 40	;; 32 words had better be enough!
+stklen==.-gcstak
+spinit==:.
+	-stklen,,gcstak-1	;; word to init gcstak pointer
+
+;;
+;;	interrupt hacking stuff
+;;
+intptr==42			;; loc of pointer to interrupt table
+optr==:	.
+	0			;; old pointer to interrupt table
+inttab==:.
+	-intlen,,intrup		;; new interrupt table word
+;;
+;;	new interrupt table
+;;
+intrup==:.
+	400020,,intpdl		;; push all regs, and debugging info
+				;; intpdl is intr gcstak ptr
+	%pipdl	? 0 ? %pipdl ? 0 ? pdlov
+		;; pdl is 1st word, masks self, handler is pdlov
+	%pimpv	? 0 ? %pimpv ? 0 ? mpvint
+		;; mpv is 1st word, masks self, handler is mpvint
+intlen==.-intrup
+;;
+;;	new interrupt gcstak pointer and gcstak
+;;
+intpdl==:.
+	-istkln,,intstk-1	;; new interrupt gcstak pointer
+intstk==:.
+	block	48.		;; new interrupt gcstak, room for 2 interrupts
+istkln==.-intstk
+;;
+;;	new interrupt mask, etc. set up info and save locs
+;;
+su1==:.
+	.rdf1,,df1sav
+	.rdf2,,df2sav
+	.rrunt,,sruntm
+suptr1==:.
+	su1-.,,su1
+df1sav==:.
+	0
+df2sav==:.
+	0
+sruntm==:.
+	0
+su2==:.
+	.sdf1,,mine
+	.sdf2,,alloff
+suptr2==:.
+	su2-.,,su2
+mine==:.
+	<-1>#<%pimpv+%pipdl>
+alloff==:.
+	-1		;; (all bits = 1)
+su3==:.
+	.sdf1,,df1sav
+	.sdf2,,df2sav
+	.rrunt,,eruntm
+suptr3==:.
+	su3-.,,su3
+eruntm==:.
+	0
+;;
+;;	interrupt handlers
+;;
+;;		PDL Overflow handler
+;;
+pdlov:	$die	Push down gcstak overflow
+	.call	intdis		;; dismiss (assume DDT took care of it)
+	 $die	Couldn't dismiss PDL OV interrupt
+;;
+;;		MPV interrupt handler
+;;
+mpvint:	$die	MPV interrupt
+	.call	intdis		;; dismiss (assume DDT took care of it)
+	 $die	Couldn't dismiss MPV interrupt
+
+;;
+;; GC CALLS
+;;
+;; All calls for the garbage collector are gathered together here
+;; for easy reference; they are grouped by category - job hacking
+;; calls, page hacking calls, etc.
+;;
+;; JOB HACKING CALLS
+;;
+usro==	17			;; channel # for job as output
+jobnam:	0			;; word for job name
+ubpfj.==10			;; code for random control bit in call below
+img.==	4			;; code for opening in image mode
+wrt.==	1			;; code for opening to write
+;;
+;;	Call that skips if job exists
+;;
+jexist:	setz
+	sixbit	/open/		;; open job with
+	cicnt	ubpfj.+img.	;; random bit (see system documentation), image mode
+				;; reading
+	ciarg	usro		;; on channel usro
+	carg	[sixbit	/usr/]	;; device name is USR
+	ciarg	0		;; use my first name
+	carg	jobnam		;; use jobnam as second name
+	clerr	errcod
+;;
+;;	Call to create a new job
+;;
+jmake:	setz
+	sixbit	/open/		;; open job
+	cicnt	img.+wrt.	;; in image mode, to write
+	ciarg	usro		;; on channel usro
+	carg	[sixbit	/usr/]	;; device name is USR
+	ciarg	0		;; use my first name
+	carg	jobnam		;; use jobnam for second name
+	clerr	errcod
+
+;;
+;; PAGE HACKING CALLS
+;;
+;;	Call to see if page exists
+;;
+pgexst:	setz
+	sixbit	/cortyp/		;; CORTYP
+	carg	pgsrc			;; page is in self, # in pgsrc
+	cval	pgdest			;; put value in pgdest
+	clerr	errcod			;; error code
+;;
+;;	Call to get fresh pages
+;;
+getpgs:	setz
+	sixbit	/corblk/		;; CORBLK
+	ciarg	%cbndr+%cbndw		;; need read and write
+	ciarg	%jself			;; give to self
+	carg	pgdest			;; pgdest is aobjn pointer
+	ciarg	%jsnew			;; get new pages
+	clerr	errcod			;; put error code in corerr
+;;
+;;	Call to map inferior's pages in
+;;
+mapin:	setz
+	sixbit	/corblk/	;; CORBLK
+	ciarg	%cbndr+%cbndw	;; need to read and write it
+	ciarg	%jself		;; give to self
+	carg	pgdest		;; put where pgdest points
+	ciarg	usro		;; get from inferior
+	carg	pgsrc		;; from pgsrc
+	clerr	errcod
+	carg	pgsrc		;; source page numbers from pgsrc
+;;
+;;	Call to map a page out
+;;
+mapout:	setz
+	sixbit	/corblk/	;; CORBLK
+	ciarg	%cbndr+%cbndw	;; need read and write
+	ciarg	usro		;; map to inferior
+	carg	pgdest		;; pgdest has page number
+	ciarg	%jself		;; map from self
+	carg	pgsrc		;; gives page number
+	clerr	errcod
+;;
+;;	Call to delete page(s)
+;;
+pagdel:	setz
+	sixbit	/corblk/
+	ciarg	0		;; 0 deletes from page map
+	ciarg	%jself		;; delete from self
+	carg	pgdest		;; gives number(s) of page(s)
+	clerr	errcod
+;;
+;;	Variables for page hacking calls
+;;
+pgsrc:	0			;; source pages for calls
+pgdest:	0			;; destination pages for calls
+
+;;
+;; MISCELLANEOUS CALLS
+;;
+;;	Call to dismiss interrupts
+;;
+intdis:	setz
+	sixbit	/dismis/
+	cicnt	400020		;; throw away debugging words, pop all AC's
+	carg	intpdl		;; intr gcstak pointer is intpdl
+	clerr	errcod
+;;
+;; Error code word for all .call's
+;;
+errcod:	0
+
+;;
+;;	start - clear statistics
+;;
+cont..:	setzm	sstrt
+	move	sp,stinit
+	blt	sp,send
+	move	sp,spinit	;; init gcstak pointer
+;;
+;;		gc1 checks args, sets up interrupt handlers and call stack,
+;;			and creates inferior
+;;
+;;
+;; Clu garbage collector - step 1
+;;	Arguments and initialization
+;;
+;; Arguments are as follows:
+;;	register 1	pointer to vector of aobjn pointer for basic areas
+;;		 2	return address
+;;		 3	start of stack
+;;		 4	end of stack	**
+;;		 5	start of heap	**
+;;		 6	end of heap
+;;		 7	frame pointer
+;;		10	blank (used to be new end of heap, now ignored)
+;;		11	first array not to trim
+;;		12	other array not to trim
+;;
+;; **	These regs are also returned!
+;;
+;; First, store arguments
+;;
+	move	0,[1,,sargs]
+	blt	0,sargs+nargs-1
+;;
+;; Now check them; they should be
+;;	3<4<5<6, 3<=7<=4, and 1,2 not between 3,4 or 5,6
+;;
+	hrrz	1,1	;; clear left halves for comparisons
+	hrrz	2,2
+	hrrz	3,3
+	hrrz	4,4
+	hrrz	5,5
+	hrrz	6,6
+	hrrz	7,7
+	caml	3,4
+	 jrst	badarg
+	caml	4,5
+	 jrst	badarg
+	caml	5,6
+	 jrst	badarg
+	camle	3,7
+	 jrst	badarg
+	camle	7,4
+	 jrst	badarg
+
+	caml	1,3
+	 camle	1,4
+	  jrst	.+2
+	   jrst	badarg
+	caml	1,5
+	 camle	1,6
+	  jrst	.+2
+	   jrst	badarg
+	caml	2,3
+	 camle	2,4
+	  jrst	.+2
+	   jrst	badarg
+	caml	2,5
+	 camle	2,6
+	  jrst	.+2
+badarg:	 $die	GC received bad arguments!
+;;
+;; Set up new interrupt stuff
+;;
+	move	a,suptr1	;; read out defer words and save them
+	.suset	a
+	move	a,suptr2	;; set them to defer all interrupts
+	.suset	a
+	move	a,inttab	;; install my interrupt table
+	exch	a,intptr
+	movem	a,optr
+;;
+;; Create inferior job (we use its address space as storage)
+;;
+	move	a,[sixbit /CLUGC0/]
+	movem	a,jobnam
+tryit:	.call	jexist		;; this call skips if a job with the given name exists
+	 jrst	[move	c,errcod	;; error code meaning job exists
+		 caie	c,4
+		  $die	Call to see if job exists failed in wrong way!!
+		 jrst	makeit]	;; try to make job
+	.call	[setz		;; close the channel
+		 sixbit /CLOSE/
+		 ciarg	usro
+		 clerr	errcod]
+	 $die	Job close failed
+again:	aos	jobnam		;; try another name
+	jrst	tryit
+
+makeit:	.call	jmake		;; this actually creates the job
+	 jrst	[move	c,errcod	;; check error code
+		 cain	c,12		;; 12 => job not inferior
+		  jrst	again
+		 cain	c,6		;; 6 => no job slots
+		  $die	No jobs slots available for GC
+		 cain	c,5		;; 5 => already have 8 inferiors
+		  $die	No inferiors available for GC
+		 $die	Couldn't get job for GC (strange error)
+		]
+
+;;
+;; Clu garbage collector - step 2
+;;	Stack frame transformation
+;;
+;;	The format of a frame as used in the CLU system is:
+;;			-1:  mr,,ra
+;;		ptr->	 0: ier,,oer
+;;	where:
+;;		mr = module register (rh of a ref)
+;;		ra = return address (rh of a rel)
+;;		oer = old environment register (points to a frame or = 0)
+;;		ier = iterator environment register (same format as oer)
+;;	We save two words (in the order presented)
+;;		ptr
+;;		ier,,oer
+;;	and transform the frame into this (which is acceptable to the usual
+;;	tracing routines in the garbage collector):
+;;			-1: trel,,ra
+;;		ptr->	 0: tref,,mr
+;;	A later segment restores the frames before we return from GC,
+;;	using the information saved now.
+;;
+	jrst	cont21		;; skip over insert file
+;;
+;;	CLU garbage collector - subroutines for reading and writing
+;;		sequentially through windows;
+;;		page mapping done automatically
+;;
+;; wr.ini - subroutine to set up for writing to inferior;
+;;	first word to write into is rh of a;
+;;	sets up wptr, wwptr
+;;
+wr.ini:	hrrz	wptr,a
+	move	wwptr,wptr
+	andi	wwptr,pgsize-1
+	iori	wwptr,wwind*pgsize
+	popj	sp,
+;;
+;; write - "subroutine" to write a word to inferior (through window);
+;;	word is in a;
+;;	for efficiency, is a macro with a call in it
+;;
+define	write
+	jumpl	wwptr,.+2	;; go and write only if aobjn pointer is < 0
+	 pushj	sp,write1
+	movem	a,(wwptr)
+	aoj	wptr,
+	aobjn	wwptr,.+1
+	termin
+
+;;
+;;	now the subroutine, which sets up a page for writing
+;;	
+write1:	push	sp,a		;; get temp register
+	movei	a,wwind		;; get new page
+	movem	a,pgdest
+	.call	getpgs
+	 $die	Write couldn't get new page
+	movem	a,pgsrc		;; map out to right place
+	hrrz	a,wptr
+	lsh	a,-pglog2
+	movem	a,pgdest
+	jumpn	a,.+2
+	 $die	Writing wrapped around
+	.call	mapout
+	 $die	Write couldn't map new page out
+	hrr	wwptr,wptr
+	andi	wwptr,pgsize-1	;; now fix wwptr
+	move	a,wwptr
+	subi	a,pgsize
+	hrl	wwptr,a
+	iori	wwptr,wwind*pgsize
+	pop	sp,a
+	popj	sp,
+;;
+;; writem - write multiple words
+;;	a has starting address in rh;
+;;	b has number of words to write;
+;;	c is set to address written to;
+;;	a, b are not modified;
+;;	regs d, e, f, g, h used
+;;
+writem:	hrrz	c,wptr		;; go ahead and set c
+	jumpg	b,.+2		;; make sure there is something to do!
+	 $die	Writem to write nothing?
+	hrrz	d,a		;; d will hold current starting address
+	hrrz	e,b		;; e will hold current length
+writm1:	hlre	f,wwptr		;; compute number of words to blt
+	movn	f,f		;; f holds len left in page
+	jumpg	f,writm2	;; if none left, get new page
+	pushj	sp,write1
+	jrst	writm1
+writm2:	move	g,f		;; get min(len of obj, amt left in page) in g
+	camle	f,e
+	 move	g,e
+	hrl	h,d		;; form blt pointer in h
+	hrr	h,wwptr
+	add	wwptr,g		;; wwptr now has last address to be written + 1
+	blt	h,-1(wwptr)	;; copy part of object
+	add	wptr,g		;; bump real write pointer, too
+	add	d,g		;; now bump all pointers, etc.
+	sub	e,g
+	movs	g,g		;; bump left half of wwptr
+	add	wwptr,g
+	jumpn	e,writm1	;; if more to do, do it!
+	popj	sp,		;; return if no more to do
+
+;;
+;; rd.ini - subroutine to set up for reading from self;
+;;	starting address is rh of a;
+;;	len is in rh of b;
+;;	sets up mode, rptr, rwptr, rdfrst
+;;
+rd.ini:	jumple	b,rd.die	;; len <= 0 is nonsense
+	movei	mode,0
+	hrrz	rptr,a
+	move	rwptr,rptr
+	movn	b,b
+	aoj	b,
+	hrl	rwptr,b
+	soj	rptr,		;; decrement because read increments first
+	sub	rwptr,[1,,1]
+	popj	sp,
+;;
+;; rdi.in - subroutine to set up for reading from inferior;
+;;	starting address is rh of a;
+;;	sets up mode, rptr, rwptr
+;;
+rdi.in:	movei	mode,1		;; set mode to indicate reading from inferior
+	hrrz	rptr,a
+	soj	rptr,		;; subtract one to get it to work with read
+	setz	rwptr,		;; clear it so read1 will be called
+	popj	sp,
+;;
+;; read - subroutine to read a word;
+;;	leaves rwptr pointing to it;
+;;	like write, it is done as a macro for efficiency
+;;
+define	read
+	jumpl	rwptr,.+3	;; make sure not at start of new page
+	jumpe	mode,rd.die	;; die if ran off end in reading superior
+	pushj	sp,read1
+	aoj	rptr,		;; and bump both pointers
+	aobjn	rwptr,.+1
+	termin
+
+;;
+;;	now the subroutine called above
+;;
+read1:	aoj	rptr,		;; bump to find real location
+	push	sp,a		;; get a temp
+	hrrz	a,rptr		;; map page in
+	lsh	a,-pglog2
+	movem	a,pgsrc
+	movei	a,rwind
+	movem	a,pgdest
+	.call	mapin
+	 $die	Read couldn't map page in
+	move	rwptr,rptr
+	andi	rwptr,pgsize-1
+	move	a,rwptr
+	subi	a,pgsize-1
+	iori	rwptr,rwind*pgsize
+	hrl	rwptr,a
+	soj	rptr,		;; subtract one since read will bump first
+	sub	rwptr,[1,,1]
+	pop	sp,a
+	popj	sp,
+;;
+;;	routine to skip over words
+;;		number to skip is in a
+rd.skp:	jumple	a,rd.die
+	add	rptr,a
+	hrl	a,a
+	add	rwptr,a
+	popj	sp,		;; note: read automatically maps right page, etc.
+;;
+;;	place to go for die message
+;;
+rd.die:	$die	Tried to read beyond end
+
+;;
+;;	set up to write frame save stuff
+;;
+cont21:	movei	a,freepg	;; give starting location
+	lsh	a,pglog2
+	movem	a,fstrt		;; save starting location
+	pushj	sp,wr.ini
+	pushj	sp,rdi.in	;; set up to read from inferior also
+;;
+;;	do first frame
+;;
+	hrrz	b,frmptr
+	pushj	sp,dofrm
+;;
+;;	now loop reading, fixing up, writing
+;;
+fixlup:	cail	rptr,-1(wptr)
+	 jrst	cont22
+	read
+	read
+	move	a,(rwptr)
+	hrrz	b,a		;; split into two pointers
+	hlrz	c,a
+	push	sp,c
+	pushj	sp,dofrm
+	pop	sp,b
+	pushj	sp,dofrm
+	jrst	fixlup
+;;
+;;	internal subroutine to handle one frame
+;;		address of frame is in b
+;;
+dofrm:	jumpn	b,.+2		;; don't follow null pointers
+	 popj	sp,
+	caml	b,kstrt		;; make sure points into stack
+	 camle	b,kend
+	  $die	A frame pointer not in stack
+	hlrz	a,(b)
+	cain	a,t%ref		;; return if already done
+	 popj	sp,
+	aos	nframe		;; bump frame count
+	hrrz	a,b
+	write			;; write its address
+	move	a,(a)
+	write			;; and ier,,oer word
+	move	c,-1(b)		;; get mr,,ra word of a frame
+	hlr	d,c		;; d gets mr word
+	hrli	c,t%rel		;; make into t%rel,,ra
+	hrli	d,t%ref		;; make into t%ref,,mr
+	movem	d,(b)		;; write words back
+	movem	c,-1(b)
+	popj	sp,
+
+;;
+;;	label for jumping over subroutine
+;;
+cont22:
+;;
+;; Clu garbage collector - step 3
+;;	Actual garbage collection - copy phase
+;;
+;;	Set up to read from static area; write to inferior
+;;
+	hrrz	a,kend
+	andcmi	a,pgsize-1	;; clear to start of page
+	addi	a,pgsize	;; start at beginning of next page
+	movem	a,.hstrt
+	pushj	sp,wr.ini
+;;
+;;	Now do basic area(s) one by one
+;;
+	hrrz	a,basptr
+	hrrz	b,(a)		;; get len of vector
+	movn	b,b		;; form aobjn pointer
+	hrl	a,b
+	aobjp	a,btrdun	;; if len not > 1, then basic trace is done
+bastr:	push	sp,a		;; save the aobjn pointer
+	move	a,(a)		;; get aobjn pointer to stuff to trace
+	hlre	b,a		;; compute length
+	movn	b,b
+	hrrz	a,a		;; clear left half of a
+	pushj	sp,rd.ini	;; get set to read
+	pushj	sp,cscan	;; scan and trace the area
+	pop	sp,a		;; get pointer back
+	aobjn	a,bastr		;; if more, go do it
+btrdun:
+;;
+;;	Now do stack
+;;
+	hrrz	a,kstrt
+	hrrz	b,kend
+	sub	b,a
+	aoj	b,
+	pushj	sp,rd.ini
+	pushj	sp,cscan
+;;
+;;	and lastly, the HEAP!
+;;
+	hrrz	a,.hstrt
+	pushj	sp,rdi.in	;; this time, read from inferior
+	pushj	sp,cscan
+	hrrzm	rptr,.hend	;; save end of heap
+	jrst	start4		;; go to step 4
+
+;;
+;;	the scanning subroutine
+;;
+cscan:	jumpn	mode,cscana	;; different test if reading from self
+	jumpl	rwptr,cscanb
+	popj	sp,
+
+cscana:	cail	rptr,-1(wptr)
+	 popj	sp,
+cscanb:	read
+	move	a,(rwptr)
+	tlne	a,refbit	;; see if rel or ref
+	 jrst	cs.ref
+	tlzn	a,repbit	;; see if a rep
+	 jrst	cscan		;; skip everything else (i.e., rsb's)
+	caml	a,[typrep,,0]	;; make sure is valid rep
+	 caml	a,[typrsb,,0]
+	  $die	Bad rep in copy-scan
+	hlrz	b,a		;; get type code and do indexed jump to routine
+	jrst	@cstab-typrep(b)
+
+cs.ref:	tlne	a,relbit	;; skip over rels
+	 jrst	cscan
+	pushj	sp,trace	;; copy object pointed to
+	movem	a,(rwptr)
+	jrst	cscan
+;;
+;;	indexed jump table for individual rep handlers
+;;
+cstab:	cs0			;; array
+	cs1			;; call block
+	cs2			;; descriptor
+	cs3			;; entry
+	cs4			;; pure part
+	cs5			;; oneof
+	cs6			;; string
+	cs7			;; vector
+	cs8			;; word vector
+	cs9			;; ref vector
+
+;;
+;; Here are the copy routines:
+;;
+;;	copy - array dope vector handler
+;;
+cs0:	jumpn	mode,cs0a	;; if doing heap, tracing already done
+	hlre	a,1(rwptr)	;; check for size = 0
+	jumple	a,.+2		;; make sure size is OK
+	 $die	Array size is negative!
+	jumpe	a,cs0b		;; if is 0, zap rel, else compute delta
+	hrrz	a,2(rwptr)
+	jumpn	a,.+2		;; make sure has real stuff
+	 $die	Array with size not 0 has no real stuff
+	hrrz	b,1(rwptr)	;; get rel, and make delta
+	sub	b,a
+	jumpg	b,.+2		;; delta should not be <= 0
+	 $die	Array rel <= real stuff pointer
+	hrrm	b,1(rwptr)	;; store delta back
+	jrst	.+2		;; skip over other part of if-then-else
+cs0b:	setzm	1(rwptr)
+	hrrz	a,2(rwptr)	;; get and trace pointer
+	jumpe	a,cs0a		;; no need if 0
+	hrli	a,t%ref
+	hlrz	b,(a)		;; make sure is a vector
+	cain	b,t%vec
+	jrst	cs0c
+	cain	b,t%gref	;; (but OK if marked already)
+	jrst	cs0c
+	cain	b,t%grf2
+	jrst	cs0c
+	$die	Array real stuff not a vector!
+cs0c:	pushj	sp,trace	;; works even if marked
+	hrrm	a,2(rwptr)	;; fix ref
+	skipn	1(rwptr)	;; fix rel if size not 0
+	 jrst	cs0a
+	hrrz	a,a		;; clear left half
+	addm	a,1(rwptr)
+cs0a:	movei	a,2
+	pushj	sp,rd.skp	;; skip the dope vector
+	jrst	cscan
+;;
+;;	copy - call block handler
+;;
+cs1:	movei	a,2
+	pushj	sp,rd.skp
+	jrst	cscan
+;;
+;;	copy - descriptor block handler
+;;
+cs2:	read
+	move	a,(rwptr)
+	pushj	sp,tracef
+	movem	a,(rwptr)
+	read			;; skip special bits
+	jrst	cscan
+
+;;
+;;	copy - entry block handler
+;;
+cs3:	hrrz	b,(rwptr)	;; get size
+	push	sp,b
+	read
+	read			;; now at lr,,pr pair
+	hrr	a,(rwptr)
+	hrli	a,t%ref
+	pushj	sp,trace
+	hrrm	a,(rwptr)
+	hlr	a,(rwptr)
+	pushj	sp,trace
+	hrlm	a,(rwptr)
+	read
+	hlrz	a,(rwptr)	;; get ref+1 to var init pair
+	sojl	a,cs3a		;; skip stuff if = 0 (efficiency hack)
+	hrli	a,t%ref
+	pushj	sp,trace
+	aoj	a,
+	hrlm	a,(rwptr)
+cs3a:	pop	sp,b
+	subi	b,4
+	jumple	b,cscan
+	push	sp,b
+	read
+	hrr	a,(rwptr)	;; cluster parm,,proc parm pair
+	hrli	a,t%ref
+	pushj	sp,trace
+	hrrm	a,(rwptr)
+	hlr	a,(rwptr)
+	pushj	sp,trace
+	hrlm	a,(rwptr)
+	pop	sp,b
+	sojle	b,cscan
+	read
+	hrr	a,(rwptr)	;; one more half-word ref
+	hrli	a,t%ref
+	pushj	sp,trace
+	hrrm	a,(rwptr)
+	jrst	cscan
+;;
+;;	copy - pure part handler
+;;
+cs4:	read			;; skip to error blocks
+	hrrz	a,(rwptr)
+	subi	a,2
+	pushj	sp,rd.skp
+	jrst	cscan
+
+;;
+;;	copy - oneof rep handler
+;;
+cs5:	jrst	cscan
+;;
+;;	copy - string rep handler
+;;
+cs6:	hrrz	a,(rwptr)	;; compute length
+	addi	a,bpword-1
+	idivi	a,bpword
+	pushj	sp,rd.skp
+	jrst	cscan
+;;
+;;	copy - vector handler
+;;
+cs7:	jrst	cscan
+;;
+;;	copy - word vector handler
+;;
+cs8:	hrrz	a,(rwptr)
+	soj	a,
+	pushj	sp,rd.skp
+	jrst	cscan
+;;
+;;	copy - xvec handler (an xvec is a number of rsb,,ref words)
+;;
+cs9:	hrrz	a,(rwptr)	;; a has len
+	push	sp,a
+cs9a:	sosg	(sp)		;; see if more to do
+	 jrst	cs9b
+	read
+	hrrz	a,(rwptr)	;; fix one pointer
+	hrli	a,t%ref
+	pushj	sp,trace
+	hrrm	a,(rwptr)
+	jrst	cs9a
+
+cs9b:	pop	sp,a		;; fix stack back
+	jrst	cscan		;; return
+
+;;
+;;	the tracef subroutine - traces a full-word ref in a;
+;;		puts new word in a
+tracef:	hlrz	b,a		;; get type code
+	trne	b,refbit	;; check refbit (0 => not a ref)
+	 trne	b,relbit	;; make sure not a rel
+	  popj	sp,		;; fall through to trace
+;;
+;;	the trace subroutine - follows the fullword ref in a;
+;;		puts new ref in a
+;;
+trace:	hrrz	b,a		;; get address in b register
+	caml	b,hstrt		;; make sure is in heap
+	 camle	b,hend
+	  popj	sp,
+	hlrz	b,(a)		;; get type code of object
+	trne	b,gcbit		;; see if a gc type code
+	 jrst	marked
+	trne	b,refbit	;; should not be a ref
+	 jrst	trdie
+	trzn	b,repbit	;; should not be an rsb either
+	 jrst	trdie
+	cail	b,typrep	;; make sure is a rep if not marked
+	 cail	b,typrsb
+trdie:	  $die	Trace given pointer to non-rep object
+	jrst	@trtab-typrep(b)
+
+marked:	caie	b,t%gref	;; make sure is to start of object
+	 cain	b,t%grf2
+	  jrst	.+2
+	   $die	Trace found ref to middle of object!
+	tron	b,morbit	;; set morbit
+	 aos	nmobjs		;; bump number of multiply referred to objs
+	hrlm	b,(a)		;; store new type code back
+	hrr	a,(a)		;; put in forwarding address
+	popj	sp,
+
+trtab:	tr0			;; routines to handle objects
+	tr1			;; tr is for "trace length",
+	tr2			;; because most of these just get length
+	tr3
+	tr4
+	tr5
+	tr6
+	tr7
+	tr8
+	tr9
+
+;;
+;;	trace - array dope vector handler
+;;
+tr0:	hlre	b,1(a)		;; set rel to 0 if size = 0
+	jumple	b,.+2		;; make sure size is ok
+	 $die	Array size is negative
+	jumpn	b,.+2
+	 setzm	1(a)
+	hrrz	b,2(a)		;; branch based on real stuff
+	jumpn	b,tr0a		;; if none, check it out
+	skipe	1(a)		;; if no real stuff, better have size = 0
+	 $die	Array of size not 0 has no real stuff
+	jrst	tr0d
+
+tr0a:	hlrz	c,(b)		;; get the type code of the real stuff
+	caml	b,hstrt		;; see if real stuff is in heap
+	 camle	b,hend
+	  jrst	tr0c
+	cain	c,t%vec
+	 jrst	atrimc		;; let atrim do its stuff!
+	caie	c,t%gref	;; see if already copied
+	 cain	c,t%grf2
+	  jrst	.+2
+	   $die	Bad type code for array real stuff
+	push	sp,a		;; save ref to dope vector
+	hrrz	a,b		;; form ref to real stuff
+	hrli	a,t%ref
+	pushj	sp,trace	;; fix the ref
+	hrrz	b,a		;; get stuff back in convenient places
+	pop	sp,a
+	skipn	1(a)		;; more work if there is a rel
+	 jrst	tr0b
+	hrrz	c,2(a)		;; get old ref
+	hrrz	d,1(a)		;; and old rel
+	sub	d,c		;; form delta
+	jumpg	d,.+2
+	 $die	Bad rel in array
+	add	d,b		;; form new rel
+	hrrm	d,1(a)		;; store it back
+tr0b:	hrrm	b,2(a)		;; fix ref
+	jrst	tr0d
+
+tr0c:	caie	c,t%vec		;; make sure real stuff is a vector
+	 $die	Array real stuff not a vector
+
+tr0d:	movei	b,3
+	jrst	cpmark		;; copy dope vector
+;;
+;;	trace - all standard blocks with len in right halfword
+;;
+tr1:		;; call block
+tr2:		;; descriptor block
+tr3:		;; entry block
+tr4:		;; pure part
+tr7:		;; vectors
+tr8:		;; word vectors
+tr9:		;; ref vectors
+	hrrz	b,(a)		;; get len in b
+	jrst	cpmark		;; "call" cpmark and let it return for us
+;;
+;;	trace - oneof objects
+;;
+tr5:	movei	b,2
+	jrst	cpmark
+;;
+;;	trace - strings
+;;
+tr6:	hrrz	b,(a)
+	addi	b,2*bpword-1
+	idivi	b,bpword
+	jrst	cpmark
+
+;;
+;;	copy and mark subroutine
+;;		original ref is in a;
+;;		length is in b
+cpmark:	pushj	sp,writem	;; write it
+	hrr	d,a		;; use d as pointer
+	hrr	a,c		;; fix a for caller
+	hrli	c,t%gref	;; mark it
+	movem	c,(d)
+	hrli	c,t%grel
+	movn	b,b
+	hrl	d,b		;; form aobjn pointer
+	jrst	.+2
+cpmlup:	movem	c,(d)
+	aoj	c,
+	aobjn	d,cpmlup	;; loop marking
+	popj	sp,
+
+;;
+;;	array trimming and copying subroutine
+;;		algorithm:
+;;	1: If array is empty, flush real part, else
+;;	2: If atrimf=0 then don't trim array, else
+;;	3: If array is one of the ones not to hack, then don't, else
+;;	4: new len is max(size, min(abs_val(predict),len))
+;;	   if predict<0, is put at start, else at end
+;;	NOTE: only arrays with real stuff, which is a t%vec in the heap
+;;		are ever given to atrimc
+;;
+atrimc:	hlre	c,1(a)		;; get -size in c
+	jumple	c,.+2
+	 $die	Array with negative size found!
+	jumpn	c,trim1
+trim2:	hllzs	2(a)		;; If size = 0 then flush real stuff
+	setzm	1(a)		;; ensure clear rel field
+trim2a:	movei	b,3		;; just copy dope vector and return
+	jrst	cpmark
+
+trim1:	ife	atrimf,[jrst	trim3]	;; if atrimf off, then suppress trimming
+	hrrz	b,a		;; make sure ok to trim this one
+	camn	b,arry1
+	 jrst	trim3
+	camn	b,arry2
+	 jrst	trim3
+	aos	natrim		;; bump count of number of arrays hacked
+	hlre	b,1(a)		;; b gets size
+	movn	b,b
+	hlre	c,2(a)		;; c gets predict
+	movm	c,c
+	hrrz	d,2(a)		;; d gets len
+	hrrz	d,(d)
+	soj	d,
+	caml	c,d		;; compute min(abs_val(predict),len)
+	 move	c,d
+	camg	b,c		;; compute max(size,min(...))
+	 move	b,c
+	sub	d,b		;; d gets number of words saved
+	addm	d,ntrsav	;; bump count of number of words saved
+	jumpe	b,trim2		;; if new len is 0, throw real stuff away
+
+;;
+;;	we now compute these numbers:
+;;		in c - the number of 0 words to precede the real stuff in the copy
+;;		in d - the number of 0 words to follow the real stuff in the copy
+;;	(the numbers are different if size=0, or size not 0 and predict>0,
+;;	 or size not 0 and predict <= 0)
+;;
+	skipn	1(a)		;; see if size = 0
+	 jrst	trim4a
+	hlre	c,1(a)		;; get number of extra words in c
+	add	c,b
+	setz	d,		;; clear d
+	skipl	2(a)		;; this is right for predict < 0
+	 exch	c,d		;; swap for predict >= 0
+	jrst	trim4
+
+trim4a:	move	c,b		;; since size = 0, all words are 0
+	setz	d,
+
+trim4:	hrrzi	e,1(b)		;; form new header word
+	hrli	e,t%vec
+	exch	a,e		;; save pointer and get word in a
+	push	sp,wptr		;; save address for later
+	write
+	setz	a,		;; write the preceding 0's
+	push	sp,c		;; save c, too
+	jrst	trim5
+trim5a:	write
+trim5:	sojge	c,trim5a
+	move	a,e		;; get address of dope vector in a
+	pop	sp,c
+	skipn	1(a)		;; see if real stuff to copy
+	 jrst	trim6
+	push	sp,a		;; save a,b,c,d
+	push	sp,b
+	push	sp,c
+	push	sp,d
+	hrrz	b,1(a)		;; get rel
+	hlre	a,1(a)		;; get size
+	movn	a,a
+	exch	a,b		;; get things in right place
+	push	sp,a		;; save rel for convenience
+	pushj	sp,cpmark	;; copy real stuff and mark it
+	pop	sp,b		;; make first word a grel instead of gref
+	hrrzi	a,t%grel
+	hrlm	a,(b)
+	pop	sp,d		;; get regs back
+	pop	sp,c
+	pop	sp,b
+	jrst	.+2
+trim6:	push	sp,a
+	setz	a,
+	jrst	trim7b		;; now clear rest of stuff
+trim7a:	write
+trim7b:	sojge	d,trim7a
+	pop	sp,a		;; get a back
+
+;;
+;;	real stuff has now been copied -
+;;		here we zap trimmed words to avoid errors
+;;
+	hrrz	d,2(a)		;; start from ref
+	hrrz	e,1(a)		;; e gets number to zap before stuff
+	hrrz	g,(d)		;; save old len
+	jumpn	e,trim8a	;; if rel = 0, then size = 0, so zap old len + 1 words
+	hrrz	e,g
+	jrst	trim8
+trim8a:	sub	e,d		;; number to clear is rel-ref
+	jumpg	e,.+2		;; (better be > 0)
+	 $die	Array has bad rel
+trim8:	movn	e,e
+	hrl	d,e		;; form aobjn pointer
+	movsi	f,t%gbad	;; write t%gbad,,0 in each word
+	jumpge	d,trim8b
+	movem	f,(d)
+	aobjn	d,.-1
+trim8b:	add	g,e		;; g has number of locs left to handle
+	jumple	g,trim9
+	skipn	d,1(a)		;; get size and rel
+	hlre	e,d		;; skip over actual elements
+	movn	e,e
+	add	d,e
+	sub	g,e		;; g now has number left to do
+	movn	g,g
+	hrl	d,g		;; form aobjn pointer
+	jumpge	d,trim9
+	movem	f,(d)
+	aobjn	d,.-1
+
+;;
+;; now fix and copy dope vector
+;;
+trim9:	pop	sp,b		;; get back new address of vector
+	hrrm	b,2(a)		;; fix ref
+	addi	b,1(c)		;; number of 0's + 1 + ref is new rel
+	skipe	1(a)		;; (fix only if size not 0)
+	hrrm	b,1(a)
+	jrst	trim2a		;; do the dope vector
+
+trim3:	skipn	1(a)		;; see if has a rel
+	 jrst	trim3a
+	hrrz	b,2(a)		;; form delta
+	hrrz	c,1(a)
+	sub	c,b
+	jumpg	c,.+2
+	 $die	Delta <= 0 in array trim
+	hrrm	c,1(a)
+trim3a:	push	sp,a
+	hrrz	a,2(a)		;; trace and copy real stuff
+	hrli	a,t%ref
+	pushj	sp,trace
+	hrrz	b,a		;; fix dope vector
+	pop	sp,a
+	hrrm	b,2(a)		;; fix ref
+	skipe	1(a)		;; if has rel, fix it
+	 addm	b,1(a)
+	jrst	trim2a		;; copy dope vector
+
+;;
+;;	start of next module - fixup phase
+;;
+start4:
+;;
+;; Clu garbage collector - step 4
+;;	Fixup phase - in this pass, all heap refs have an offset added
+;;		to compensate for the entire heap being installed as
+;;		high as possible; rels are fixed (if possible);
+;;		bad rels are set to point to the middle
+;;		of a non-existent page (#255.)
+;;
+;;	Compute and save offset for fixing up
+;;
+	movei	i,<254.*pgsize>-1
+	sub	i,.hend		;; see how many words low we are
+	trz	i,pgsize-1	;; round down to a number of pages
+	move	h,i		;; save number of pages offset
+	lsh	h,-pglog2
+	movem	h,pgsoff
+badrel==-pgsize/2
+;;
+;;	Fix up static area(s)
+;;
+	hrrz	a,basptr	;; get pointer to vector of areas
+	hrrz	b,(a)		;; form aobjn pointer
+	movn	b,b
+	hrl	a,b
+	aobjp	a,bfixdn	;; if none to do, skip loop
+basfix:	push	sp,a		;; save aobjn pointer
+	move	a,(a)		;; get aobjn pointer to area
+	hlre	b,a		;; compute len
+	movn	b,b
+	pushj	sp,rd.ini	;; init to read from self
+	pushj	sp,fscan	;; scan fixing up until run out of stuff
+	pop	sp,a		;; get aobjn pointer back
+	aobjn	a,basfix
+bfixdn:
+;;
+;;	Now do stack
+;;
+	hrrz	a,kstrt
+	hrrz	b,kend
+	sub	b,a
+	aoj	b,
+	pushj	sp,rd.ini
+	pushj	sp,fscan
+;;
+;;	and lastly, the HEAP!
+;;
+	hrrz	a,.hstrt
+	pushj	sp,rdi.in	;; this time, read from inferior
+	pushj	sp,fscan	;; note: stops because wptr and wwptr
+				;; are not bothered from copy phase
+	jrst	start5		;; go to step 5
+
+;;
+;;	First, a simple macro for fixing one ref
+;;		fixes ref in right half of reg o; assumes left half is 0
+;;
+define	fix
+	caml	o,.hstrt	;; make sure is in NEW heap
+	 camle	o,.hend
+	  jrst	.+2
+	   add	o,i		;; add in offset
+	aos	nsrefs(mode)	;; bump count of number of refs
+	termin
+;;
+;;	the scanning subroutine
+;;
+fscan:	jumpn	mode,fscana	;; different test if reading from self
+	jumpl	rwptr,fscanb
+	popj	sp,
+
+fscana:	cail	rptr,-1(wptr)
+	 popj	sp,
+fscanb:	read
+	move	a,(rwptr)
+	tlne	a,refbit	;; see if rel or ref
+	 jrst	fs.ref
+	tlzn	a,repbit	;; see if a rep
+	 jrst	fscan		;; skip everything else (i.e., rsb's)
+	caml	a,[typrep,,0]	;; make sure is valid rep
+	 caml	a,[typrsb,,0]
+	  $die	Bad rep in copy-scan
+	hlrz	b,a		;; get type code and do indexed jump to routine
+	aos	nsobjs(mode)	;; bump count of objects encountered
+	jrst	@fstab-typrep(b)
+
+fs.ref:	tlne	a,relbit	;; handle rels differently
+	 jrst	fs.rel
+	hrrz	o,a
+	fix
+	hrrm	o,(rwptr)
+	jrst	fscan
+
+fs.rel:	pushj	sp,fixrel
+	movem	a,(rwptr)	;; store fixed rel back
+	jrst	fscan
+;;
+;;	indexed jump table for individual rep handlers
+;;
+fstab:	fs0			;; array
+	fs1			;; call block
+	fs2			;; descriptor
+	fs3			;; entry
+	fs4			;; pure part
+	fs5			;; oneof
+	fs6			;; string
+	fs7			;; vector
+	fs8			;; word vector
+	fs9			;; ref vector
+
+;;
+;; Here are the copy routines:
+;;
+;;	fixup - array dope vector handler
+;;
+fs0:	read			;; go to -size,,rel word
+	skipn	(rwptr)		;; if size=0, leave rel alone, else add offset to it
+	 jrst	fs0a
+	addm	i,(rwptr)
+	aos	nfrels
+fs0a:	read
+	hrrz	o,(rwptr)	;; fix ref
+	fix
+	hrrm	o,(rwptr)
+	jrst	fscan
+;;
+;;	fixup - call block handler
+;;
+fs1:	movei	a,2
+	pushj	sp,rd.skp
+	jrst	fscan
+;;
+;;	fixup - descriptor block handler
+;;
+fs2:	read
+	move	o,(rwptr)
+	pushj	sp,fixf
+	movem	o,(rwptr)
+	read			;; skip special bits
+	jrst	fscan
+;;
+;;	fixup - entry block handler
+;;
+fs3:	hrrz	b,(rwptr)	;; get size
+	push	sp,b
+	read			;; get and fix rel
+	hrrz	a,(rwptr)
+	pushj	sp,fixrel
+	hrrm	a,(rwptr)
+	read			;; fix lr,,pr pair (en.lpr)
+	hrrz	o,(rwptr)
+	fix
+	hrrm	o,(rwptr)
+	hlrz	o,(rwptr)
+	fix
+	hrlm	o,(rwptr)
+	read			;; fix variable init (en.vi)
+	hlrz	o,(rwptr)	;; get ref+1 to var init pair
+	sojl	o,fs3a		;; don't fix if there is none
+	fix
+	aoj	o,
+	hrlm	o,(rwptr)
+
+fs3a:	pop	sp,b
+	subi	b,4
+	jumple	b,fscan
+	push	sp,b
+	read			;; fix parm vectors (en.par)
+	hrrz	o,(rwptr)
+	fix
+	hrrm	o,(rwptr)
+	hlrz	o,(rwptr)
+	fix
+	hrlm	o,(rwptr)
+	pop	sp,b
+	sojle	b,fscan
+	read
+;;
+;; Old code intended to fix en.tr (temporarily not used):
+;;	hrrz	o,(rwptr)
+;;	fix
+;;	hrrm	o,(rwptr)
+;;
+	jrst	fscan		;; go fix any remaining refs
+;;
+;;	fixup - pure part handler
+;;
+fs4:	read
+	hrrz	a,(rwptr)	;; skip to error info
+	subi	a,2
+	pushj	sp,rd.skp
+	jrst	fscan
+;;
+;;	fixup - oneof rep handler
+;;
+fs5:	jrst	fscan
+;;
+;;	fixup - string rep handler
+;;
+fs6:	hrrz	a,(rwptr)	;; compute length
+	addi	a,bpword-1
+	idivi	a,bpword
+	pushj	sp,rd.skp
+	jrst	fscan
+;;
+;;	fixup - vector handler
+;;
+fs7:	jrst	fscan
+;;
+;;	fixup - word vector handler
+;;
+fs8:	hrrz	a,(rwptr)
+	soj	a,
+	pushj	sp,rd.skp
+	jrst	fscan
+
+;;
+;;	fixup - xvec handler (an xvec is a number of rsb,,ref words)
+;;
+fs9:	hrrz	a,(rwptr)	;; a has len
+	push	sp,a
+fs9a:	sosg	(sp)		;; see if more to do
+	 jrst	fs9b
+	read
+	hrrz	o,(rwptr)	;; fix one pointer
+	fix
+	hrrm	o,(rwptr)
+	jrst	fs9a
+
+fs9b:	pop	sp,a		;; fix stack back
+	jrst	fscan
+;;
+;;	fixf - fix a fullword subroutine
+;;		word is in o
+;;
+fixf:	tlnn	o,refbit	;; see if is a ref or rel
+	 popj	sp,		;; (note: does not catch reps)
+	tlne	o,relbit	;; handle rels differently
+	 jrst	fixf2
+	push	sp,o		;; save left half stuff
+	hrrz	o,o
+	fix			;; fix the ref
+	hrrm	o,(sp)		;; fix it in copy
+	pop	sp,o		;; and put copy back in o
+	popj	sp,
+
+fixf2:	move	a,o		;; get into a for fixrel
+	pushj	sp,fixrel
+	move	o,a		;; move back
+	popj	sp,
+;;
+;;	fixrel - fix a rel subroutine (rel is in a)
+;;
+fixrel:	hrrz	b,a
+	aos	nrels
+	caml	b,hstrt		;; fix rels only to heap
+	 camle	b,hend
+	  popj	sp,
+	hlrz	c,(b)		;; get type code half
+	cain	c,t%grel	;; see if is rel
+	 jrst	fxrela
+	cain	c,t%gref	;; gref and grf2 are also ok
+	 jrst	fxrela
+	cain	c,t%grf2
+	 jrst	fxrela
+	hrri	a,badrel	;; make it a bad rel
+	aos	nbrels		;; bump count of number of bad rels
+	popj	sp,		;; return
+
+fxrela:	hrr	a,(a)		;; fix pointer
+	add	a,i		;; add offset, too!
+	aos	nfrels		;; bump number of fixed rels
+	popj	sp,
+
+;;
+;;	start of next module - stack restoration phase
+;;
+start5:
+;;
+;; Clu garbage collector - step 5
+;;	Stack frame restoration and finalization
+;;
+;;	Recall that the format of a frame as used in the CLU system is:
+;;			-1:  mr,,ra
+;;		ptr->	 0: ier,,oer
+;;	where:
+;;		mr = module register (rh of a ref)
+;;		ra = return address (rh of a rel)
+;;		oer = old environment register (points to a frame or = 0)
+;;		ier = iterator environment register (same format as oer)
+;;	We saved two words (in the order presented)
+;;		ptr
+;;		ier,,oer
+;;	and transformed the frame into this:
+;;			-1: t%rel,,ra
+;;		ptr->	 0: t%ref,,mr
+;;	Here we restore the frames to their original format.
+;;
+	move	a,fstrt		;; set up to read frames back
+	pushj	sp,rdi.in
+	move	i,nframe	;; i keeps number of frames left to do
+	sojl	i,cont51	;; start looping!
+loop5:	read
+	hrrz	a,(rwptr)	;; get address of frame in a
+	hrr	b,(a)		;; get mr part,
+	hrlm	b,-1(a)		;; and stuff it back
+	read
+	move	b,(rwptr)	;; fix other word
+	movem	b,(a)
+	sojge	i,loop5
+;;
+;;	Now we map the heap back in, throw away extra pages, and kill the inferior
+;;
+cont51:	hrrz	a,.hstrt	;; get first page number
+	lsh	a,-pglog2
+	movem	a,pgsrc
+	hrrz	b,.hend		;; and number of pages
+	lsh	b,-pglog2
+	sub	a,b
+	soj	a,		;; a now has -(number of pages)
+	hrlm	a,pgdest
+	hrrz	a,pgsrc		;; get starting page back
+	add	a,pgsoff	;; add offset
+	hrrm	a,pgdest	;; is destination
+	lsh	a,pglog2	;; save new start for caller
+	movem	a,nhstrt
+	camg	a,kend		;; make sure is above stack
+	 $die	New heap overlaps stack!
+	.call	mapin		;; map the pages in
+	 $die	Couldn't map new heap back in!
+
+;;
+;;	Now, get rid of extra pages
+;;		(for efficiency, leave one below heap if possible;
+;;			it must be zeroed!)
+;;
+	movei	a,rwind
+	movem	a,pgdest
+	.call	pagdel
+	 $die	Couldn't zap read window page
+	movei	a,wwind
+	movem	a,pgdest
+	.call	pagdel
+	 $die	Couldn't zap write window page
+	move	a,nhstrt
+	lsh	a,-pglog2
+	move	b,kend
+	lsh	b,-pglog2
+	cail	b,-2(a)		;; skip if pages to zap
+	 jrst	cont52
+	aoj	b,		;; first one to zap is one above stack
+	movem	b,pgdest
+	sub	b,a		;; number to zap is (a-b+1)-2=a-b-1
+	aoj	b,		;; (b gets -(number to zap))
+	hrlm	b,pgdest
+	.call	pagdel		;; zap the pages
+	 $die	Couldn't zap extra pages
+pagclr:	soj	a,		;; get page number
+	movem	a,pgsrc		;; see if page exists
+	.call	pgexst
+	 $die	Couldn't see if page exists!
+	skipe	pgdest		;; if does exist, clear it
+	 jrst	pgclr1		;; otherwise, let CLU job create it later
+	hrrz	a,nhstrt	;; a gets address of lowest existing heap word
+	jrst	gcdone
+
+pgclr1:	lsh	a,pglog2
+	hrl	b,a		;; form aobjn pointer
+	hrr	b,a
+	aoj	b,
+	setzm	(a)		;; clear first word
+	blt	b,pgsize-1(a)	;; clear rest
+	jrst	gcdone
+
+cont52:	caige	b,-1(a)		;; clear page below heap, if is one
+	 jrst	pagclr
+;;
+;;	Now finished!
+;;
+gcdone:	.uclose	usro,		;; kill inferior
+	move	b,optr		;; restore old interrupt stuff
+	movem	b,intptr
+
+;;
+;;	We must give some info back
+;;
+;;		 4	end of stack
+;;		 5	start of heap
+;;		 6	new "memlo" (lowest existing word for allocation)
+;;		 7	number of words "saved" by GC
+;;
+	move	7,oldend
+	jumpn	7,.+2
+	 move	7,hend
+	sub	7,hstrt		;; number of words at start of GC
+	move	6,.hend
+	sub	6,.hstrt
+	sub	7,6		;; 7 gets # of words saved
+	hrrz	5,nhstrt
+	add	6,5		;; 6 now has new end of heap
+	movem	6,oldend
+	move	6,a		;; saved memlo in a from above
+	hrr	4,kend
+	hrli	4,600000	;; (to avoid pdl under/overflow)
+	move	17,4		;; must give CLUSYS its stack pointer
+	setzb	10,11		;; clear all of CLUSYS' special regs
+	setzb	12,13
+	setzb	14,15
+	setz	16,
+	move	0,suptr3
+	.suset	0		;; restore interrupt defer bits, etc.
+	jrst	@rtnadr		;; return

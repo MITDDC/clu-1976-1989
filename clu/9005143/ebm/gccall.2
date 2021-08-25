@@ -1,0 +1,111 @@
+;;
+;; GC CALLS
+;;
+;; All calls for the garbage collector are gathered together here
+;; for easy reference; they are grouped by category - job hacking
+;; calls, page hacking calls, etc.
+;;
+;; JOB HACKING CALLS
+;;
+ubpfj.==10			;; code for random control bit in call below
+img.==	4			;; code for opening in image mode
+wrt.==	1			;; code for opening to write
+;;
+;;	Call that skips if job exists
+;;
+jexist:	setz
+	sixbit	/open/		;; open job with
+	cicnt	ubpfj.+img.	;; random bit (see system documentation), image mode
+				;; reading
+	ciarg	usro		;; on channel usro
+	carg	[sixbit	/usr/]	;; device name is USR
+	ciarg	0		;; use my first name
+	carg	jobnam		;; use jobnam as second name
+	clerr	errcod
+;;
+;;	Call to create a new job
+;;
+jmake:	setz
+	sixbit	/open/		;; open job
+	cicnt	img.+wrt.	;; in image mode, to write
+	ciarg	usro		;; on channel usro
+	carg	[sixbit	/usr/]	;; device name is USR
+	ciarg	0		;; use my first name
+	carg	jobnam		;; use jobnam for second name
+	clerr	errcod
+;;
+;; PAGE HACKING CALLS
+;;
+;;	Call to see if page exists
+;;
+pgexst:	setz
+	sixbit	/cortyp/		;; CORTYP
+	carg	pgsrc			;; page is in self, # in pgsrc
+	cval	pgdest			;; put value in pgdest
+	clerr	errcod			;; error code
+;;
+;;	Call to get fresh pages
+;;
+getpgs:	setz
+	sixbit	/corblk/		;; CORBLK
+	ciarg	%cbndr+%cbndw		;; need read and write
+	ciarg	%jself			;; give to self
+	carg	pgdest			;; pgdest is aobjn pointer
+	ciarg	%jsnew			;; get new pages
+	clerr	errcod			;; put error code in corerr
+;;
+;;	Call to map inferior's pages in
+;;
+mapin:	setz
+	sixbit	/corblk/	;; CORBLK
+	ciarg	%cbndr+%cbndw	;; need to read and write it
+	ciarg	%jself		;; give to self
+	carg	pgdest		;; put where pgdest points
+	ciarg	usro		;; get from inferior
+	carg	pgsrc		;; from pgsrc
+	clerr	errcod
+;;
+;;	Call to move pages within top job
+;;
+movpgs:	setz
+	sixbit	/corblk/	;; CORBLK
+	ciarg	%cbndr+%cbndw	;; need to read and write the pages
+	ciarg	%jself		;; give them to me
+	carg	pgdest		;; destination page numbers from pgdest
+	ciarg	%jself		;; take them from me
+	carg	pgsrc		;; source page numbers from pgsrc
+	clerr	errcod		;; put error code in errcod
+;;
+;;	Call to map pages
+;;
+mapem:	setz
+	sixbit	/corblk/	;; CORBLK
+	ciarg	%cbndr+%cbwrt	;; must have read, write not essential
+	ciarg	usro		;; map to inferior
+	carg	pgdest		;; pgdest has aobjn ptr
+	ciarg	%jself		;; from self
+	carg	pgsrc		;; from same pages in self
+	clerr	errcod
+;;
+;;	Variables for page hacking calls
+;;
+pgsrc:	block 1			;; source pages for calls
+pgdest:	block 1			;; destination pages for calls
+;;
+;; MISCELLANEOUS CALLS
+;;
+;;	Call to dismiss interrupts
+;;
+intdis:	setz
+	sixbit	/dismis/
+	cicnt	400020		;; throw away debugging words, pop all AC's
+	carg	intpdl		;; intr stack pointer is intpdl
+	clerr	errcod
+;;
+;; Error code word for all .call's
+;;
+errcod:	block	1
+;;
+;; Constants for locality
+;;
+	consta

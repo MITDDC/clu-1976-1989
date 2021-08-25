@@ -1,0 +1,109 @@
+õØôaáter "An Implementation Language for State Machines"
+	In this chapter, a programming language for implementing state
+machine specifications, called ALMI (A Language for Machine
+Implememtations), is described.  This language uses PASCAL-like notation.
+The intent here is not to provide a new programming language that supports the
+implementation of state machines but rather to develop a simple and sufficiently
+powerful language that can be used in Chapter 6 where the problem of proving
+the correctness of an implementation is discussed.
+	All data types in the language are specified as state machines.  The
+operations on these types are the V-functions and O-functions of the machine.
+The implementation language described here primarily provides control constructs
+to group together O-function and V-function calls.
+	An example of a state machine specification and its corresponding
+implementation is given in Figures 1 and 2, respectively.
+.begin_figure "Specification of Finite Integer Set"
+.ls 1
+.sp 2
+		finite_integer_set = 1Parnas_module is* cardinality, has, remove, insert
+
+			cardinality = 1non-derived V-function*( ) 1returns* integer
+				1Appl. Cond.: true*
+				1Initial Value*: 0
+				1end* cardinality
+
+			has = 1derived V-function*(i:integer) 1returns* Boolean
+				1Appl. Cond.: true*
+				1Initial Value: false*
+				1end* has
+
+			insert = 1O-function*(i:integer)
+			      1Appl. Cond.*: cardinality<100
+		 	      1Effects*: 'has'(i) = 1true*
+					'cardinality' = cardinality + 1
+		 	      1end* insert
+
+			remove = 1O-function*(a;integer)
+				1Appl. Cond.: true*
+				1Effects*: if has(i) then 'has'(i) = 1false*
+				if has(i) then 'cardinality' = cardinality + 1
+				1end* remove
+
+		1end* finite_integer_stack
+
+
+.finish_figure
+	The data abstraction specifed in Figure 1 is a finite integer set.  2Insert*
+and 2remove* are O-functions that insert and remove, respectively, integers from the
+set.  2Cardinality* is a V-function that returns the number of integers in the set.
+2Has(i) is another V-function that determnes whether or not the integer i is in the
+set.
+	Figure 2 contains an implementation of finite_integer_set.  The set is stored
+as an ordered sequence of integers in the array A.  2INSERT, REMOVE, CARDINALITY and
+HAS are the corresponding implementations of insert, remove, cardinality and has.
+.foot
+Throughout this thesis, lower case letters will be used in the names of V-functions
+and O-functions of a state machine specification.  Capital letters will represent
+their corresponding implementation.
+.efoot
+.begin_figure "Implementation of finite integer set"
+.sp  3
+	FINITE_INTEGER_SET = implementation is INSERT, REMOVE, HAS, CARDINALITY
+
+		A: array of integers initially undefined
+		COUNT: integer variable initially 0
+
+		SEARCH = procedure(a,f,l:integer) returns integer
+			 if f=l then retrun l
+				else if a<A.read(|_f+l_|/2)
+					then return SEARCH(a,f,|_f+l_|/2)
+					else return SEARCH(a,|_f+l_|/2,l)
+			end SEARCH
+
+		   HAS  = procedure(i:integer) returns Boolean
+			  if COUNT.read=0 then return false
+				else if A.read(SEARCH(i,0,COUNT.read+1))=i
+					then return true
+					else return false
+			  end HAS
+
+	    CARDINALITY = procedure( ) returns integer
+			  return COUNT.read
+			  end CARDINALITY
+
+		INSERT =  procedure(i:integer)
+			  if COUNT.read<100 then
+				if A.read(SEARCH(i,0,COUNT.read+1))=i
+					then return
+					else
+					begin
+					COUNT.change(COUNT.read+1);
+					for j = A.read(SEARCH(i,0,COUNT.read+1)) to COUNT.read do
+.finish_figure
+	Each of these operations use SEARCH, which performs a binary search an the
+array A.  SEARCH returns the index where the binary search stops.
+	An implementation in ALMI consists of three parts: an interface description,
+an object description and opeartion definitions.
+	The 2interface description* of an implementation provides a very brief
+description of the interface that the module presents to the outside environment.  It
+consists of the name of the dat abstraction being implemented and a list of the
+operations that users of the implementation may employ.
+	FINITE_INTEGER_SET = implementation is INSERT, REMOVE, HAS, CARDINALITY
+.br
+Operations such as SEARCH whose names do not appear in the interface description
+may not be accessed by users of the implementation.
+	The 2object description* consists of the declaration of data abstractions
+that are used to represent the object being implemented.  Each of these data
+abstractions must be specified as a state machine.  Here, ALMS will be used to specify
+state machines although any specification language could be used.  The operations of
+	

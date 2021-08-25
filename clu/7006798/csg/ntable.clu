@@ -1,0 +1,224 @@
+% A symbol table implementation using parameterized types.
+
+table = cluster is create, isin, lookup, assign, delete, print
+
+    rep = tree [string, pair]
+
+    create = proc () returns (cvt)
+	return (rep$create())
+	end create
+
+    % isin returns true if the symbol is in the symbol table, false otherwise
+
+    isin = proc (t: cvt, s: string) returns (bool)
+	return (rep$isin (t, s))
+	end isin
+
+    % lookup returns the value of the key passed to it.
+    % If the key doesn't exist, it signals for help.
+
+    lookup = proc (t: cvt, s: string) returns (int) signals (lookup_failed)
+	p: pair := rep$lookup (t, s)
+	    resignal lookup_failed
+	return (pair$value (p))
+	end lookup
+
+    % assign adds an assignment to the symbol table
+
+    assign = proc (t: cvt, s: string, i: int)
+	rep$insert (t, pair$create (s, i))
+	end assign
+
+    % delete removes an assignment from the symbol table
+
+    delete = proc (t: cvt, s: string) signals (lookup_failed)
+	rep$delete (t, s)
+	    resignal lookup_failed
+	end delete
+
+    print = proc (o: stream, t: cvt)
+	if rep$empty (t)
+	   then stream$putl (o, "The symbol table is empty")
+	   else rep$print (o, t)
+	   end
+	end print
+
+    end table
+
+%
+% Here is the new tree cluster
+%
+
+tree = cluster [KT, LFT: type] is create, empty, left, right, leaf, lookup,
+    isin, insert, delete, print
+    where KT has lt, equal: proctype (KT, KT) returns (bool),
+          LFT has key: proctype (LFT) returns (KT),
+                  print: proctype (stream, LFT)
+
+    rep = variant [empty: null, node: node]
+    node = record [left_branch, right_branch: tree [KT, LFT], value: LFT]
+
+    create = proc () returns (cvt)
+	return (rep$make_empty (nil))
+	end create
+
+
+    empty = proc (t: cvt) returns (bool)
+	return (rep$is_empty (t))
+	end empty
+
+
+    % left returns the left subtree of the tree.  It signals if there is
+    % none.
+
+    left = proc (t: cvt) returns (tree [KT, LFT]) signals (emptytree)
+	if rep$is_empty (t) then signal emptytree
+	   else return (rep$value_node (t).left_branch)
+	   end
+	end left
+
+
+    % and right returns the right subtree
+
+    right = proc (t: cvt) returns (tree [KT, LFT]) signals (emptytree)
+	if rep$is_empty (t) then signal emptytree
+	   else return (rep$value_node (t).right_branch)
+	   end
+	end right
+
+    leaf = proc (t: cvt) returns (LFT) signals (emptytree)
+	if rep$is_empty (t) then signal emptytree
+	   else return (rep$value_node (t).value)
+	   end
+	end leaf
+
+    lookup = proc (t: tree [KT, LFT], k: KT) returns (LFT) signals (lookup_failed)
+	if empty (t) then signal lookup_failed
+	   elseif k < LFT$key (leaf (t)) then
+		return (lookup (left (t), k))
+	   elseif k = LFT$key (leaf (t)) then
+		return (leaf (t))
+	   else return (lookup (right (t), k))
+	   end
+	end lookup
+
+    %
+    % Here we avoid an extra search routine by using the lookup routine
+    % to implement isin
+    %
+
+    isin = proc (t: tree [KT, LFT], k: KT) returns (bool)
+	lookup (t, k)
+	    except when lookup_failed: return (false) end
+	return (true)
+	end isin
+
+    insert = proc (t: cvt, l: LFT)
+	if rep$is_empty (t) then
+	   rep$change_node (t, node${ right_branch: create(),
+				     left_branch: create(),
+				     value: l })
+	   elseif LFT$key (l) < LFT$key (rep$value_node (t).value) then
+		insert (rep$value_node (t).left_branch, l)
+	   else insert (rep$value_node (t).right_branch, l)
+	   end
+	end insert
+
+    %
+    % One possible delete routine -- there are others
+    %
+    % Delete the node with key k from the tree
+    %	    first walk down tree until k is found
+    %	    then call dodelete to do dirty work
+    %
+
+    delete = proc (t: cvt, k: KT) signals (lookup_failed)
+	while ~rep$is_empty(t) do
+	    n: node := rep$value_node (t)
+	    nk: KT := LFT$key (n.value)
+	    if k = nk then dodelete (t) return
+	       elseif k < nk then
+		    t := down (n.left_branch)
+	       else
+		    t := down (n.right_branch)
+	       end
+	    end
+	signal lookup_failed
+	end delete
+    %
+    % Actual deletion algorithm
+    %	    If both sons of node to be deleted are empty, then change the
+    %	    node to be empty
+    %
+    %	    If only one son is empty, then change the node to be the other
+    %	    son
+    %
+    %	    If neither son is empty, then move the right son down to the
+    %	    lower rightmost position of the left son, then move the left
+    %	    son up to take the place of the deleted node
+    %
+
+    dodelete = proc (t: rep)
+	l: rep := down (rep$value_node (t).left_branch)
+	r: rep := down (rep$value_node (t).right_branch)
+	if rep$is_empty (l) & rep$is_empty (r) then
+	   rep$change_empty (t, nil)
+	   elseif rep$is_empty (r) then
+		rep$change_node (t, rep$value_node (l))
+	   elseif rep$is_empty (l) then
+		rep$change_node (t, rep$value_node (r))
+	   else
+		ol: rep := l
+		while ~rep$is_empty (l) do
+		    l := down (rep$value_node (l).right_branch)
+		    end
+		rep$change_node (l, rep$value_node (r))
+		rep$change_node (t, rep$value_node (ol))
+	   end
+	end dodelete
+
+    % The print routine traverses the tree and prints each element in the
+    % tree.
+
+
+    print = proc (o: stream, t: tree [KT, LFT])
+	if empty (t) then return end
+	print (o, left (t))
+	LFT$print (o, leaf (t))
+	print (o, right (t))
+	end print
+
+    end tree
+
+% The pair cluster is unchanged, except that the "symbol" operation
+% is renamed to "key".
+
+pair = cluster is create, key, value, print
+
+
+    rep = record [id: string, val: int ]
+
+
+    create = proc (n: string, v: int) returns (cvt)
+	return (rep${id: n, val: v})
+	end create
+
+
+    key = proc (p: cvt) returns (string)
+	return (p.id)
+	end key
+
+
+    value = proc (p: cvt) returns (int)
+	return (p.val)
+	end value
+
+
+    print = proc (o: stream, p: cvt)
+	stream$puts (o, p.id)
+	stream$puts (o, " = ")
+	stream$putl (o, int$unparse (p.val))
+	end print
+
+
+    end pair

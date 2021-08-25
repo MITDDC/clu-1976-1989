@@ -1,0 +1,122 @@
+ô¨  çorted_table is an association between strings and objects
+% of type t. There  is an operation to  yield the strings  and
+% associated objects in increasing string order.
+
+sorted_table = cluster[t: type] is
+	create,		% create a sorted table
+	find,		% find an entry in the table
+	change,		% change an entry in the table
+	insert,		% insert a new entry into the table
+	size,		% get the size of the table
+	contents;	% yield the contents of the table
+
+	str = string
+	ast = array[str]
+	att = array[t]
+	rep = record[strs: ast, elems: att]
+
+% Note that the  rep.strs array and  the rep.elems array  must
+% have the  same sizes  and  low bounds.  The strings  in  the
+% rep.strs array are in  strictly increasing order. For  every
+% string in the rep.strs array  the associated element in  the
+% sorted table is in the corresponding index in the  rep.elems
+% array.
+
+create = proc() returns (cvt)
+	return (rep${elems: att$create(0), strs: ast$create(0)})
+	end create
+
+% search is an internal procedure to find an index into for  a
+% name in the sorted table and an indication as to whether the
+% the name is already in the table. If the name is there  then
+% true will be returned and the index will be the index of the
+% entry in  the table.  If false  is returned  then the  index
+% returned will be the index of the highest name in the  table
+% that is  less than  the given  name, provided  that such  an
+% element exists. If such an element does not exist, the index
+% returned will be the lowest index minus one.
+
+search = proc(tab: rep, s:str) returns (int,bool)
+	x: ast := tab.strs
+	y: att := tab.elems
+	ll: int := ast$low(x)
+	hh: int := ast$high(x)
+	l: int := ll
+	h: int := hh
+	if l > h then return (ll-1,false) end
+	while true do	% binary search
+		m: int := (l+h)/2
+		ms: str := x[m]
+		if s < ms then
+			h := m - 1
+			if l > h then return (l,false) end
+		  elseif s = ms then
+			return (m,true)
+		  else  l := m + 1
+			if l > h then return (m,false) end
+		  end
+		end
+	end search
+
+find = proc(tab: cvt, s: str) returns (t) signals (not_found)
+	index: int, found: bool := search(tab, s)
+	if found then
+		return (tab.elems[index])
+		end
+	signal not_found	
+	end find
+
+change = proc(tab: cvt, s: str, x: t) returns (t) signals (not_found)
+	index: int, found: bool := search(tab, s)
+	if found then
+		tab.elems[index] := x
+		end
+	signal not_found	
+	end change
+
+insert = proc(tab:cvt, s:str, x: t) signals (duplicate)
+	index: int, found: bool := search(tab, s)
+	if found then signal duplicate end
+	elems: att := tab.elems
+	low: int := att$high(elems)
+	high: int := att$high(elems)
+	strs: ast := tab.strs
+	if index < low then
+		ast$addl(strs,s)
+		att$addl(elems,x)
+		return
+		end
+	if index >= high then
+		ast$addh(strs,s)
+		att$addh(elems,x)
+		return
+		end
+	% insert, we know that x[l] < s
+	news: str := s
+	newt: t := x
+	while index < high do
+		index := index + 1
+		temps: str := strs[index]
+		tempt: t := elems[index]
+		strs[index] := news
+		elems[index] := newt
+		news := temps
+		newt := tempt
+		end
+	ast$addh(strs,news)
+	att$addh(elems,newt)
+	end insert
+
+size = proc(x:cvt) returns (int)
+	return (ast$size(x.strs))
+	end size
+
+contents = iter(tab:cvt) yields (str,t)
+	x: ast := tab.strs
+	y: att := tab.elems
+	for i: int in ast$indexes(x) do
+		yield(x[i],y[i])
+		end
+	end contents
+
+end sorted_table

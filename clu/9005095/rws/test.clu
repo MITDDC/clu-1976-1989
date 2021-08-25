@@ -1,0 +1,7 @@
+a = proc () returns (any);
+	return(b());
+	end a;
+
+b = proc () returns (any);
+	return(3);
+	end b;

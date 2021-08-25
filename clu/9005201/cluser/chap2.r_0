@@ -1,0 +1,417 @@
+.nr chapter 1
+.chapter "A Model for Parnas Modules"
+	This chapter presents a model for the semantics of Parnas module 
+specifications.  In Section 2.1, the basic components that every 
+Parnas module specification must contain are discussed.  Section 2.1 only defines the
+syntactic constraints that a Parnas module specification must satisfy.
+Semantic issues concerning whether the module is well-defined or consistent are 
+discussed
+in Section 2.2, which shows how these basic
+components can be used to develop a model for the semantics of a Parnas module.
+Here, each module is modelled by a set of states, where each state is modelled by a set
+of functions corresponding to the hidden and non-derived V-functions; O-functions
+define transitions between states.
+	The discussion here is abstract, presenting only the objects that the
+basic components of any Parnas module must specify but not discussing the actual
+language used to specify these objects.  Hence, the model developed here is
+quite general and applicable to any Parnas module specified using a combination of
+V-functions and O-functions.  It is not, however, applicable to Parnas modules
+specified using Parnas's modular properties section.
+.section "The Basic Components of a Parnas Module"
+	The Parnas modules considered here are
+specified using V-functions and O-functions.  In
+principle, one could define a Parnas module without any V-functions.  Such a
+specification, however, would be singularly uninteresting.  Without V-functions 
+there would be no way to observe the state of the module and, hence, no way to
+distinguish one member of the data abstraction defined by the module from any
+other member.  So, we shall
+assume all Parnas modules have one or more V-functions.
+	Furthermore, most interesting Parnas module specifications will contain one
+or more O-functions since, without O-functions, a Parnas module can only specify
+a data abstraction containing exactly one element.
+.subsection "V-functions"
+	As was discussed in Chapter 1, there are three types of V-functions;
+the non-derived V-functions and the
+hidden V-functions, which are primitive, and the derived V-functions, which are not
+primitive but are defined in terms of the other two.
+.subsubsection "Non-derived and Hidden V-functions"
+	Non-derived and hidden V-functions are specified analogously.  Each non-derived
+or hidden V-function v has three sections in its definition: a mapping description,
+an applicability condition and an initial value section. 
+.begin_figure "Non-derived or hidden V-function v"
+.ls 1
+
+
+			1Mapping Description*: Dv; Rv
+			1Applicability Condition*: 9A*v: 9D* \x Dv  Boolean
+			1Initial Value*: initv8*[Dv  Rv]
+
+
+.finish_figure
+	First, let [A  B] denote the set of partial functions 
+from the set A to the set B.  In each
+state S of the Parnas module, some particular mapping vS from [Dv  Rv]
+will be associated
+with v, where Dv and Rv are specified by the V-function's 2mapping 
+description*. This mapping, of course, varies with the state of the module.
+In general, the mapping associated with v will not be total.
+As an example,
+in Figure 1 of Chapter 1, any mapping associated with stack
+is a member of [integer  integer].
+	The sets Dv and Rv also carry the following stipulation regarding
+the data abstraction defined by the module.  In general, they
+will be the cartesian product G1`\x`...`\x`Gn of a group of sets.  But the
+Gi are restricted so that no element of the data abstraction defined by the module
+may be an element of any of the Gi.  This restriction
+only allows the definition of unary operations on the
+data abstraction specifed by the module.  For example, in the definition of the data
+abstraction integer set, it is not possible to define a function which computes
+the union of two sets.  But, it is possible to define the unary operation, has(i),
+which determines if a set contains a given integer i.
+	Now, since the state of the module is characterized by a set of
+mappings associated with each non-derived and hidden
+V-function, we can view the state set 6S* as a subset of
+.nf
+			[Dv1  Rv1] \x ... \x [Dvn  Rvn] = 9D*
+.fi
+where {v1,...,vn} is the set of non-derived and hidden V-functions of the 
+module.  In most cases, 6S*
+is a proper subset of 9D*.  This occurs when an n-tuple
+of 9D* contains, as an element, a function that can never be associated with a
+non-derived or hidden V-function.  For example, in the bounded stack example of
+Chapter 1, a total function from the integers into the integers can never be
+associated with stack.
+	The 2applicability condition* of a V-function governs when a call
+of that function by a user of the module succeeds.  This section specifies a partial
+function 9A*v from 9D*`\x Dv into the Booleans.  Hence, the
+success of a call depends on the state of the module.  For
+any x8*Dv and S8*6S*,
+9A*v(S,x) must evaluate to 1true* for the V-function to return the value
+vS(x), where vS denotes the mapping associated with v in state S.  
+When 9A*v(S,x) equals 1false*, v returns an error condition.
+	The 2initial value section* of a non-derived or hidden V-function v
+defines the mapping associated with v in the initial state of the module.  This section
+specifies one member, denoted initv, of [Dv  Rv].
+In practice, for non-derived V-functions,
+initv is usually a constant, total function.
+.subsubsection "Derived V-functions"
+	A derived V-function v also has three sections in its definition: a mapping
+description, an
+applicability condition and a derivation section.  The
+2mapping description* and 2applicability condition* are defined in the same
+manner and have the same interpretation as the mapping description and applicabilty
+section of a non-derived or hidden V-function.  The derivation section is unique to
+this type of function.
+.begin_figure "Derived V-function v"
+
+
+			1Mapping Description*: Dv; Rv
+			1Applicability Condition*: 9A*v:9D* \x Dv  Boolean
+			1Derivation*: der v such that (der vS)8*[Dv  Rv] for states S
+
+
+.finish_figure
+	The 2derivation section* specifies the mapping associated with v in terms
+of the mappings associated with the hidden and non-derived V-functions.  This section
+defines a function schema, denoted der v, expressed
+as the composition of the non-derived and 
+hidden V-functions of the module and other functions associated with the elements of
+Dv.  The particular mapping associated with the schema, denoted (der vS),
+depends on the state S of the module, which contains an interpretation for the 
+non-derived and hidden V-functions.  As an example, consider the derivation section of
+top in Figure 1 of Chapter 1. In any state S, 2top* returns the value
+2stack(depth)*.  This value is, of course, dependent on the mappings associated
+with 2stack* and 2depth* in state S.
+.subsection "O-functions"
+	O-functions too have three sections in their definition.  They are a mapping
+description, an applicability condition and an effects section.
+.begin_figure "O-function o"
+
+
+			1Mapping Description*: Do
+			1Applicability Condition*: 9A*o: 9D* \x Do  Boolean
+			1Effects Section*: 9T*o: 9D* \x Do  9D*
+
+
+.finish_figure
+	In a given state, each O-function o is a member of [Do  Ro],
+where Do is given by the 2mapping description*.
+As with V-functions, Do will, in general, equal the
+cartesian product of a group of sets G1 \x ... \x Gn 
+which are constrained so that
+no element of the data abstraction defined by the module may be an element of any of the
+Gi.  The range of the O-function is not 
+specified by the mapping description since it
+is understood that the range of all O-functions is the state set of the Parnas module.
+	The 2applicability condition* of an O-function determines when the 
+O-function changes the state of the module.  As for V-functions, this section 
+defines a partial function 9A*o from 9D* \x Do
+into the Booleans.  9A*o
+must evaluate to 1true* for the function to change the state of the module. 
+Otherwise, an error condition is raised and the state remains unchanged.
+For example, the applicability condition of pop in Figure 1 of Chapter 1 prohibits its
+execution when the stack is empty.
+	The 2effects section* of an O-function specifies how the function changes 
+the state of the module.  This section defines a partial function 9T*o from
+9D* \x Do
+into 9D*.
+.section "The Semantics of a Parnas Module"
+.subsection "The State Set of a Parnas Module"
+	As was previously mentioned, a state of a Parnas module is modelled
+by mappings associated with each non-derived and hidden V-function 
+of the module.  Hence, we view the state set, 6S*, of a Parnas module
+in the following manner:
+			6S*  [Dv1  Rv1] \x ... \x [Dvn  Rvn] = 9D*
+.br
+where {v1,...,vn} is the set of non-derived and hidden V-functions of the machine.
+.foot
+Recall [A  B] = {f|f is a partial function from A to B}
+.efoot
+Note that Dvi and Rvi are specified by vi's mapping 
+description.
+	Our purpose in this section is to define 6S*.  Here, a generative approach 
+will be used.  Note that the initial state of a Parnas module is explicitly defined by
+the initial value sections of the non-derived and hidden V-functions.  This initial
+state, Q , can generate the state set by means of the following construction:
+.br
+.ls 1
+.keep
+		1)  Q is an element of 6S*.
+
+		2)  If S is an element of 6S* and o is an O-function call,
+		then the state S' obtained by applying o to S is an element of 6S*.
+
+		3)  These are the only members of 6S*.
+.end_keep
+.ls 2
+
+So, to define 6S*, it suffices to define the initial state of the module and
+then to describe the state changes caused by O-function 
+calls or, in general, how an O-function call maps one member of 9D* into
+another.
+	The 2initial state* Q is the tuple
+(initv1,...,initvn) containing the mappings derived from the
+initial value section of each of the non-derived and hidden V-functions
+{v1,...,vn}.
+	Furthermore, the next state function has the following definition.
+
+.ls 1
+.keep
+	Definition
+	Let o be an O-function with mapping 9A*o in its applicability
+condition
+	and mapping 9T*o in its effects section.
+	Let a8*Do and R8*9D*.
+	Then,
+
+					9T*o(R,a)		if 9A*o(R,a)=1true*
+
+		NEXT(R,o(a))  =
+
+					R		if 9A*o(R,a)=1false*
+.end_keep
+.ls 2
+
+
+	Thus, the state set is generated as follows.
+
+.keep
+.ls 1
+		1)   Q8*6S*.
+
+		2)   If R8*6S* and o is an O-function, then if NEXT(R,o(a)) is
+defined,
+		NEXT(R,o(a))8*6S* where a8*Do.
+
+		3)   These are the only elements of 6S*. 
+.end_keep
+.ls 2
+
+
+	In other words, the state set 6S* is the closure of Q under the state
+transition function associated with the O-functions. Note that in 2) above NEXT(R,o(a))
+may be undefined.  This depends on 9T*o and 9A*o.
+	Recall that 9T*o is a partial function.  So, it is
+possible for some state S and x8*Do that 9T*o(S,x) is
+undefined.  Then, if 9A*o(S,x)=1true*, NEXT(S,o(x)) would
+be undefined.  This
+situation is undesirable since when 9A*o(S,x)=1true*, a state change
+should occur.  Furthermore, 9A*o is also a partial function. 
+Here, it is possible for some state S' and x'8*Do that
+9A*o(S',x')
+is undefined, again making NEXT(S,o(x)) undefined.
+These two considerations lead us to the notion of a well-defined Parnas module.
+
+.ls 1
+.keep
+	Definition
+	A Parnas module 2well-defined* if for any S8*6S* and O-function o
+	NEXT(S,o(a)) is defined where a8*Do.
+.end_keep
+.ls 2
+
+	This definition guarantees that in a well-defined Parnas module, for every
+O-function o, 9A*o is a total function from
+6S* \x Do into the Booleans and 9T*o is a total function from
+{(S,a)8*6S*`\x`Do`|`9A*o(S,a)} into 6S*.  This can be seen by inspection of the
+definition of NEXT.
+.subsection "The Semantics of V-functions and O-functions"
+	With this definition of the state set 6S* of a Parnas module
+specification, it is possible to formally define the meaning of
+the O-functions and V-functions.  This will be done by defining
+mappings V-Eval for V-functions and O-Eval
+for O-functions such that
+.keep
+
+		V-Eval:[6S* \x NV]  [A  R]
+	and
+		O-Eval:[6S* \x NO]  [A  6S*]
+
+.end_keep
+where NV is the set of V-function names, A is the set of
+arguments, R is the set of results and NO is the set of
+O-function names. 
+	First, it is necessary to deal with some notational details.  Here, the
+notation bx,y has the value x if b is true and y if b is false.
+This notation will be used to raise an error condition when a function's applicability
+condition is not satisfied. 
+	O-Eval will be defined first.  Now, given a state S and an O-function o,
+O-Eval returns a function from Do into 6S*  {error}.
+So, using lambda notation,
+
+		O-Eval(S,o) = @a.[9A*o(S,a)  NEXT(S,o(a)),error]
+
+	O-Eval(S,o) is not necessarily total since either 9A*o(S,a) or
+NEXT(S,o(a)) can be undefined.  However, O-Eval(S,o) is always a total function
+in a well-defined state machine.
+	For any V-function v and state S, V-EVAL will return a function from
+Dv into Rv``{error}.
+First, for a non-derived or hidden V-function v and a state S, recall that vS
+denotes the function associated with v in state S.  Then for any non-derived or hidden
+V-function v with applicability condition 9A*v,
+
+		V-Eval(S,v) = @a.[9A*v(S,a)  vS(a),error]
+
+	Finally, for a derived V-function v with applicability condition 9A*v
+and derivation der`v,
+
+		V-Eval(S,v) = @a.[9A*v(S,a)  (der vS)(a),Berror]
+
+	Note that V-Eval(S,v) is not necessarily defined over the entire set Dv
+since
+9A*v(S,a) can be undefined or, depending on the type of V-function, vS(a)
+or (der vS)(a) can be undefined when 9A*v(S,a)=1true*.  When
+this is not the case, we say the Parnas module is consistent.
+
+.ls 1
+.keep
+	Definition
+	A Parnas module is 2consistent* if V-Eval(S,v) is a total function from Dv
+into Rv  {error}
+	for every state S8*6S* and V-function v of PM.
+.end_keep
+.ls 2
+
+
+	In a consistent Parnas module, vS is always a total function from
+{x8*Dv | 9A*v(S,x)} into Rv.
+.subsection "An Induction Principle"
+	Since any state of a Parnas module is generated by zero or more O-function
+calls, the structural induction principle [Burstall 69] holds here.  In structural
+induction, proofs proceed by course of values induction on the complexity of the
+structure,
+.foot
+The general schema of 2course of values* induction on integers is:
+	P(0), j(i((i<j \a P(i))  P(j))  |__ kP(k)
+.efoot
+which, for Parnas modules, means that to prove the data
+abstraction defined by the module has property P, one must prove that the initial
+state has property P, and that if all states produced by zero through n-1 O-function 
+calls have P, the P is true after n O-function calls.  This is one advantage of the
+generative approach used in this model to define the state set.
+.subsection "How to Prove a Parnas Module is Well-defined or Consistent"
+	Although it is not possible to establish formally that a state machine
+specification is correct with respect to our intuition, there are certain properties
+that a specification should satisfy to enhance our confidence in its correctness.
+Two important properties of a state machine are whether or not it is well-defined or
+consistent.  In a well-defined machine, the O-functions behave properly, either
+changing the state or informing the user of an error. In a consistent machine, the
+same is true of the V-functions. They either return a value or raise an error
+condition.
+	A Parnas module is well-defined when NEXT is a total function. 
+This occurs when, for every O-function o, 9A*o is a total function from
+6S* \x Do into the Booleans and 9T*o is a total function from
+{(S,a)8*6S* \x Do | 9A*o(S,a)} into 6S*.
+	Since 6S* is defined generatively, a state machine
+can be proved to be well-defined
+by first showing that NEXT(Q ,o(a)) is defined for all O-functions o and
+a8*Do and then assuming
+
+		NEXT(...NEXT(NEXT(Q ,o1(a1)),o2(a2)),...,on-1(an-1))
+
+is defined for all ai8*Doi, n>_2 and then proving
+that
+
+		NEXT(...NEXT(NEXT(Q ,o1(a1)),o2(a2)),...,on(an))
+
+is defined for all ai8*Doi.  In practice, however, it may be
+necessary to strenghten the inductuve hypothesis to simplify the proof.
+	Thus, structural induction can also be used in proving that a Parnas module
+is well-defined.
+	A Parnas module is consistent when, for every non-derived or hidden V-function
+v and state S8*6S*, vS is a total function from
+{a | a8*Dv and 9A*v(S,a)} into Rv and for every
+derived V-function v, (der vS) is a total function from
+{a | a8*Dv and 9A*v(S,a)} into Rv. Both these
+properties can be established by using structural induction in the manner outlined
+above.
+	Note that both the problems of determining whether or
+not a Parnas module is well-defined and determining whether or not a
+Parnas module is consistent are undecidable.  This situation arises since
+both problems can be reduced to the halting problem for Turing machines [Hennie 77]. 
+These two results are established for the specification language of Chapter 3 in
+Appendix 1.
+	The reduction for the question of determining whether or not
+a Parnas module is well-defined is sketched below.  Here, we shall 
+actually reduce this problem
+to the blank tape halting problem which is, in turn, reducible to the halting problem
+for Turing machines [Hennie`77].  So, consider a deterministic, one-tape,
+one-head Turing
+machine T.  T's computation on blank tape can be simulated by the following Parnas
+module TUR.
+	TUR consists of the following functions:
+.br
+.ls 1
+.keep
+		tape(i)		a non-derived V-function to store the contents
+				of T's work tape.  Initially, the tape is entirely
+				blank.
+
+		state		a non-derived V-function to record T's state.
+				Initially, state returns the initial state of T.
+
+		head		a non-derived V-function to record the position of
+				T's head on its work tape.
+
+		move		an O-function to carry out one step in T's computation.
+				A step in the computation consists of writing a symbol
+				on the tape, moving the head and going to a new state.
+.end_keep
+.ls 2
+
+	All of these functions's applicability conditions consist of a constant, total
+function that returns the value 1true*.   Now recall that a computation 
+of a Turing machine halts when it reaches a state and
+input symbol for which its next state function is undefined.  The function in move's
+effects section shall be undefined for every such pair.  It will be defined for every
+pair which continues T's computation.  TUR simulates T by having a state that
+corresponds to each step in T's computation.
+	If T's computation when started on blank tape halts, then T will eventually
+reach a state and input symbol for which its next state function is undefined.  So, in
+TUR's simulation of T, a state S of TUR will be reached that corresponds to this
+situation.  Then, by construction, NEXT(S,move) is undefined so TUR is not well-defined.
+On the other hand, if TUR is not well-defined, the function in move's effects section
+must be undefined for some state S since the function in move's applicability condition
+is total.  By construction, this corresponds to T halting.  Thus, TUR is well-defined if
+and only if T does
+not halt when started on blank tape.

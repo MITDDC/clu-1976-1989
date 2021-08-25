@@ -1,0 +1,6 @@
+;;
+;; This file is for assembling the clu garbage collector,
+;;	non-purifying version.
+;;
+	atrimf==1
+	.insrt	clusys;gccode >

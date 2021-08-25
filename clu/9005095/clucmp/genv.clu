@@ -1,0 +1,444 @@
+%	GENV CLU
+%
+%	CLU Compiler Version 3: generator environment
+
+g_env = cluster is	create,			% CE, file, file -> g_env
+			reset,			% g_env, CE, file, file ->
+			begin_typedefn,		% g_env ->
+			begin_applydefn,	% g_env ->
+			reset_temps,		% g_env ->
+			end_all,		% g_env ->
+			line,			% g_env, int ->
+			get_init_flag,		% g_env -> str
+			set_init_flag,		% g_env, str ->
+			get_output,		% g_env -> file
+			begin_loop,		% g_env, bool -> str
+			in_for,			% g_env -> bool
+			loop_label,		% g_env -> str
+			end_loop,		% g_env
+			begin_temp,		% g_env -> str
+			end_temp,		% g_env
+			get_proc_fake,		% g_env -> DUfake
+			exit_label,		% g_env, name -> str
+			has_label,		% g_env, name -> bool
+			pop_label,		% g_env, name -> str => no_label
+			err1,			% g_env, str ->
+			comperr,		% g_env, str ->
+			get_err,		% g_env -> int
+			reset_err,		% g_env ->
+			next_apply,		% g_env -> str
+			next_parm,		% g_env -> str
+			next_tdesc,		% g_env -> str
+			next_od_name,		% g_env -> str
+			next_er_name,		% g_env -> str
+			tdesc,			% g_env, typespec -> str
+			edesc,			% g_env, exception -> str
+			pcdesc,			% g_env, str, int -> str
+			pdesc,			% g_env, str -> str
+			escape_char,		% g_env, char -> bool
+			strlit,			% g_env, str -> str
+			constant;		% g_env, str -> str
+
+flaglist	= array[bool];
+strlist		= array[str];
+
+none		= 0;
+trouble		= 1;
+serious		= 2;
+
+rep		= record[output:	file,
+			 erf:		file,
+			 in_fake:	bool,
+			 proc_fake:	DUfake,
+			 line:		int,
+			 init_flag:	str,
+			 err:		int,
+			 exits:		strtab,
+			 escapes:	flaglist,
+			 loops:		flaglist,
+			 loop_labels:	strlist,
+			 applys:	strtab,
+			 tdescs:	inttab,
+			 edescs:	sigtab,
+			 strings:	strtab,
+			 consts:	strtab,
+			 apply_seed:	int,
+			 tdesc_seed:	int,
+			 parm_seed:	int,
+			 er_seed:	int,
+			 lr_seed:	int,
+			 od_seed:	int,
+			 label_seed:	int,
+			 str_seed:	int,
+			 temp_seed:	int,
+			 cur_temp:	int];
+
+create = proc (comp: CE, erf: file, outf: file) returns (cvt);
+	tdescs: inttab := inttab$create();
+	edescs: sigtab := sigtab$create();
+	applys: strtab := strtab$create();
+	strings: strtab := strtab$create();
+	consts: strtab := strtab$create();
+	exits: strtab := strtab$create();
+	pfake: DUfake := comp.proc_fake;
+	e: rep := rep${output:     outf,
+		       erf:        erf,
+		       in_fake:     false,
+		       proc_fake:   pfake,
+		       line:        0,
+		       init_flag:   "",
+		       err:         none,
+		       exits:       exits,
+		       escapes:     flaglist$fill(0, 128, false),
+		       loops:       flaglist$predict(1, 10),
+		       loop_labels: strlist$predict(1, 10),
+		       applys:      applys,
+		       tdescs:      tdescs,
+		       edescs:      edescs,
+		       strings:     strings,
+		       consts:      consts,
+		       apply_seed:  0,
+		       tdesc_seed:  0,
+		       parm_seed:   0,
+		       er_seed:     0,
+		       lr_seed:     0,
+		       od_seed:     0,
+		       label_seed:  0,
+		       str_seed:    0,
+		       temp_seed:   0,
+		       cur_temp:    0};
+	set_escapes(e.escapes);
+	reset1(up(e), comp);
+	return(e);
+	end create;
+
+set_escapes = proc (flags: flaglist);
+	for i: int in int$from_to(0, 31) do
+		flags[i] := true;
+		end;
+	flags[34] := true;
+	flags[91] := true;
+	flags[92] := true;
+	flags[93] := true;
+	flags[123] := true;
+	flags[125] := true;
+	flags[127] := true;
+	end set_escapes;
+
+reset = proc (e: cvt, comp: CE, erf: file, outf: file);
+	e.erf := erf;
+	e.output := outf;
+	e.in_fake := false;
+	e.proc_fake := comp.proc_fake;
+	e.line := 0;
+	e.err := none;
+	flaglist$trim(e.loops, 1, 0);
+	strlist$trim(e.loop_labels, 1, 0);
+	strtab$reset(e.applys);
+	inttab$reset(e.tdescs);
+	sigtab$reset(e.edescs);
+	strtab$reset(e.strings);
+	strtab$reset(e.exits);
+	e.apply_seed := 0;
+	e.tdesc_seed := 0;
+	e.er_seed := 0;
+	e.lr_seed := 0;
+	e.od_seed := 0;
+	e.label_seed := 0;
+	e.str_seed := 0;
+	e.temp_seed := 0;
+	e.cur_temp := 0;
+	reset1(up(e), comp);
+	end reset;
+
+reset1 = proc (e: cvt, comp: CE);
+	strtab$bind(e.strings, "", "tstr+(refbit)+nulls$");
+	reset2(up(e));
+	tab: inttab := e.tdescs;
+	inttab$bind(tab, typespec$get_id(comp.null_type), "ttype(tnull)");
+	inttab$bind(tab, typespec$get_id(comp.bool_type), "ttype(tbool)");
+	inttab$bind(tab, typespec$get_id(comp.int_type), "ttype(tint)");
+	inttab$bind(tab, typespec$get_id(comp.real_type), "ttype(treal)");
+	inttab$bind(tab, typespec$get_id(comp.char_type), "ttype(tchar)");
+	inttab$bind(tab, typespec$get_id(comp.str_type), "ttype(tstr)");
+	f: file := e.output;
+	file$puts(f, ";CLU Compiler Version ");
+	file$puts(f, force[str](value$id(".compiler_version")));
+	file$puts(f, "\n\n.symtab 8000.,4095.\n.insrt clusys;alpha >\n");
+	end reset1;
+
+reset2 = proc (e: cvt);
+	e.init_flag := "";
+	tab: strtab := e.consts;
+	strtab$reset(tab);
+	strtab$bind(tab, "tnull+(refbit)+null$", "$nil");
+	strtab$bind(tab, "tbool+true", "$true");
+	strtab$bind(tab, "tbool+false", "$false");
+	strtab$bind(tab, g_intlit(-1), "$neg1");
+	strtab$bind(tab, g_intlit(0), "$zero");
+	strtab$bind(tab, g_intlit(1), "$one");
+	strtab$bind(tab, g_intlit(2), "$two");
+	strtab$bind(tab, "tstr+(refbit)+nulls$", "$nulls");
+	end reset2;
+
+begin_typedefn = proc (e: cvt);
+	if e.in_fake
+	   then	e.in_fake := false;
+		file$puts(e.output, "retsulc\n");
+	   end;
+	reset2(up(e));
+	end begin_typedefn;
+
+begin_applydefn = proc (e: cvt);
+	if e.in_fake
+	   then e.init_flag := "";
+	   else	e.in_fake := true;
+		file$puts(e.output, "cluster\n");
+		reset2(up(e));
+	   end;
+	end begin_applydefn;
+
+reset_temps = proc (e: cvt);
+	e.cur_temp := e.temp_seed;
+	end reset_temps;
+
+end_all = proc (e: cvt);
+	f: file := e.output;
+	if e.in_fake
+	   then	e.in_fake := false;
+		file$puts(f, "retsulc\n");
+	   end;
+	file$puts(f, "\n.insrt clusys;omega >\n");
+	end end_all;
+
+line = proc (e: cvt, l: int);
+	if l <= e.line then return; end;
+	f: file := e.output;
+	file$puts(f, ";\t\t\t\t\t\t\t");
+	file$puts(f, int$unparse(l));
+	file$putc(f, '\n');
+	e.line := l;
+	end line;
+
+get_init_flag = proc (e: cvt) returns (str);
+	return(e.init_flag);
+	end get_init_flag;
+
+set_init_flag = proc (e: cvt, flag: str);
+	e.init_flag := flag;
+	end set_init_flag;
+
+get_output = proc (e: cvt) returns (file);
+	return(e.output);
+	end get_output;
+
+begin_loop = proc (e: cvt, is_for: bool) returns (str);
+	flaglist$addh(e.loops, is_for);
+	lbl: str := next_label(e);
+	strlist$addh(e.loop_labels, lbl);
+	return(lbl);
+	end begin_loop;
+
+in_for = proc (e: cvt) returns (bool);
+	return(flaglist$top(e.loops));
+	end in_for;
+
+loop_label = proc (e: cvt) returns (str);
+	return(strlist$top(e.loop_labels));
+	end loop_label;
+
+end_loop = proc (e: cvt);
+	flaglist$remh(e.loops);
+	strlist$remh(e.loop_labels);
+	end end_loop;
+
+begin_temp = proc (e: cvt) returns (str);
+	n: int := e.cur_temp + 1;
+	e.cur_temp := n;
+	var: str := "x$" || int$unparse(n);
+	if n > e.temp_seed
+	   then	e.temp_seed := n;
+		f: file := e.output;
+		file$puts(f, "vargen ");
+		file$puts(f, var);
+		file$puts(f, ",tbad\n");
+	   end;
+	return(var || "(er)");
+	end begin_temp;
+
+end_temp = proc (e: cvt);
+	e.cur_temp := e.cur_temp - 1;
+	end end_temp;
+
+get_proc_fake = proc (e: cvt) returns (DUfake);
+	return(e.proc_fake);
+	end get_proc_fake;
+
+exit_label = proc (e: cvt, ex: str) returns (str);
+	tab: strtab := e.exits;
+	return(strtab$lookup(tab, ex));
+	   except when non_existent: ; end;
+	lbl: str := next_label(e);
+	strtab$bind(tab, ex, lbl);
+	return(lbl);
+	end exit_label;
+
+next_label = proc (e: rep) returns (str);
+	n: int := e.label_seed + 1;
+	e.label_seed := n;
+	return("l" || int$unparse(n));
+	end next_label;
+
+has_label = proc (e: cvt, ex: str) returns (bool);
+	return(strtab$exists(e.exits, ex));
+	end has_label;
+
+pop_label = proc (e: cvt, ex: str) returns (str) signals (no_label);
+	return(strtab$remove(e.exits, ex));
+	   except when non_existent: signal no_label; end;
+	end pop_label;
+
+err1 = proc (e: cvt, why: str);
+	e.err := trouble;
+	output(e, strlist$[why], e.erf);
+	end err1;
+
+comperr = proc (e: cvt, why: str);
+	e.err := serious;
+	why1: strlist := strlist$[">>>COMPILER ERROR>>> ", why];
+	output(e, why1, e.erf);
+	tyo: file := file$tyo();
+	output(e, why1, tyo);
+	listen(file$tyi(), tyo);
+	end comperr;
+
+output = proc (e: rep, why: strlist, f: file);
+	file$puts(f, int$unparse(e.line));
+	file$puts(f, ":\t");
+	for s: str in strlist$elements(why) do
+		file$puts(f, s);
+		end;
+	file$putc(f, '\n');
+	end output;
+
+get_err = proc (e: cvt) returns (int);
+	return(e.err);
+	end get_err;
+
+reset_err = proc (e: cvt);
+	e.err := none;
+	end reset_err;
+
+next_apply = proc (e: cvt) returns (str);
+	n: int := e.apply_seed + 1;
+	e.apply_seed := n;
+	return("f$" || int$unparse(n));
+	end next_apply;
+
+next_parm = proc (e: cvt) returns (str);
+	n: int := e.parm_seed + 1;
+	e.parm_seed := n;
+	return("p$" || int$unparse(n));
+	end next_parm;
+
+next_tdesc = proc (e: cvt) returns (str);
+	n: int := e.tdesc_seed + 1;
+	e.tdesc_seed := n;
+	return("t$" || int$unparse(n));
+	end next_tdesc;
+
+next_od_name = proc (e: cvt) returns (str);
+	n: int := e.od_seed + 1;
+	e.od_seed := n;
+	return("ov$" || int$unparse(n));
+	end next_od_name;
+
+next_er_name = proc (e: cvt) returns (str);
+	n: int := e.er_seed + 1;
+	e.er_seed := n;
+	return("v$" || int$unparse(n) || "(er)");
+	end next_er_name;
+
+tdesc = proc (e: cvt, t: typespec) returns (str);
+	tab: inttab := e.tdescs;
+	return(inttab$lookup(tab, t.id));
+	   except when non_existent: ; end;
+	desc: str := g_type(up(e), t);
+	inttab$bind(tab, t.id, desc);
+	return(desc);
+	end tdesc;
+
+edesc = proc (e: cvt, sig: exception) returns (str);
+	tab: sigtab := e.edescs;
+	return(sigtab$lookup(tab, sig));
+	   except when non_existent: ; end;
+	desc: str := g_exception(up(e), sig);
+	sigtab$bind(tab, sig, desc);
+	return(desc);
+	end edesc;
+
+pcdesc = proc (e: cvt, desc: str, nargs: int) returns (str);
+	desc := str$append(str$append(desc, ',') || int$unparse(nargs), '.');
+	return(strtab$lookup(e.applys, desc));
+	   except when non_existent: ; end;
+	return(new_apply(e, desc, "pcdesc "));
+	end pcdesc;
+
+pdesc = proc (e: cvt, desc: str) returns (str);
+	return(strtab$lookup(e.applys, desc));
+	   except when non_existent: ; end;
+	return(new_apply(e, desc, "pdesc "));
+	end pdesc;
+
+new_apply = proc (e: rep, desc: str, mac: str) returns (str);
+	n: str := next_apply(up(e));
+	f: file := e.output;
+	file$puts(f, mac);
+	file$puts(f, n);
+	file$putc(f, ',');
+	file$puts(f, desc);
+	file$putc(f, '\n');
+	strtab$bind(e.applys, desc, n);
+	return(n);
+	end new_apply;
+
+escape_char = proc (e: cvt, c: char) returns (bool);
+	return(e.escapes[char$c2i(c)]);
+	end escape_char;
+
+strlit = proc (e: cvt, lit: str) returns (str);
+	tab: strtab := e.strings;
+	return(strtab$lookup(tab, lit));
+	   except when non_existent: ; end;
+	n: int := e.str_seed + 1;
+	e.str_seed := n;
+	desc: str := "s$" || int$unparse(n);
+	f: file := e.output;
+	file$puts(f, "string ");
+	file$puts(f, desc);
+	file$putc(f, ',');
+	file$puts(f, lit);
+	file$putc(f, '\n');
+	strtab$bind(tab, lit, desc);
+	return(desc);
+	end strlit;
+
+constant = proc (e: cvt, val: str) returns (str);
+	tab: strtab := e.consts;
+	return(strtab$lookup(tab, val));
+	   except when non_existent: ; end;
+	n: int := e.lr_seed + 1;
+	e.lr_seed := n;
+	desc: str := "c$" || int$unparse(n);
+	f: file := e.output;
+	file$puts(f, "link ");
+	file$puts(f, desc);
+	file$putc(f, ',');
+	file$puts(f, val);
+	file$putc(f, '\n');
+	desc := desc || "(lr)";
+	strtab$bind(tab, val, desc);
+	return(desc);
+	end constant;
+
+end g_env;

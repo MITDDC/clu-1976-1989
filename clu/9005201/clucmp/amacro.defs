@@ -1,0 +1,79 @@
+%		= m_comment
+.symtab		= m_comment
+.insrt		= m_insrt
+cluster
+retsulc
+oduse
+proc
+iter
+corp
+reti		= m_corp
+$rtnc		= m_rtnc
+odlink
+odget
+odset
+massn
+mcheck
+assn
+pops
+mflush
+$loop		= a_env$begin_loop
+$pool		= m_pool
+$for		= m_for
+$rof		= m_rof
+$label		= m_label
+anyize
+$go		= m_go
+$if		= m_if
+$iff		= m_iff
+$ift		= m_ift
+$test		= m_test
+$testf		= m_testf
+$else		= m_else
+$elf		= m_else
+$then		= m_then
+$fi		= a_env$end_if
+$tagcase	= m_tagcase
+$tag		= m_tag
+$etagcase	= a_env$end_tagcase
+$rtn		= m_rtn
+$mrtn		= m_mrtn
+$yield		= m_yield
+$myield		= m_myield
+$fakef		= m_fakef
+signal
+$itpop		= m_itpop
+$cont		= m_cont
+$resume		= m_resume
+$catch		= m_catch
+$uncatch	= m_uncatch
+$except		= m_except
+link
+args
+pcall
+force
+xcall
+arrgen
+recgen
+typreg
+typarg
+gettyp
+cvtup
+cvtdown
+string
+tdesc
+sdesc
+ptdesc
+itdesc
+edesc
+rtdesc
+cpdesc
+ppdesc
+pdesc
+pcdesc
+vargen
+loc
+deft
+gcon
+gconv
+jumper

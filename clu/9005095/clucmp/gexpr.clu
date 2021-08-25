@@ -1,0 +1,354 @@
+%	GEXPR	CLU
+%
+%	CLU Compiler Version 3: expression generator
+
+% In general:	r{E @ Loc} => r{E @ RR}; ASSN Loc,RR		for Loc ~= RR
+%		p{E} => r{E @ RR}; ARGS [RR]
+% However, there are a few exceptions, which are noted as they appear.
+% 
+% r{V1 @ Loc} => ASSN Loc,V$1(ER)
+% p{V1} => ARGS [V$1(ER)]
+%
+% r{<non-type const> @ Loc} =>
+%	LINK C$1,v{<non-type const>}
+%	ASSN Loc,C$1(LR)
+%
+% p{<non-type const>} =>
+%	LINK C$1,v{<non-type const>}
+%	ARGS [C$1(LR)]
+%
+% Except $nil, $true, $false, $neg1, $zero, $one, $two and $nulls are used.
+
+g_expr = proc (e: env, x: expr, loc: str);
+	res: str := "rr";
+	tagcase x.abs
+	   tag idn (xa: idn):
+		res := xa.id;
+		if res[1] = 'o'
+		   then g_odget(e, res);
+			res := "rr";
+		   end;
+	   tag any_ (xa: expr):
+		g_anyize(e, xa);
+	   tag cand_ (xa: condop):
+		g_condop(e, xa, cand_);
+	   tag cor_ (xa: condop):
+		g_condop(e, xa, cor_);
+	   tag invoke (xa: invoke):
+		g_invoke(e, xa);
+	   tag a_cons (xa: arraycons):
+		g_arraycons(e, xa);
+	   tag s_cons (xa: selectcons):
+		g_selectcons(e, xa);
+	   tag apply (xa: clutype):
+		g_pdesc(e, g_apply_desc(e, xa), loc);
+		return;
+	   tag op (xa: clusterop):
+		g_pdesc(e, g_clu_desc(e, xa), loc);
+		return;
+	   tag force_ (xa: typespec):
+		g_pdesc(e, g_force(e, xa), loc);
+		return;
+	   tag type_of_ (xa: expr):
+		g_type_of(e, xa);
+	   tag up_ (xa: expr):
+		g_up(e, xa);
+	   tag down_ (xa: expr):
+		g_down(e, xa);
+	   tag type_ (xa: typespec):
+		g_type_val(e, env$tdesc(e, xa), loc);
+		return;
+	   others:
+		res := env$constant(e, g_const(e, x));
+	   end;
+	if loc = ""
+	   then g_push(e, res);
+	elseif res ~= loc
+	   then g_move(e, res, loc); end;
+	end g_expr;
+
+% To push Loc onto the stack:	ARGS [Loc]
+
+g_push = proc (e: env, loc: str);
+	f: file := e.output;
+	file$puts(f, "args [");
+	file$puts(f, loc);
+	file$puts(f, "]\n");
+	end g_push;
+
+% To move Res to Loc:	ASSN Loc,Res
+
+g_move = proc (e: env, res: str, loc: str);
+	f: file := e.output;
+	file$puts(f, "assn ");
+	file$puts(f, loc);
+	file$putc(f, ',');
+	file$puts(f, res);
+	file$putc(f, '\n');
+	end g_move;
+
+% p{E1;...;En} => p{E1}; ...; p{En}
+
+g_exprlist = proc (e: env, exprs: exprlist);
+	for x: expr in exprlist$elements(exprs) do
+		g_expr(e, x, "");
+		end;
+	end g_exprlist;
+
+% r{anyize(E) @ RR} =>
+%
+%	d{T1}
+%	r{E @ RR}
+%	ANYIZE RR,T$1
+%
+% where T1 is the type of E
+
+g_anyize = proc (e: env, x: expr);
+	f: file := e.output;
+	g_expr(e, x, "rr");
+	desc: str := env$tdesc(e, x.typespec);
+	file$puts(f, "anyize rr,");
+	file$puts(f, desc);
+	file$putc(f, '\n');
+	end g_anyize;
+
+% r{(E1 cand E2) @ RR} =>
+%	r{E1 @ RR}
+%	$IFT; $THEN
+%	r{E2 @ RR}
+%	$FI
+%
+% r{(E1 cor En) @ RR} =>
+%	r{E1 @ RR}
+%	$IFF; $THEN
+%	r{E2 @ RR}
+%	$FI
+
+g_condop = proc (e: env, op: condop, is_cand: bool);
+	f: file := e.output;
+	g_expr(e, op.left, "rr");
+	if is_cand
+	   then file$puts(f, "$ift\n$then\n");
+	   else file$puts(f, "$iff\n$then\n");
+	   end;
+	g_expr(e, op.right, "rr");
+	file$puts(f, "$fi\n");
+	end g_condop;
+
+% r{P[C1,...,Cn](E1,...,Em) @ RR} =>
+%	p{E1;...;Em}
+%	d{P[C1,...,Cn],m}
+%	PCALL F$1
+%
+% r{T$P[C1,...,Cn](E1,...,Em) @ RR} =>
+%	p{E1;...;Em}
+%	d{T$P[C1,...,Cn],m}
+%	PCALL F$1
+%
+% F$1 is the name for the call block descriptor from the d{...}.
+
+g_invoke = proc (e: env, inv: invoke);
+	args: exprlist := inv.args;
+	tagcase inv.apply.abs
+	   tag apply (xa: clutype):
+		g_exprlist(e, args);
+		g_call(e, g_apply_desc(e, xa), exprlist$size(args));
+	   tag op (xa: clusterop):
+		g_exprlist(e, args);
+		g_call(e, g_clu_desc(e, xa), exprlist$size(args));
+	   tag force_ (xa: typespec):
+		g_force_call(e, xa, args);
+	   others:
+		g_comp_call(e, inv);
+	   end;
+	end g_invoke;
+
+g_apply_desc = proc (e: env, dut: clutype) returns (str);
+	parms: exprlist := dut.parms;
+	desc: str := dut.gen.unique;
+	if exprlist$size(parms) = 0
+	   then return(desc); end;
+	return(str$append(str$append("[0," || desc, ',') || g_constlist(e, parms),
+			  ']'));
+	end g_apply_desc;
+
+g_clu_desc = proc (e: env, cop: clusterop) returns (str);
+	t: typespec := cop.type_;
+	parms: exprlist := cop.parms;
+	size: int := exprlist$size(parms);
+	tagcase t.abs
+	   tag cluster_ (ta: clutype):
+		if exprlist$size(ta.parms) = 0  cand  size = 0
+		   then return(str$append(ta.gen.unique, '$') || cop.name); end;
+	   others:
+	   end;
+	desc: str := str$append("[" || env$tdesc(e, t), ',') || cop.name;
+	if size > 0
+	   then desc := str$append(desc, ',') || g_constlist(e, parms); end;
+	return(str$append(desc, ']'));
+	end g_clu_desc;
+
+g_call = proc (e: env, desc: str, nargs: int);
+	desc := env$pcdesc(e, desc, nargs);
+	f: file := e.output;
+	file$puts(f, "pcall ");
+	file$puts(f, desc);
+	file$putc(f, '\n');
+	end g_call;
+
+% r{force[T1](E) @ RR} =>
+%	r{E @ RR}
+%	d{T1}
+%	FORCE RR,T$1
+
+g_force_call = proc (e: env, t: typespec, args: exprlist);
+	g_expr(e, exprlist$bottom(args), "rr");
+	if value$is_none(value$id(".no_force"))
+	   then desc: str := env$tdesc(e, t);
+		f: file := e.output;
+		file$puts(f, "force rr,");
+		file$puts(f, desc);
+		file$putc(f, '\n');
+	   end;
+	end g_force_call;
+
+% r{E(E1,...,En) @ RR} =>
+%	r{E @ M$1(ER)}
+%	p{E1;...;En}
+%	XCALL M$1(ER),n.
+
+g_comp_call = proc (e: env, inv: invoke);
+	f: file := e.output;
+	args: exprlist := inv.args;
+	lcl: str := env$begin_temp(e);
+	g_expr(e, inv.apply, lcl);
+	g_exprlist(e, args);
+	file$puts(f, "xcall ");
+	file$puts(f, lcl);
+	file$putc(f, ',');
+	file$puts(f, int$unparse(exprlist$size(args)));
+	file$puts(f, ".\n");
+	env$end_temp(e);
+	end g_comp_call;
+
+% r{T1$[E1 : E2,...,En] @ RR} =>
+%	p{E1;E2;...;En}
+%	ARRGEN n.
+
+g_arraycons = proc (e: env, cons: arraycons);
+	tagcase cons.low
+	   tag one (mx: expr):
+		g_expr(e, mx, "");
+	   others:
+		g_push(e, env$constant(e, g_intlit(1)));
+	   end;
+	elts: exprlist := cons.elts;
+	g_exprlist(e, elts);
+	f: file := e.output;
+	file$puts(f, "arrgen ");
+	file$puts(f, int$unparse(1 + exprlist$size(elts)));
+	file$puts(f, ".\n");
+	end g_arraycons;
+
+% r{T1${S1:E1,...,Sn:En} @ RR} =>
+%	p{E1;...;En}
+%	RECGEN [Nn,...,N1]
+%
+% where Ni is the index of Si in the ordered sequence of selector names.
+
+g_selectcons = proc (e: env, cons: selectcons);
+	fields: fieldlist := cons.fields;
+	for fld: field in fieldlist$elements(fields) do
+		val: expr := fld.val;
+		for sel: name in namelist$elements(fld.sels) do
+			g_expr(e, val, "");
+			end;
+		end;
+	spec: fieldspeclist := g_select_specs(e, cons.type_);
+	f: file := e.output;
+	file$puts(f, "recgen [");
+	for i: int in int$from_to_by(fieldlist$size(fields), 1, -1) do
+		sels: namelist := fields[i].sels;
+		for j: int in int$from_to_by(namelist$size(sels), 1, -1) do
+			file$puts(f, int$unparse(g_sel(sels[j], spec)));
+			if i > 1  cor  j > 1
+			   then file$puts(f, ".,");
+			   else file$putc(f, '.');
+			   end;
+			end;
+		end;
+	file$puts(f, "]\n");
+	end g_selectcons;
+
+% r{P[C1,...,Cn] @ Loc} =>
+%	d{P[C1,...,Cn]}
+%	TYPREG Loc,F$1
+%
+% r{T$P[C1,...,Cn] @ Loc} =>
+%	d{T$P[C1,...,Cn]}
+%	TYPREG Loc,F$1
+%
+% p{P[C1,...,Cn]} =>
+%	d{P[C1,...,Cn]}
+%	TYPARG [F$1]
+%
+% p{T$P[C1,...,Cn]} =>
+%	d{T$P[C1,...,Cn]}
+%	TYPARG [F$1]
+
+g_pdesc = proc (e: env, desc: str, loc: str);
+	g_type_val(e, env$pdesc(e, desc), loc);
+	end g_pdesc;
+
+% r{T1 @ Loc} =>
+%	d{T1}
+%	TYPREG RR,T$1
+%
+% p{T1} =>
+%	d{T1}
+%	TYPARG [T$1]
+
+g_type_val = proc (e: env, desc: str, loc: str);
+	f: file := e.output;
+	if loc = ""
+	   then	file$puts(f, "typarg [");
+		file$puts(f, desc);
+		file$puts(f, "]\n");
+	   else	file$puts(f, "typreg ");
+		file$puts(f, loc);
+		file$putc(f, ',');
+		file$puts(f, desc);
+		file$putc(f, '\n');
+	   end;
+	end g_type_val;
+
+g_force = proc (e: env, t: typespec) returns (str);
+	return(str$append("[force," || env$tdesc(e, t), ']'));
+	end g_force;
+
+% r{type_of(E) @ RR} =>
+%	r{E @ RR}
+%	GETTYP RR,RR
+
+g_type_of = proc (e: env, x: expr);
+	g_expr(e, x, "rr");
+	file$puts(e.output, "gettyp rr,rr\n");
+	end g_type_of;
+
+% r{up(E) @ RR} =>
+%	r{E @ RR}
+%	CVTUP RR
+
+g_up = proc (e: env, x: expr);
+	g_expr(e, x, "rr");
+	file$puts(e.output, "cvtup rr\n");
+	end g_up;
+
+% r{down(E) @ RR} =>
+%	r{E @ RR}
+%	CVTDOWN RR
+
+g_down = proc (e: env, x: expr);
+	g_expr(e, x, "rr");
+	file$puts(e.output, "cvtdown rr\n");
+	end g_down;

@@ -1,0 +1,181 @@
+start_up = proc()
+	act = array[char]
+	tyi: file := file$tyi()
+	tyo: file := file$tyo()
+	while true do
+		ac: act := act$new()
+		scan$line(tyi,tyo,ac,"\nInput file: ")
+		in_name: string := string$ac2s(ac)
+		if bool$not(file$exists(in_name))
+		   then file$puts(file$tyo(),
+				"Can't open '" ||
+				in_name || "' for input.\n")
+		   else	% We can try to do the file
+			ac := act$new()
+			scan$line(tyi,tyo,ac,"Output file: ")
+			out_name: string := string$ac2s(ac)
+			full_house(in_name,out_name)
+		   end
+		end
+	end start_up
+
+num_pos=proc(s:string,i:int) returns (int)
+	len: int := string$size(s)
+	while i <= len do
+		c: char := s[i]
+		if (c >= '0' cand c <= '9') cor c = '_' then break end
+		if c = '=' then return (len+1) end
+		i := i + 1
+		end
+	return (i)		
+	end num_pos
+
+alpha_pos=proc(s:string,i:int) returns (int)
+	len: int := string$size(s)
+	while i <= len do
+		c: char := s[i]
+		if (c >= 'A' cand c <= 'Z') cor (c >= 'a' cand c <= 'z')
+		   then break end
+		i := i + 1
+		end
+	return (i)		
+	end alpha_pos
+
+scan_num=proc(s:string,i:int) returns (int,int,bool)
+	len: int := string$size(s)
+	i := num_pos(s,i)
+	acc: int := 0
+	found: bool := false
+	while i <= len do
+		c: char := s[i]
+		if c = '_' then acc := 0
+		  elseif c < '0' then break
+		  elseif c > '9' then break
+		  else acc := acc * 10 + char$c2i(c) - char$c2i('0')
+		  end
+		i := i + 1
+		found := true
+		end
+	return (acc, i, found)
+	end scan_num
+
+get_basis = proc() returns (array[int], array[int])
+	ait = array[int]
+	bfile: file := file$open_read("clu;basis scores")
+	s: string := file$gets(bfile,'\n')	% highest scores
+	possible: ait := num_array(file$gets(bfile,'\n'),1)
+	weights: ait := num_array(file$gets(bfile,'\n'),1)
+	file$close(bfile)
+	return (possible,weights)
+	end get_basis
+
+num_array = proc(s: string, i: int) returns (array[int])
+	ait = array[int]
+	a: ait := ait$new()
+	b: bool := true
+	num: int := 0
+	while b do
+		num, i, b := scan_num(s,i)
+		if b then ait$addh(a,num) end
+		end
+	return (a)
+	end num_array
+
+full_house = proc(ins,outs: string)
+	at = array[int]
+	ast = array[string]
+	aat = array[at]
+	sfill=string$fill
+	inf: file := file$open_read(ins)
+	outf: file := file$open_write(outs)
+	s: string := file$gets(inf,'\n')
+	possible, weights: at := get_basis()	% possible scores & weights
+	names: ast := ast$new()		% all names of students
+	all_scores: aat := aat$new()	% all scores by students
+	totals: at := at$new()		% all total scores
+	averages: at := at$fill(1,at$size(possible),0)	% averages
+	persons: int := 0		% number of real students
+	name_end: int := 0		% end of names
+	while string$indexs("****", s) = 0 do
+		s := file$gets(inf,'\n')
+		end
+	s := file$gets(inf,'\n')
+	while string$indexs("****", s) = 0 do
+		ap: int := alpha_pos(s,1)	% start of name
+		name: string := s		% student name
+		scores: at := num_array(s,ap)	% scores for student
+		total: int := 0			% total for student
+		if at$size(scores) > 0 then
+			np: int := num_pos(s,ap)-1	% start of scores
+			if np > name_end then name_end := np end
+			name := string$substr(s,1,np)	% get name part
+			persons := persons + 1		% bump # of students
+			for index: int in at$indexes(scores) do
+				weight: int := weights[index]
+					except when bounds: weight := 0 end
+				score: int := scores[index] * weight
+				scores[index] := score
+				averages[index] := averages[index] + score
+					except when bounds: at$addh(averages,score) end
+				total := total + score
+				end
+			end
+		aat$addh(all_scores,scores)
+		at$addh(totals,total)
+		ast$addh(names,name)
+		s := file$gets(inf,'\n')
+		end
+	file$puts(outf,"\nWeighted Scores\n")
+	file$puts(outf,string$fill(name_end,' '))
+	for index: int in at$indexes(possible) do
+		weight: int := weights[index]
+			except when bounds: weight := 0 end
+		score: int := possible[index] * weight
+		possible[index] := score
+		end
+	hack: int := persons / 2
+	if persons > 0 then
+		for index: int in at$indexes(averages) do
+			averages[index] := (averages[index] + hack) / persons
+			end
+		end
+	format_line(outf,"weights",name_end,weights)
+	format_total(outf,"possible",name_end,possible)
+	format_total(outf,"averages",name_end,averages)
+	file$puts(outf,"\n****")
+	while ast$size(names) > 0 do
+		name: string := ast$reml(names)
+		scores: at := aat$reml(all_scores)
+		format_total(outf,name,name_end,scores)
+		end
+	file$puts(outf,"\n****\n")
+	file$close(inf)
+	file$close(outf)
+	end full_house
+
+format_total = proc(f:file,name: string, len: int, a: array[int])
+	total: int := format_line(f,name,len,a)
+	if total > 0 then
+		file$puts(f, " = ")
+		rjput(f, total, 5)
+		end
+	end format_total
+
+format_line = proc(f:file,name: string, len: int, a: array[int]) returns (int)
+	at = array[int]
+	total: int := 0
+	file$putc(f,'\n')
+	file$puts(f,name)
+	file$puts(f,string$fill(len-string$size(name),' '))
+	for score: int in at$elements(a) do
+		rjput(f,score,4)
+		total := total + score
+		end
+	return (total)
+	end format_line
+
+rjput=proc(f:file,i:int,len:int)
+	s: string := int$unparse(i)
+	file$puts(f,string$fill(len-string$size(s),' ') || s)
+	end rjput
+

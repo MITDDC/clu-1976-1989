@@ -1,0 +1,40 @@
+;;
+;; Clu garbage collector - macros and symbols used throughout
+;;
+define	$die	msg/
+	.value	[asciz `
+: msg 
+
+`]
+	termin
+;;
+;; Symbols to use in .call's
+;;
+carg==	move		;; regular argument
+clarg==	setz		;; last argument
+ciarg==	movei		;; immediate argument
+cliarg==setzi		;; last argument, immediate
+cval==	movem		;; regular value
+clval==	setzm		;; last value
+cerr==	moves		;; error
+clerr==	setzb		;; last error
+ccnt==	movs		;; control
+cicnt==	movsi		;; immediate control
+;;
+;; Other symbols
+;;
+pglog2=	10.		;; log base 2 of page size
+pgsize=	1024.		;; page size
+;;
+;; Register names
+;;
+r0==	0		;; eight temporary registers
+r1==	1
+r2==	2
+r3==	3
+r4==	4
+r5==	5
+r6==	6
+r7==	7
+sp==	16		;; stack pointer
+br==	17		;; BLT register

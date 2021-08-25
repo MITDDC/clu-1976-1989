@@ -1,0 +1,339 @@
+%	TDP CLU
+%
+%	A general, non-forgetful, top-down parser
+
+str	= string;
+nterm	= string;
+rule	= oneof[or:   nt_pair,
+		and:  nt_pair,
+		term: str];
+nt_pair	= record[nt1, nt2: nterm];
+task	= record[nt: nterm,
+		 s:  str];
+
+% Because of the simple grammar form, a derivation (parse tree) can be
+% represented by a list of non-terminals.
+% This cluster has only the bare essentials needed for the program.
+
+deriv = cluster is	create,		% nterm -> deriv
+			concat,		% deriv, deriv -> deriv
+			elements;	% deriv --> nterm
+
+rep = oneof[pair: pair,
+	    one:  nterm];
+pair = record[head, tail: deriv];
+
+create = proc (nt: nterm) returns (cvt);
+	return(rep$make_one(nt));
+	end create;
+
+concat = proc (d1, d2: deriv) returns (cvt);
+	return(rep$make_pair(pair${head: d1, tail: d2}));
+	end concat;
+
+elements = iter (d: cvt) yields (nterm);
+	tagcase d
+	   tag pair (p: pair):
+		for nt: nterm in elements(p.head) do
+			yield(nt);
+			end;
+		for nt: nterm in elements(p.tail) do
+			yield(nt);
+			end;
+	   tag one (nt: nterm):
+		yield(nt);
+	   end;
+	end elements;
+
+end deriv;
+
+% A simple hash table mapping strings to objects of type 't'.
+
+table = cluster [t: type] is	create,		% -> table[t]
+				lookup,		% table[t], str -> t => not_found
+				enter,		% table[t], str, t => already_exists
+				alter,		% table[t], str, t ->
+				remove;		% table[t], str => not_found
+
+rep = array[bucket];
+bucket = array[entry];
+entry = record[key:   str,
+	       value: t];
+size = 211;
+
+create = proc () returns (cvt);
+	tab: rep := rep$predict(1, size);
+	for i: int in int$from_to(1, size) do
+		rep$addh(tab, bucket$create(1));
+		end;
+	return(tab);
+	end create;
+
+lookup = proc (tab: cvt, key: str) returns (t) signals (not_found);
+	for ent: entry in bucket$elements(tab[hash(key, size)]) do
+		if key = ent.key
+		   then return(ent.value); end;
+		end;
+	signal not_found;
+	end lookup;
+
+enter = proc (tab: cvt, key: str, value: t) signals (already_exists);
+	buck: bucket := tab[hash(key, size)];
+	for ent: entry in bucket$elements(buck) do
+		if key = ent.key
+		   then signal already_exists; end;
+		end;
+	bucket$addh(buck, entry${key:   key,
+				 value: value});
+	end enter;
+
+alter = proc (tab: cvt, key: str, value: t);
+	buck: bucket := tab[hash(key, size)];
+	for ent: entry in bucket$elements(buck) do
+		if key = ent.key
+		   then ent.value := value;
+			return;
+		   end;
+		end;
+	bucket$addh(buck, entry${key:   key,
+				 value: value});
+	end alter;
+
+remove = proc (tab: cvt, key: str) signals (not_found);
+	buck: bucket := tab[hash(key, size)];
+	for i: int in bucket$indexes(buck) do
+		if key = buck[i].key
+		   then h: int := bucket$high(buck);
+			if i < h
+			   then buck[i] := buck[h]; end;
+			bucket$remh(buck);
+		   end;
+		end;
+	signal not_found;
+	end remove;
+
+end table;
+
+% Only three kinds of productions are allowed, with the following syntax:
+%	nterm=nterm|nterm
+%	nterm=nterm nterm
+%	nterm=terminal
+% Productions must be separated by newlines.
+
+grammar = cluster is	create,			% nterm, str -> grammar
+						%	 => bad_format,  multiple_rules
+			alter,			% grammar, str => bad_format
+			get_start_symbol,	% grammar -> nterm
+			set_start_symbol,	% grammar, nterm ->
+			get_rule;		% grammar, nterm -> rule => no_rule
+
+rep = record[start: nterm,
+	     rules: rtab];
+rtab = table[rule];
+
+create = proc (start: nterm, s: str) returns (cvt) signals (bad_format, multiple_rules);
+	tab: rtab := rtab$create();
+	for nt: nterm, r: rule in get_rules(s) do
+		rtab$enter(tab, nt, r);
+		end;
+	   except when bad_format: signal bad_format;
+		  when already_exists: signal multiple_rules;
+		  end;
+	return(rep${start: start,
+		    rules: tab});
+	end create;
+
+alter = proc (g: cvt, s: str) signals (bad_format);
+	tab: rtab := g.rules;
+	for nt: nterm, r: rule in get_rules(s) do
+		rtab$alter(tab, nt, r);
+		end;
+	   except when bad_format: signal bad_format; end;
+	end alter;
+
+get_rules = iter (s: str) yields (nterm, rule) signals (bad_format);
+	while str$size(s) > 0 do
+		i: int := str$indexc('\n', s);
+		p: str;
+		if i > 0
+		   then p := str$substr(s, 1, i - 1);
+			s := str$rest(s, i + 1);
+		   else p := s;
+			s := "";
+		   end;
+		i := str$indexc('=', p);
+		if i = 0
+		   then signal bad_format; end;
+		nt: nterm := str$substr(p, 1, i - 1);
+		p := str$rest(p, i + 1);
+		r: rule;
+		i := str$indexc('|', p);
+		if i > 1
+		   then nt1: nterm := str$substr(p, 1, i - 1);
+			nt2: nterm := str$rest(p, i + 1);
+			r := rule$make_or(nt_pair${nt1: nt1, nt2: nt2});
+		   else i := str$indexc(' ', p);
+			if i > 1
+			   then nt1: nterm := str$substr(p, 1, i - 1);
+				nt2: nterm := str$rest(p, i + 1);
+				r := rule$make_and(nt_pair${nt1: nt1, nt2: nt2});
+			   else r := rule$make_term(p);
+			   end;
+		   end;
+		yield(nt, r);
+		end;
+	end get_rules;
+
+get_start_symbol = proc (g: cvt) returns (nterm);
+	return(g.start);
+	end get_start_symbol;
+
+set_start_symbol = proc (g: cvt, nt: nterm);
+	g.start := nt;
+	end set_start_symbol;
+
+get_rule = proc (g: cvt, nt: nterm) returns (rule) signals (no_rule);
+	return(rtab$lookup(g.rules, nt));
+	   except when not_found: signal no_rule; end;
+	end get_rule;
+
+end grammar;
+
+% An environment is used to hold the grammar and the results of all sub-parses (tasks).
+
+env = cluster is	create,		% grammar -> env
+			get_rule,	% env, nterm -> rule => no_rule
+			splits_exist,	% env, task -> bool
+			splits,		% env, task --> deriv, str
+			add_split;	% env, task, deriv, str ->
+
+rep = record[gram:   grammar,
+	     table:  etab,
+	     task:   task,
+	     splits: splitlist];
+etab = table[entrylist];
+entrylist = array[entry];
+entry = record[nterm:  nterm,
+	       splits: splitlist];
+splitlist = array[split];
+split = record[deriv: deriv,
+	       rest:  str];
+
+create = proc (g: grammar) returns (cvt);
+	return(rep${gram:   g,
+		    table:  etab$create(),
+		    task:   task${nt, s: ""},
+		    splits: splitlist$create(1)});
+	end create;
+
+get_rule = proc (e: cvt, nt: nterm) returns (rule) signals (no_rule);
+	return(grammar$get_rule(e.gram, nt));
+	   except when no_rule: signal no_rule; end;
+	end get_rule;
+
+splits_exist = proc (e: env, t: task) returns (bool);
+	return(splitlist$size(search(e, t)) > 0);
+	end splits_exist;
+
+splits = iter (e: env, t: task) yields (deriv, str);
+	for sp: split in splitlist$elements(search(e, t)) do
+		yield(sp.deriv, sp.rest);
+		end;
+	end splits;
+
+add_split = proc (e: env, t: task, d: deriv, rest: str);
+	splitlist$addh(search(e, t), split${deriv: d,
+					    rest:  rest});
+	end add_split;
+
+search = proc (e: cvt, t: task) returns (splitlist);
+	if e.task = t
+	   then return(e.splits); end;
+	e.task := t;
+	nt: nterm := t.nt;
+	ents: entrylist;
+	sp: splitlist;
+	begin
+	  ents := etab$lookup(e.table, t.s);
+	  for ent: entry in entrylist$elements(ents) do
+		if nt = ent.nterm
+		   then sp := ent.splits;
+			e.splits := sp;
+			return(sp); end;
+		end;
+	end; except when not_found: ents := entrylist$create(1);
+				    etab$enter(e.table, t.s, ents);
+		    end;
+	sp := splitlist$create(1);
+	e.splits := sp;
+	entrylist$addh(ents, entry${nterm:  nt,
+				    splits: sp});
+	return(sp);
+	end search;
+
+end env;
+
+% Parse prefixes of 's' starting from 'nt', yielding derivation and rest of 's'
+
+splits1 = iter (nt: nterm, s: str, e: env) yields (deriv, str);
+	d0: deriv := deriv$create(nt);
+	tagcase env$get_rule(e, nt)
+	   tag or (pair: nt_pair):
+		for d: deriv, rest: str in splits(pair.nt1, s, e) do
+			yield(d0 || d, rest);
+			end;
+		for d: deriv, rest: str in splits(pair.nt2, s, e) do
+			yield(d0 || d, rest);
+			end;
+	   tag and (pair: nt_pair):
+		for d1: deriv, rest1: str in splits(pair.nt1, s, e) do
+			for d2: deriv, rest2: str in splits(pair.nt2, rest1, e) do
+				yield(d0 || d1 || d2, rest2);
+				end;
+			end;
+	   tag term (term: str):
+		if str$indexs(term, s) = 1
+		   then yield(d0, str$rest(s, str$size(term) + 1)); end;
+	   end;
+	   except when no_rule: ; end;
+	end splits1;
+
+% If the task has already been run, pull the stored splits out of the environment
+
+splits = iter (nt: nterm, s: str, e: env) yields (deriv, str);
+	t: task := task${nt: nt, s: s};
+	if env$splits_exist(e, t)
+	   then for d: deriv, rest: str in env$splits(e, t) do
+			yield(d, rest);
+			end;
+	   else for d: deriv, rest: str in splits1(nt, s, e) do
+			yield(d, rest);
+			env$add_split(e, t, d, rest);
+			end;
+	   end;
+	end splits;
+
+parse = proc (s: str, g: grammar) returns (deriv) signals (no_derivation);
+	for d: deriv, rest: str in splits(g.start_symbol, s, env$create(g)) do
+		if rest = ""
+		   then return(d); end;
+		end;
+	signal no_derivation;
+	end parse;
+
+output = proc (s: string, g: grammar) signals (no_derivation);
+	f: file := file$tyo();
+	n: int := 0;
+	for s in deriv$elements(parse(s, g)) do
+		z: int := str$size(s);
+		if n + z > 70
+		   then file$putc(f, '\n');
+			n := 0;
+		   end;
+		file$puts(f, s);
+		file$putc(f, ' ');
+		n := n + z + 1;
+		end;
+	   except when no_derivation: signal no_derivation; end;
+	file$putc(f, '\n');
+	end output;

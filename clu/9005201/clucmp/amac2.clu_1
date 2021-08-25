@@ -1,0 +1,356 @@
+%	AMAC2 CLU
+%
+%	CLUMAC assembler: macro definitions
+
+m_pcall = proc (e: env);
+	ref: wrd := get_wrd(e);
+	m_args(e);
+	reg, disp: int := tdlink(e, ref);
+	env$add_wrd(e, wrd$xinst(MOVE, MR, reg, disp));
+	env$add_wrd(e, wrd$xinst(XCT, 0, MR, _en_set));
+	end m_pcall;
+
+m_force = proc (e: env);
+	env$add_wrd(e, wrd$inst(PUSH, SP, 0, get_wrd(e)));
+	typreg(e, wrd$create(0, RR), get_wrd(e));
+	env$add_wrd(e, wrd$xinst(LDB, N1, 0, _dtypbp));
+	env$add_wrd(e, wrd$xinst(CAIE, N1, RR, 0));
+	env$add_wrd(e, wrd$xinst(JSP, XR, 0, _badtyp));
+	env$add_wrd(e, wrd$xinst(POP, SP, 0, RR));
+	end m_force;
+
+m_xcall = proc (e: env);
+	addr: wrd := get_wrd(e);
+	num: int := get_number(e);
+	m_args(e);
+	if ~(wrd$iequal(addr, RR)  cor  wrd$iequal(addr, 0))
+	   then env$add_wrd(e, wrd$inst(MOVE, RR, 0, addr)); end;
+	env$add_wrd(e, wrd$xinst(HRRZ, MR, 0, RR));
+	env$add_wrd(e, wrd$xinst(XCT, 0, MR, _en_set));
+	end m_xcall;
+
+m_arrgen = proc (e: env);
+	num: int := get_number(e);
+	env$add_wrd(e, wrd$xinst(MOVEI, R1, SP, 2 - num));
+	env$add_wrd(e, wrd$xinst(HRLI, R1, 0, 1 - num));
+	env$add_wrd(e, wrd$xinst(JSP, XR, 0, _amake));
+	env$add_wrd(e, wrd$xinst(HRRM, N1, RR, _ar_cod));
+	env$add_wrd(e, wrd$xinst(SUBI, SP, 0, num));
+	end m_arrgen;
+
+m_recgen = proc (e: env);
+	sels: ai := ai$predict(1, 2);
+	for sel: int in get_numbers(e) do
+		ai$addh(sels, sel);
+		end;
+	num: int := ai$size(sels);
+	env$add_wrd(e, wrd$xinst(MOVEI, N1, 0, num));
+	env$add_wrd(e, wrd$xinst(HRLI, N1, 0, _tvec));
+	alloc(e, wrd$create(0, num), N1);
+	for sel: int in ai$elements(sels) do
+		env$add_wrd(e, wrd$xinst(POP, SP, RR, sel));
+		end;
+	end m_recgen;
+
+m_typreg = proc (e: env);
+	typreg(e, get_wrd(e), get_wrd(e));
+	end m_typreg;
+
+typreg = proc (e: env, dst: wrd, desc: wrd);
+	reg, disp: int := tdlink(e, desc);
+	env$add_wrd(e, wrd$xinst(HRROI, R0, reg, disp));
+	env$add_wrd(e, wrd$xinst(SKIPG, RR, R0, 0));
+	env$add_wrd(e, wrd$xinst(JSP, XR, 0, _notype));
+	if ~wrd$iequal(dst, RR)
+	   then env$add_wrd(e, wrd$inst(MOVEM, RR, 0, dst)); end;
+	end typreg;
+
+m_typarg = proc (e: env);
+	dst: wrd := wrd$create(0, RR);
+	for desc: wrd in get_wrds(e) do
+		typreg(e, dst, desc);
+		env$add_wrd(e, wrd$xinst(PUSH, SP, 0, RR));
+		end;
+	end m_typarg;
+
+m_gettyp = proc (e: env);
+	reg: int := get_number(e);
+	env$add_wrd(e, wrd$inst(HLRZ, reg, 0, get_wrd(e)));
+	env$add_wrd(e, wrd$xinst(ANDI, reg, 0, _typmsk));
+	end m_gettyp;
+
+m_cvtup = proc (e: env);
+	addr: wrd := get_wrd(e);
+	end m_cvtup;
+
+m_cvtdown = proc (e: env);
+	addr: wrd := get_wrd(e);
+	end m_cvtdown;
+
+m_string = proc (e: env);
+	name: str := get_symbol(e);
+	ref: wrd := string_lit(e, get_literal(e));
+	env$define(e, name, ref);
+	end m_string;
+
+m_tdesc = proc (e: env);
+	iname: str := get_symbol(e);
+	xname: str := get_symbol(e);
+	dvec: wrd, dflg, dtyp: int := tdchk(e);
+	dstr: wrd := string_lit(e, xname);
+	vec: aw := aw$[wrd$create(_tdrep, 5),
+		       wrd$create(0, 0),
+		       wrd$create(0, dflg + _tdc_td),
+		       dstr,
+		       dvec];
+	env$define(e, iname, env$add_rlink(e, dtyp, vec));
+	end m_tdesc;
+
+m_sdesc = proc (e: env);
+	iname: str := get_symbol(e);
+	xname: str := get_symbol(e);
+	dvec: wrd, dflg, dtyp: int := tdchk(e);
+	dstr: wrd := string_lit(e, xname);
+	if wrd$iequal(dvec, 0)
+	   then dflg := _tdc_cp;
+		dtyp := _tcpd;
+	   end;
+	vec: aw := aw$[wrd$create(_tdrep, 5),
+		       wrd$create(0, 0),
+		       wrd$create(0, dflg + _tdc_sd),
+		       dstr,
+		       dvec];
+	env$define(e, iname, env$add_rlink(e, dtyp, vec));
+	end m_sdesc;
+
+m_ptdesc = proc (e: env);
+	pidesc(e, _tdc_pt);
+	end m_ptdesc;
+
+m_itdesc = proc (e: env);
+	pidesc(e, _tdc_it);
+	end m_itdesc;
+
+pidesc = proc (e: env, flg: int);
+	iname: str := get_symbol(e);
+	dv1: wrd, df1, dt1: int := tdchk(e);
+	dv2: wrd, df2, dt2: int := tdchk(e);
+	dv3: wrd, df3, dt3: int := tdchk(e);
+	vec: aw := aw$[wrd$create(_tdrep, 7),
+		       wrd$create(0, 0),
+		       wrd$create(0, i_or(flg, i_or(df1, i_or(df2, df3)))),
+		       wrd$create(0, 0),
+		       dv1,
+		       dv2,
+		       dv3];
+	if dt2 > dt1
+	   then dt1 := dt2; end;
+	if dt3 > dt1
+	   then dt1 := dt3; end;
+	env$define(e, iname, env$add_rlink(e, dt1, vec));
+	end pidesc;
+
+m_edesc = proc (e: env);
+	iname: str := get_symbol(e);
+	xname: str := get_symbol(e);
+	dvec: wrd, dflg, dtyp: int := tdchk(e);
+	dstr: wrd := string_lit(e, xname);
+	vec: aw := aw$[wrd$create(_tdrep, 5),
+		       wrd$create(0, 0),
+		       wrd$create(0, dflg + _tdc_ed),
+		       dstr,
+		       dvec];
+	env$define(e, iname, env$add_rlink(e, dtyp, vec));
+	end m_edesc;
+
+m_rtdesc = proc (e: env);
+	iname: str := get_symbol(e);
+	dvec: wrd, dflg: int, dtyp, drtn: wrd := pnchk(e);
+	vec: aw := aw$[wrd$create(_tdrep, 6),
+		       wrd$create(0, 0),
+		       wrd$create(0, dflg + _tdc_rt),
+		       drtn,
+		       dtyp,
+		       dvec];
+	env$define(e, iname, env$add_rlink(e, get_type(dflg), vec));
+	end m_rtdesc;
+
+alloc = proc (e: env, size: wrd, reg: int);
+	env$add_option(e, _prc_ni);
+	env$add_wrd(e, wrd$inst(MOVNI, RR, 0, size));
+	env$add_wrd(e, wrd$xinst(ADDB, RR, 0, _dmemhi));
+	env$add_wrd(e, wrd$xinst(CAMG, RR, 0, _dstkhi));
+	env$add_wrd(e, wrd$xinst(PUSHJ, SP, 0, _memout));
+	env$add_wrd(e, wrd$xinst(MOVEM, reg, RR, 0));
+	end alloc;
+
+refchk = proc (e: env, reg: int, src: wrd);
+	env$add_wrd(e, wrd$inst(SKIPL, reg, 0, src));
+	env$add_wrd(e, wrd$xinst(JSP, XR, 0, _notref));
+	end refchk;
+
+repchk = proc (e: env, reg: int, typ: int);
+	env$add_wrd(e, wrd$xinst(HLRZ, N0, reg, 0));
+	env$add_wrd(e, wrd$xinst(CAIE, N0, 0, typ));
+	env$add_wrd(e, wrd$xinst(JSP, XR, 0, _badrep));
+	end repchk;
+
+m_cpdesc = proc (e: env);
+	name: str := get_symbol(e);
+	dstr: wrd := string_lit(e, get_symbol(e));
+	pos: wrd := get_wrd(e);
+	vec: aw := aw$[wrd$create(_tdrep, 5),
+		       wrd$create(0, 0),
+		       wrd$create(0, _tdc_pa + _tdc_cp),
+		       dstr,
+		       pos];
+	env$define(e, name, env$add_rlink(e, _tcpd, vec));
+	end m_cpdesc;
+
+m_ppdesc = proc (e: env);
+	name: str := get_symbol(e);
+	dstr: wrd := string_lit(e, get_symbol(e));
+	pos: wrd := get_wrd(e);
+	vec: aw := aw$[wrd$create(_tdrep, 5),
+		       wrd$create(0, 0),
+		       wrd$create(0, _tdc_pa + _tdc_pp),
+		       dstr,
+		       pos];
+	env$define(e, name, env$add_rlink(e, _tppd, vec));
+	end m_ppdesc;
+
+m_pdesc = proc (e: env);
+	iname: str := get_symbol(e);
+	dvec: wrd, dflg: int, dtyp, dstr: wrd := pnchk(e);
+	vec: aw := aw$[wrd$create(_tdrep, 6),
+		       wrd$create(0, 0),
+		       wrd$create(0, dflg + _tdc_xr),
+		       dstr,
+		       dtyp,
+		        dvec];
+	env$define(e, iname, env$add_rlink(e, get_type(dflg), vec));
+	end m_pdesc;
+
+m_pcdesc = proc (e: env);
+	iname: str := get_symbol(e);
+	dvec: wrd, dflg: int, dtyp, dstr: wrd := pnchk(e);
+	vec: aw := aw$[wrd$create(_tcrep, _pc_dat),
+		       wrd$create(JSP + XR*32, _linker),
+		       get_wrd(e),
+		       dstr,
+		       dtyp,
+		       dvec];
+	env$define(e, iname, env$add_rlink(e, get_type(dflg), vec));
+	end m_pcdesc;
+
+m_vargen = proc (e: env);
+	var: str := get_symbol(e);
+	disp: int := env$add_vinit(e, get_wrd(e));
+	env$define(e, var, wrd$create(0, disp));
+	end m_vargen;
+
+tdlink = proc (e: env, desc: wrd) returns (int, int);
+	left, right: int := wrd$w2i(desc);
+	left := i_and(left, _typmsk);
+	if left = i_and(_tppd, _typmsk)
+	   then disp: int := env$add_plink(e, desc);
+		env$add_wrd(e, wrd$xinst(HLRZ, R1, MR, _en_par));
+		return(R1, disp);
+	elseif left = i_and(_tcpd, _typmsk)
+	   then disp: int := env$add_clink(e, desc);
+		env$add_wrd(e, wrd$xinst(HRRZ, R1, MR, _en_par));
+		return(R1, disp);
+	else return(LR, env$add_link(e, desc)); end;
+	end tdlink;
+
+tdchk = proc (e: env) returns (wrd, int, int);
+	dflg: int := 0;
+	vec: aw := aw$[1: wrd$create(0, 0)];
+	for w: wrd in get_wrds(e) do
+		dflg := i_or(dflg, get_flag(w));
+		aw$addh(vec, w);
+		end;
+	dref: wrd;
+	num: int := aw$size(vec);
+	if num > 1
+	   then vec[1] := wrd$create(_tvec, num);
+		dref := env$add_rlink(e, _tref, vec);
+	   else dref := vec[1];
+	   end;
+	return(dref, dflg, get_type(dflg));
+	end tdchk;
+
+pnchk = proc (e: env) returns (wrd, int, wrd, wrd);
+	vec: aw := aw$predict(1, 2);
+	for w: wrd in get_wrds(e) do
+		aw$addh(vec, w);
+		end;
+	num: int := aw$size(vec);
+	if num = 1
+	   then dstr: wrd := get_string(e, aw$bottom(vec));
+		zero: wrd := wrd$create(0, 0);
+		return(zero, 0, zero, dstr);
+	   end;
+	dtyp: wrd := aw$reml(vec);
+	dstr: wrd := get_string(e, aw$reml(vec));
+	dflg: int := get_flag(dtyp);
+	dref: wrd;
+	if num > 2
+	   then aw$addl(vec, wrd$create(_tdrep, num - 1));
+		dref := env$add_rlink(e, _tref, vec);
+	   else dref := wrd$create(0, 0);
+	   end;
+	return(dref, dflg, dtyp, dstr);
+	end pnchk;
+
+get_flag = proc (dtyp: wrd) returns (int);
+	left, right: int := wrd$w2i(dtyp);
+	left := i_and(left, _typmsk);
+	if left = i_and(_tppd, _typmsk)
+	   then return(_tdc_pp);
+	elseif left = i_and(_tcpd, _typmsk)
+	   then return(_tdc_cp);
+	else return(0); end;
+	end get_flag;
+
+get_type = proc (dflg: int) returns (int);
+	if i_and(dflg, _tdc_pp) > 0
+	   then return(_tppd);
+	elseif i_and(dflg, _tdc_cp) > 0
+	   then return(_tcpd);
+	else return(_ttd); end;
+	end get_type;
+
+get_string = proc (e: env, w: wrd) returns (wrd);
+	ud: str := w.right_unknown;
+	if ud = ""
+	   then env$err(e, "OOPS: a_word given to get_string is not an undef"); end;
+	return(string_lit(e, ud));
+	end get_string;
+
+string_lit = proc (e: env, s: str) returns (wrd);
+	_chnum = 36 / _chsize;
+	_add_off = _chnum + _chnum - 1;
+	z: int := str$size(s);
+	if z = 0
+	   then return(wrd$create(_str, _nullsd)); end;
+	c: char := s[1];
+	if c = '\033'
+	   then return(env$lookup(e, str$rest(s, 2))); end;
+	if z = 1
+	   then return(wrd$create(_tstr, char$c2i(c))); end;
+	if z = 4  cand c = '\\'
+	   then sum: int := 0;
+		for i: int in int$from_to(0, 2) do
+			sum := sum + char$c2i(s[4 - i]) * 8**i;
+			end;
+		return(wrd$create(_tstr, sum));
+	   end;
+	len: int := (z + _add_off) / _chnum;
+	vec: aw := aw$predict(1, len);
+	aw$addh(vec, wrd$create(_tsrep, z));
+	for i: int in int$from_to(0, len - 2) do
+		aw$addh(vec, wrd$s2ascii(str$substr(s, _chnum * i + 1, _chnum)));
+		end;
+	return(env$add_rlink(e, _str, vec));
+	end string_lit;

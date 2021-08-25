@@ -1,0 +1,86 @@
+vstream = cluster is create, addnum, output
+
+	bigint = word
+	ai = array[int]
+	hi = heap[int]
+	rep = record [
+		name: string,
+		vals: hi,
+		remdup: bool
+		]
+	bigunparse = bigint$dunparse
+	int2big = bigint$extend
+
+create = proc (s: string, remdup: bool) returns (cvt)
+	return (rep${
+		name: s,
+		vals: hi$create (int$lt),
+		remdup: remdup})
+	end create
+
+addnum = proc (s: cvt, v: int)
+	hi$insert (s.vals, v)
+	end addnum
+
+output = proc (x: cvt, s: stream)
+	osize: int := hi$size (x.vals)
+	a: ai := h2a (x.vals, x.remdup)
+	sum: bigint := asum (a)
+	stream$puts ("Statistics on ", s)
+	stream$putl (x.name, s)
+	stream$puts ("  Count = ", s)
+	stream$putl (int$unparse (ai$size(a)), s)
+	stream$puts ("  Nonzero Count = ", s)
+	stream$putl (int$unparse (nzc (a)), s)
+	if osize ~= ai$size (a) then
+		stream$puts ("  Number of Duplicates Ignored = ", s)
+		stream$putl (int$unparse (osize-ai$size(a)), s)
+		end
+	stream$puts ("  Total = ", s)
+	stream$putl (bigunparse (sum), s)
+	stream$puts ("  Low Value = ", s)
+	stream$putl (int$unparse (ai$bottom (a)), s)
+	stream$puts ("  High Value = ", s)
+	stream$putl (int$unparse (ai$top (a)), s)
+	stream$puts ("  Average = ", s)
+	stream$putl (bigunparse (sum/int2big(ai$size(a))), s)
+	stream$puts ("  Median = ", s)
+	stream$putl (int$unparse (a[ai$size(a)/2]), s)
+	stream$puts ("  90% value = ", s)
+	stream$putl (int$unparse (a[ai$size(a)*9/10]), s)
+	stream$puts ("  95% value = ", s)
+	stream$putl (int$unparse (a[ai$size(a)*19/20]), s)
+	stream$putl ("", s)
+	end output
+
+asum = proc (a: ai) returns (bigint)
+	sum: bigint := int2big (0)
+	for e: int in ai$elements (a) do
+		sum := sum + int2big (e)
+		end
+	return (sum)
+	end asum
+
+h2a = proc (x: hi, remdup: bool) returns (ai)
+	a: ai := ai$create (0)
+	if hi$empty (x) then return (a) end
+	last: int := hi$top (x) + 1
+	while ~hi$empty (x) do
+		v: int := hi$remove (x)
+		if ~remdup cor v ~= last then
+			ai$addh (a, v)
+			end
+		last := v
+		end
+	return (a)
+	end h2a
+
+nzc = proc (a: ai) returns (int)
+	c: int := 0
+	for v: int in ai$elements (a) do
+		if v ~= 0 then c := c + 1 end
+		end
+	return (c)
+	end nzc
+
+end vstream

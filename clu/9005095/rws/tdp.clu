@@ -1,0 +1,54 @@
+rule		= oneof[alternation:   nt_pair,
+			concatenation: nt_pair,
+			terminal:      string];
+nt_pair		= record[nt1, nt2: nterm];
+value		= record[nt: nterm,
+			 s:  string];
+
+parse = proc (s: string, g: grammar) returns (deriv) signals (no_derivation);
+	e: env := env$create(g);
+	nt: nterm := grammar$start_symbol(g);
+	for d: deriv, rest: string in splits(nt, s, e) do
+		if rest = ""
+		   then return(d); end;
+		end;
+	signal no_derivation;
+	end parse;
+
+splits = iter (nt: nterm, s: string, e: env) yields (deriv, string)
+	v: value := value${nt: nt,
+			   s:  s};
+	if env$splits_exists(e, v)
+	   then for d: deriv, rest: string in env$splits(e, v) do
+			yield(d, rest);
+			end;
+	   else for d: deriv, rest: string in splits1(nt, s, e) do
+			env$add_split(t, v, d, rest);
+			yield(d, rest);
+			end;
+	   end;
+
+% Parse prefixes of 's' starting from 'nt', yielding derivation and remainder
+
+splits1 = iter (nt: nterm, s: string, e: env) yields (deriv, string);
+	r: rule := env$rule(e, nt);
+	d0: deriv := deriv$create(nt);
+	tagcase r
+	   tag alternation (pair: nt_pair):
+		for d: deriv, rest: string in splits(s, pair.nt1, e) do
+			yield(d0 || d, rest);
+			end;
+		for d: deriv, rest: string in splits(s, pair.nt2, e) do
+			yield(d0 || d, rest);
+			end;
+	   tag concatenation (pair: nt_pair):
+		for d1: deriv, rest1: string in splits(s, pair.nt1, e) do
+			for d2: deriv, rest2: string in splits(rest1, pair.nt2, e) do
+				yield(d0 || d1 || d2, rest2);
+				end;
+			end;
+	   tag terminal (term: string):
+		if string$indexs(term, s) = 1
+		   then yield(d0, string$rest(s, string$size(term) + 1)); end;
+	   end;
+	end splits1;

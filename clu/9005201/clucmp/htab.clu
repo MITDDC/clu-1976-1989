@@ -1,0 +1,69 @@
+%	HTAB CLU
+%
+%	A simple hash table mapping strings to objects of type 't'.
+
+table = cluster [t: type] is	create,		% -> table[t]
+				lookup,		% table[t], str -> t => not_found
+				enter,		% table[t], str, t => already_exists
+				alter,		% table[t], str, t ->
+				remove;		% table[t], str => not_found
+
+rep = array[bucket];
+bucket = array[entry];
+entry = record[key:   str,
+	       value: t];
+size = 521;
+
+create = proc () returns (cvt);
+	tab: rep := rep$predict(1, size);
+	for i: int in int$from_to(1, size) do
+		rep$addh(tab, bucket$create(1));
+		end;
+	return(tab);
+	end create;
+
+lookup = proc (tab: cvt, key: str) returns (t) signals (not_found);
+	for ent: entry in bucket$elements(tab[hash(key, size)]) do
+		if key = ent.key
+		   then return(ent.value); end;
+		end;
+	signal not_found;
+	end lookup;
+
+enter = proc (tab: cvt, key: str, value: t) signals (already_exists);
+	buck: bucket := tab[hash(key, size)];
+	for ent: entry in bucket$elements(buck) do
+		if key = ent.key
+		   then signal already_exists; end;
+		end;
+	bucket$addh(buck, entry${key:   key,
+				 value: value});
+	end enter;
+
+alter = proc (tab: cvt, key: str, value: t);
+	buck: bucket := tab[hash(key, size)];
+	for ent: entry in bucket$elements(buck) do
+		if key = ent.key
+		   then ent.value := value;
+			return;
+		   end;
+		end;
+	bucket$addh(buck, entry${key:   key,
+				 value: value});
+	end alter;
+
+remove = proc (tab: cvt, key: str) signals (not_found);
+	buck: bucket := tab[hash(key, size)];
+	for i: int in bucket$indexes(buck) do
+		if key = buck[i].key
+		   then h: int := bucket$high(buck);
+			if i < h
+			   then buck[i] := buck[h]; end;
+			bucket$remh(buck);
+			return;
+		   end;
+		end;
+	signal not_found;
+	end remove;
+
+end table;

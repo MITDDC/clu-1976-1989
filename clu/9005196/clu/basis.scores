@@ -1,0 +1,8 @@
+**** Basis for 6.170 scores. ****
+possible scores 10 100 100 100 20 10 0
+weights          5   1   2   1  5 10 4
+****
+Note that the "=" inhibits scanning for numbers after it.
+Possible scores are assumed to be on 2nd line,
+weights for scores are assumed to be on 3rd line.
+

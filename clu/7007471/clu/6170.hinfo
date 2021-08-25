@@ -1,0 +1,34 @@
+FOR A HANDOUT:
+
+.so clu;6170 header
+.
+.sr handout_date 14 September 1977
+.nr handout_number 1
+.
+.handout "Differences Between Multics PL/1 and Conway and Gries PL/1 or PL/C"
+.
+
+FOR A PROBLEM:
+
+.so clu;6170 header
+.
+.sr handout_date 7 October 1977
+.sr due_date 28 October 1977
+.nr handout_number 6
+.nr problem_number 3
+.
+.problem "An index generator"
+.
+
+FOR SECTIONS:
+
+.sec "Problem Definition"
+Foo bar bletch.
+
+TO SEPARATE PARAGRAPHS:
+
+Foo bar bletch.
+.para
+Foo bar bletch.
+
+(Note, no tab used.)

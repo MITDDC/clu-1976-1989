@@ -1,0 +1,4 @@
+p = proc ();
+	i: int := 3 / 0;
+	   except when zero_divide: ; end;
+	end p;

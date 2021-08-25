@@ -1,0 +1,4 @@
+sname clucmp
+ce assem
+specs aword,aenv
+eval value$assn(".no_force" true)

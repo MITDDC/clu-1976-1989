@@ -1,0 +1,102 @@
+rat = cluster is create, add, sub, mul, div, minus, lt, equal
+
+    % Representation invariants:
+    %	    denom is always nonnegative
+    %	    fraction is always in lowest terms
+
+    rep = struct[num: int, denom: int]
+
+    % create the rational number n/d
+    %       d = 0 works, but is meaningless
+
+    create = proc(n: int, d: int) returns(cvt)
+	if d < 0 then
+	       n := -n
+	       d := -d
+	   end
+	n, d := cancel(n, d)
+	return(rep${num: n, denom: d})
+	end create
+
+    % add two rational numbers
+    %	    first find gcd of the two denominators
+    %	    use it to determine the least common multiple
+    %	    multiply the numerators by the appropriate factors
+    %	    and add them, then reduce the result to lowest terms
+
+    add = proc(r1: cvt, r2: cvt) returns(rat)
+	g: int := gcd(r1.denom, r2.denom)
+	lcm: int := r1.denom * (r2.denom/g)
+	fact1: int := lcm/r1.denom
+	fact2: int := lcm/r2.denom
+	return(create(r1.num*fact1 + r2.num*fact2, lcm))
+	end add
+
+    % subtract two rational numbers
+    %	    just negate the second number, then add
+
+    sub = proc(r1: rat, r2: rat) returns(rat)
+	return(add(r1, minus(r2)))
+	end sub
+
+    % unary minus
+    %	    just negate the numerator
+
+    minus = proc(r: cvt) returns(rat)
+	return(create(-r.num, r.denom))
+	end minus
+
+    % multiplication - first cross-cancel common factors to
+    %	    try to prevent unnecessary overflow, then multiply
+    %	    numerator by numerator, denominator by denominator.
+
+    mul = proc(r1: cvt, r2: cvt) returns(rat)
+	r1n, r2d: int := cancel(r1.num, r2.denom)
+	r2n, r1d: int := cancel(r2.num, r1.denom)
+	return(create(r1n*r2n, r1d*r2d))
+	end mul
+
+    % division - just backwards multiplication
+    %	    even though division by zero will produce no errors,
+    %	    it is meaningless just the same
+
+    div = proc(r1: rat, r2:cvt) returns(rat)
+	return(mul(r1, create(r2.denom, r2.num)))
+	end div
+
+    % equality test
+
+    equal = proc(r1: cvt, r2: cvt) returns(bool)
+	return(r1.num = r2.num & r1.denom = r2.denom)
+	end equal
+
+    % comparison of two rational numbers
+    %	    done by cross-multiplication
+
+    lt = proc(r1: cvt, r2: cvt) returns(bool)
+	return(r1.num * r2.denom < r1.denom * r2.num)
+	end lt
+
+    % given a pair of integers, cancel out any common
+    %	    factors
+
+    cancel = proc(i1: int, i2: int) returns(int, int)
+	g: int := gcd(i1, i2)
+	return(i1/g, i2/g)
+	end cancel
+
+    % find greatest common divisor of two integers
+
+    gcd = proc(x,y: int) returns (int)
+	if x < 0 then x := -x end
+	if y < 0 then y := -y end
+	if x > y then x, y := y, x end
+	if x = 0 then return(y) end	
+	while true do
+	    u : int := y // x
+	    if u = 0 then return (x) end
+	    x, y := u, x
+	    end
+	end gcd
+
+    end rat

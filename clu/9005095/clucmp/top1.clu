@@ -1,0 +1,371 @@
+%	TOP1 CLU
+%
+%	CLU Compiler Version 3: top level
+
+# include "clucmp;toplev equate"
+
+start_up = proc ();
+	tyi: file := file$tyi();
+	tyo: file := file$tyo();
+	jcl: str := sys$jcl();
+	if jcl ~= ""
+	   then	do_jcl(jcl, tyo); end;
+	line: ac := ac$predict(1, 60);
+	file$puts(tyo, "\n\n***** CLU COMPILER ");
+	file$puts(tyo, force[str](value$id(".compiler_version")));
+	file$puts(tyo, " ***** (");
+	file$puts(tyo, force[str](value$id(".compiler_save_date")));
+	file$puts(tyo, ") *****\n\n");
+	if file$exists("clucmp;clucmp messag")
+	   then dump_file("clucmp;clucmp messag", tyo, tyo); end;
+	while true do
+		ac$set_low(line, 1);
+		ac$trim(line, 1, 0);
+		scan$line(tyi, tyo, line, "command: ");
+		   except when quit: ac$trim(line, 1, 0); end;
+		cmnd: str;
+		if '?' = scan$deblank(line)
+		   then cmnd := "?";
+		   else cmnd := scan$id(line);
+		   end;
+		process_command(cmnd, line, tyo, no_proceed_);
+		   except when done: break; end;
+		end;
+	end start_up;
+
+do_jcl = proc (jcl: str, tyo: file);
+	if jcl = "?" then jcl := "-?"; end;
+	line: ac := str$s2ac(jcl);
+	find_hacks(line);
+	cmnd: str;
+	if '-' = scan$deblank(line)
+	   then ac$reml(line);
+		if '?' = scan$deblank(line)
+		   then	ac$reml(line);
+			cmnd := "?";
+		   else	cmnd := scan$id(line);
+		   end;
+		find_hacks(line);
+	   else cmnd := "clu";
+	   end;
+	process_command(cmnd, line, tyo, proceed_);
+	   except when done: ; end;
+	if value$is_none(value$id(".live"))
+	   then quit_(); end;
+	end do_jcl;
+
+find_hacks = proc (line: ac);
+	while '.' = scan$deblank(line) do
+		ac$reml(line);
+		id: str := "." || scan$id(line);
+		v: any;
+		if '=' = scan$deblank(line)
+		   then ac$reml(line);
+			v := scan$expr(line);
+			   except others (s: str):
+					f: file := file$tyo();
+					file$puts(f, "Exception in jcl: ");
+					file$puts(f, s);
+					file$putc(f, '\n');
+					v := true;
+				  end;
+		   else v := true;
+		   end;
+		value$assn(id, v);
+		end;
+	end find_hacks;
+
+process_command = proc (cmnd: str, line: ac, tyo: file, proceed: bool) signals (done);
+	mode: int := get_command_mode(cmnd);
+	if mode = execute_
+	   then execute_command(cmnd, line, tyo, proceed);
+		   except when done: signal done; end;
+	   else compile(mode, line, tyo, proceed);
+	   end;
+	end process_command;
+
+have_tty = proc () returns (bool);
+	_TTY = 2;
+	return(~word$bit(sys$rsuset(_TTY), 35));
+	end have_tty;
+
+get_command_mode = proc (cmnd: str) returns (int);
+	if cmnd = "parse"
+	   then return(parse_);
+	elseif cmnd = "check"
+	   then return(check_);
+	elseif cmnd = "clumac"
+	   then return(clumac_);
+	elseif cmnd = "compile"  cor  cmnd = "clu"
+	   then return(binary_);
+	elseif cmnd = "specs"
+	   then return(specs_);
+	elseif cmnd = "ce"
+	   then return(ce_);
+	else return(execute_); end;
+	end get_command_mode;
+
+execute_command = proc (cmnd: str, line: ac, tyo: file, proceed: bool) signals (done);
+	scan$deblank(line);
+	if cmnd = "xfile"
+	   then	xfile_execute(line, tyo, proceed);
+		return;
+	elseif cmnd = "eval"
+	   then	evaluate(line, tyo);
+		return;
+	elseif cmnd = "print"
+	   then	do_print(line, tyo);
+		return;
+	elseif cmnd = "delete"
+	   then do_delete(line, tyo);
+		return;
+	   end;
+	id: str := scan$id(line);
+	if cmnd = "sname"
+	   then set_sname(id);
+	elseif cmnd = "kill"
+	   then	file$close(tyo);
+		quit_();
+	elseif cmnd = "job"
+	   then go_job(id);
+	elseif cmnd = "load"
+	   then load_env(id, tyo);
+	elseif cmnd = "save"
+	   then save_env(id, tyo);
+	elseif cmnd = "help"  cor  cmnd = "?"
+	   then dump_file("clu;dsk:clu order", tyo, tyo);
+	elseif cmnd = "quit"
+	   then signal done;
+	elseif cmnd = "time"
+	   then	file$puts(tyo, time());
+		file$putc(tyo, '\n');
+	elseif cmnd ~= ""
+	   then file$puts(tyo, "Unknown command!\n"); end;
+	end execute_command;
+
+xfile_execute = proc (line: ac, tyo: file, proceed: bool);
+	rtyo: file := get_outfile(line, tyo);
+	if proceed  cand  have_tty()
+	   then valret(":proceed\015\012"); end;
+	for fs: str in all_file_strings(line, rtyo) do
+		begin
+		  f: file := get_input_file(fs, "xfile", rtyo);
+		  while ~file$eof(f) do
+			line := str$s2ac(file$gets(f, '\n'));
+			scan$deblank(line);
+			cmnd: str := scan$id(line);
+			process_command(cmnd, line, rtyo, no_proceed_);
+			   except when quit: ; end;
+			end;
+		  file$close(f);
+		end;
+		   except when open_failed: ; end;
+		end;
+	if rtyo ~= tyo
+	   then	rfs: str := sys$filename(rtyo);
+		file$close(rtyo);
+		if ~proceed then dump_file(rfs, tyo, tyo); end;
+	   end;
+	end xfile_execute;
+
+evaluate = proc (line: ac, tyo: file);
+    begin
+	v: any := scan$expr(line);
+	c: char := scan$deblank(line);
+	if c ~= ' '
+	   then	file$puts(tyo, string$append("Illegal: " || str$ac2s(line), '\n')); end;
+	file$puts(tyo, " => ");
+	value$print(tyo, v);	% print the resulting value
+    end; except	when syntax(s: string):
+			file$puts(tyo, "Error: " || s);
+		when failure(s: string):
+			file$puts(tyo, "Failure: " || s);
+		end;
+	file$putc(tyo, '\n');
+	end evaluate;
+
+do_print = proc (line: ac, tyo: file);
+	for fs: str in all_file_strings(line, tyo) do
+		dump_file(fs, tyo, tyo);
+		end;
+	end do_print;
+
+do_delete = proc (line: ac, tyo: file);
+	for fs: str in all_file_strings(line, tyo) do
+		delete_file(fs, ">", tyo);
+		end;
+	end do_delete;
+
+go_job = proc (id: str);
+	if id = ""
+	   then valret(":job\015\012:continue\015\012");
+	   else valret(str$append(id, '\010'));
+	   end;
+	end go_job;
+
+load_env = proc (id: str, tyo: file);
+	e: stuff := get_stuff();
+	if id = ""
+	   then e.ce := dce();
+	elseif value$is_none(value$id(id))
+	   then file$puts(tyo, id || " does not name anything!\n");
+	else e.ce := force[CE](value$id(id)); end;
+	end load_env;
+
+save_env = proc (id: str, tyo: file);
+	e: stuff := get_stuff();
+	if id = ""
+	   then file$puts(tyo, "no name given!\n");
+	   else value$assn(id, e.ce);
+	   end;
+	end save_env;
+
+dump_file = proc (fs: str, outf: file, tyo: file);
+	f: file := get_input_file(fs, ">", tyo);
+	   except when open_failed: return; end;
+	while ~file$eof(f) do
+		file$puts(outf, file$gets(f, '\p'));
+		end;
+	file$close(f);
+	file$puts(outf, "\n\n");
+	end dump_file;
+
+get_input_file = proc (fs: str, nm2: str, tyo: file) returns (file)
+						     signals (open_failed);
+	fs := fixup_filename(fs, nm2);
+	return(file$open_read(fs));
+	   except when open_failed:
+			file$puts(tyo, "Can't open ");
+			file$puts(tyo, fs);
+			file$putc(tyo, '\n');
+			signal open_failed;
+		  end;
+	end get_input_file;
+
+fixup_filename = proc (fs: str, nm2: str) returns (str);
+	if str$indexc(':', fs) = 0
+	   then fs := "dsk:" || fs; end;
+	if str$indexc(';', fs) = 0
+	   then fs := str$append(sname(), ';') || fs; end;
+	fs := fix_filename(fs);
+	if str$indexc(' ', fs) = 0
+	   then	fs := str$append(fs, ' ');
+		ns: str := fs || nm2;
+		if file$exists(ns)
+		   then fs := ns;
+		   else fs := str$append(fs, '>');
+		   end;
+	   end;
+	return(fs);
+	end fixup_filename;
+
+delete_file = proc (fs: str, nm2: str, tyo: file);
+	fs := fixup_filename(fs, nm2);
+	if ~file$delete(fs)
+	   then file$puts(tyo, "Can't delete ");
+		file$puts(tyo, fs);
+		file$putc(tyo, '\n');
+	   end;
+	end delete_file;
+
+get_outfile = proc (line: ac, tyo: file) returns (file);
+	while ac$size(line) > 0  cand  ac$top(line) <= ' ' do
+		ac$remh(line);
+		end;
+	h: int := ac$high(line);
+	l: int := ac$low(line);
+	for i: int in int$from_to_by(h - 1, l, -1) do
+		c: char := line[i];
+		if c = ','
+		   then break;
+		elseif line[i] = '>'
+		   then	fs: ac := ac$predict(1, h - i);
+			for n: int in int$from_to_by(i + 1, h, 1) do
+				ac$addh(fs, line[n]);
+				end;
+			ac$trim(line, l, i - l);
+			if tyo ~= file$tyo()
+			   then return(tyo); end;
+			scan$deblank(fs);
+			fss: str := str$ac2s(fs);
+			return(get_output_file(fss, "", tyo));
+			   except when open_failed: break; end;
+		   end;
+		end;
+	if tyo = file$tyo()  cand  value$is_none(value$id(".tty_output"))
+	   then return(get_output_file("junk", "", tyo));
+	   end;
+	   except when open_failed: ; end;
+	return(tyo);
+	end get_outfile;
+
+get_output_file = proc (fs: str, nm2: str, tyo: file) returns (file)
+						signals (open_failed);
+	fs := make_output(fs, nm2);
+	return(file$open_write(fs));
+	   except when open_failed:
+			file$puts(tyo, "Can't open ");
+			file$puts(tyo, fs);
+			file$putc(tyo, '\n');
+			signal open_failed;
+		  end;
+	end get_output_file;
+
+make_output = proc (fs: str, nm2: str) returns (str);
+	if str$indexs("dsk:", fs) = 0
+	   then	i: int := str$indexc(';', fs);
+		j: int := str$indexc(':', fs) + 1;
+		if i < j
+		   then fs := str$substr(fs, 1, i) || "dsk:" || str$rest(fs, j);
+		   else fs := "dsk:" || str$rest(fs, j);
+		   end;
+	   end;
+	if nm2 = "" then return(fs); end;
+	i: int := str$indexc(' ', fs);
+	if i > 0
+	   then return(str$substr(fs, 1, i) || nm2);
+	   else return(fs || " " || nm2);
+	   end;
+	end make_output;
+
+all_file_strings = iter (line: ac, tyo: file) yields (str);
+	while true do
+		c: char := scan$deblank(line);
+		if c = '@'
+		   then	ac$reml(line);
+			fs: str := get_file_string(line);
+			for fs in all_indirects(fs, tyo) do
+				yield(fs);
+				end;
+		elseif c = ' '
+		   then return;
+		else yield(get_file_string(line)); end;
+		end;
+	end all_file_strings;
+
+all_indirects = iter (fs: str, tyo: file) yields (str);
+	f: file := get_input_file(fs, "xfile", tyo);
+	   except when open_failed: return; end;
+	while ~file$eof(f) do
+		line: ac := str$s2ac(file$gets(f, '\n'));
+		for nfs: str in all_file_strings(line, tyo) do
+			yield(nfs);
+			end;
+		end;
+	end all_indirects;
+
+get_file_string = proc (line: ac) returns (str);
+	fs: ac := ac$predict(1, 12);
+	while ac$size(line) > 0 do
+		c: char := ac$reml(line);
+		if c = ',' then return (str$ac2s(fs)); end;
+		ac$addh(fs, c);
+		end;
+	while ac$size(fs) > 0 do
+		c: char := ac$top(fs);
+		if c = ' '  cor  c = '\t'
+		   then ac$remh(fs);
+		   else return(str$ac2s(fs));
+		   end;
+		end;
+	end get_file_string;

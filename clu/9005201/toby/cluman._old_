@@ -1,0 +1,388 @@
+.so clu;clukey r
+.so clu;refman insert
+
+.chapter Expressions
+
+.para
+An expression in CLU evaluates to an object in the CLU
+universe.  This object is said to be the result or value 
+of the expression.
+When we refer to the type of an expression, we mean
+the type of this object.
+The order of evaluation of subexpressions is left
+to right.  However, users should not depend upon
+this ordering to obtain side effects needed in 
+other parts of the expression.
+The following sections describe the different kinds of
+expressions.
+
+.section Literals
+
+.para
+Integer, real, character, string and boolean
+literals are expressions. The correct syntax for
+literals is given in section ??.
+The type of a literal expression is the
+type of the object named by the literal.
+In other words, true is of type bool,
+"abc" is of type string, etc.
+
+.section Variables
+
+.para
+Variables are identifiers which name
+objects of a given type.
+The scope of a variable is from
+the point of declaration to the
+end of the smallest enclosing 
+scoping unit (see section ??
+for description of scoping units).
+
+.section "Procedure, operation and iterator names"
+
+.para
+
+Procedure names are identifiers which may
+be followed by an optional parameter list.
+The syntax for a procedure name expression is
+.show
+idn lcurly [const lcurly ,const rcurly ] rcurly
+.eshow
+The scope of the procedure names is global.
+The same identifier may not be redeclared 
+in any other modules.
+
+.para
+The type of a procedure name expression is
+.show
+proctype( lbkt type_spec lcurly , type_spec rcurly rbkt )
+lbkt returns rbkt lbkt signals rbkt
+.eshow
+where 2returns* has the form
+.show
+returns (type_spec lcurly , type_spec rcurly )
+.eshow
+and 2signals* has the form
+.show
+signals (exception lcurly , exception rcurly ).
+.eshow
+The lists of type_specs correspond in number and typee
+to the lists of arguments and return values of
+the procedure named in the expression.
+Similarly, the exception list corresponds to the exceptions
+of the named procedure.
+(The syntax for expressions is given in section ??).
+
+.para
+Operation names are names of procedures which are 
+operations of a cluster.
+Operation names have the form:
+.show
+type_spec $ name lcurly [const lcurly , constrcurly ] rcurly
+.eshow
+2Names* have no scope.
+They must be unique only within a cluster.
+The operation name expression always consists of the
+name preceded by type_spec $.
+.para
+The type of an operation name expression is
+.show
+proctype(lcurly type_spec lcurly , type_specrcurly rcurly )
+lbkt returns rbkt
+lbkt signals rbkt
+.eshow
+where returns and signals are as in procedure types.
+
+.para
+The form of an iterator name which is part
+of a cluster is
+.show
+type_spec $ name lcurly [ const lcurly , const rcurly ] rcurly
+.eshow
+If the iterator is not in a cluster,
+the form is:
+.show
+idn lcurly [ const lcurly , const rcurly ] rcurly
+.eshow
+The type of an iterator name expression is
+.show
+itertype ( lcurly type_spec lcurly , type_spec rcurly rcurly)
+yields (type_spec lcurly , type_spec rcurly )
+lcurly signals (exception lcurly , exception rcurly ) rcurly
+.eshow
+The lists of type_specs correspond to 
+the argument list and return value list of the iterator named.
+The exception list similarly corresponds to the
+list of exceptions signalled by the named iterator.
+
+.section Invocations
+
+.para
+Invocations of procedures, operations, and iterators
+have the form
+.show
+primary (lbkt expression lcurly , expressionrcurly rbkt )
+.eshow
+where primary is an expression which evaluates to a procedure
+or iterator object.
+The expressions are the actual arguments of the invocation.
+So
+.show
+p(x, y)
+.br
+int $ add (a, b)
+.br
+int $ from_to_by (low, high, 2)
+.eshow
+are invocation expressions.
+The type of an invocation expression is
+the type of the return value.
+Iterators may only be invoked in a for staement.
+(see section ?? for the explanation of for statements)
+
+.section "Components of compound types"
+
+.para
+CLU provides two compound types in the language.
+In addition, users may define other compound types.
+Simple notations may be used for naming components of any
+types with fetch and store operations,
+or get and set operations.
+
+.subsection "Fetch and Store"
+
+.para
+Any types which have fetch and store operations, including
+arrays, can use the following expressions to name elements
+of the objects.
+.show
+primary[expression]
+.eshow
+This expression is syntacticaly equivalent to:
+.show
+type_of_primary $ fetch(primary, expression)
+.eshow
+unless it appears on the left hand side of an assignment,
+in which case it translates to:
+.show
+type_of_primary $ store( primary, expression, expression2)
+.eshow
+where expression2 is the expression on the right hand side
+of the assignment.
+In the case of arrays, 2expression*
+represents the index of the element being fetched or stored.
+Primary evaluates to the array object being accessed.
+It is assumed that user-defined types making use of
+this notation will follow this convention,
+but no check is made to ensure this.
+The translation to the expanded form is purely
+syntactic.
+If the type of 2primary* does not have the appropriate
+fetch or store operation, or the number or types of arguments
+do not match, a type error will occur during
+type checking.
+
+.subsection "Get and Set operations"
+
+.para
+There is also a 'syntactic sugaring' for
+naming components of records and objects of user-defined
+types having get and/or set operations.
+The form of these expressions is:
+.show
+primary.name
+.eshow
+This is syntactically equivalent to:
+.show
+type_of_primary $ get_name(primary)
+.eshow
+Primary must evaluate to an object of
+a type with a get_name operation.
+Otherwise, a type-checking error
+will occur.
+If this expression appears on the left
+hand side of an assignment, it is instead translated to:
+.show
+type_of_primary $ set_name(primary,expression)
+.eshow
+where 2expression* is the expression on the
+right hand side of the assignment.
+
+.section "Constructing arrays and records"
+
+.para
+
+     Constructors are expressions in CLU which have
+been provided to enable users to create and initialize
+arrays and records.  Constructors are not provided
+for user-defined types.
+
+.subsection "Array constructors"
+
+The array constructor has the form 
+.show
+type_spec$[ lbkt index_expression: rbkt 
+lbkt expression lcurly ,expression rcurly ]
+.eshow
+Index_expression is an expression which evaluates to an
+integer.
+The effect of this expression is to create an array
+with low bound equal to the value of index_expression,
+and the values of the array elements equal to the
+expressions in the expression list.
+The size of the array is equal to the number of expressions
+listed.
+2Type_spec* must be an array type.
+
+.subsection "Record constructors"
+
+The general form of a record constructor is:
+.show
+type_spec${field{,field}}
+.eshow
+Type_spec must evaluate to a record type(see section 2)
+Field has the form
+	name{,name}:expression
+
+The effect of this constructor is to create a new object
+of type 2type_spec*, and in each component name place the
+value of the corresponding expression.
+
+.section "Binary operations"
+
+.para
+CLU allows infix notation to be used
+as a 'shorthand' for the following binary
+operations.
+The table shows the infix operators and
+the equivalent expanded form for each 
+binary operation.
+The type_spec for each operation is derived from
+the type of the first operand.
+.show
+Infix form			Expansion
+
+expr1 ** expr2		type_spec$power(expr1,expr2)
+expr1 // expr2		type_spec$mod(expr1, expr2)
+expr1 / expr2		type_spec$div(expr1, expr2)
+expr1 * expr2		type_spec$mul(expr1, expr2)
+expr1 || expr2		type_spec$concat(expr1,expr2)
+expr1+expr2		type_spec$add(expr1,expr2)
+expr1-expr2		type_spec$sub(expr1,expr2)
+expr1<expr2		type_spec$lt(expr1,expr2)
+expr1<=expr2		type_spec$le(expr1,expr2)
+expr1=expr2		type_spec$equal(expr1,expr2)
+expr1>=expr2		type_spec$ge(expr1,expr2)
+expr1>expr2		type_spec$gt(expr1,expr2)
+expr1~<expr2		~(expr1<expr2)
+expr1~<=expr2		~(expr1<=expr2)
+expr1~=expr2		~(expr1=expr2)
+expr1~>=expr2		~(expr1>=expr2)
+expr1~>expr2		~(expr1>expr2)
+expr1&expr2		type_spec$and(expr1,expr2)
+expr1|expr2		type_spec$or(expr1,expr2)
+.eshow
+
+CAND and COR
+
+.para
+Two other binary infix operators are allowed.
+These are the 'conditional and' operator, CAND,
+and the 'conditional or' operator, COR.
+.show
+expression1 CAND expression2  
+.eshow
+is the boolean AND of expression1 and
+expression2.  However, if expression1 is false, expression2 is never evaluated.
+The types of expression1 and expression2 must be boolean.
+.show
+expression1 COR expression2  
+.eshow
+is the boolean OR of expression1 and expression2,
+but expression2 is not evaluated unless expression1 is false.
+The type of expression1 and expression2 must be boolean.
+
+.section "Unary Operators"
+
+Syntactic sugars for two unary operations exist.
+
+-expression   is equivalent to t$minus(expression)
+              where t is the type of expression
+
+~expression   is equivalent to t$not(expression)
+              where t is the type of expression
+
+.section Precedence
+
+.para
+When an expression is not fully parenthesized, the
+proper nesting of subexpressions might be ambiguous.
+The following precedence rules are used to resolve
+such ambiguity.
+The precedence of each operator is given in the
+table below.  Higher precedence operations are performed first.
+
+1expression1 . name*  (the sugar for get_name) and
+1expression1[expression2]*   (the sugar for fetch(expression1,expression2)
+have the highest precedence.
+
+Unary operators have precedence over binary operators.
+
+The precedence for binary operations is as follows:
+
+operator	precedence
+
+**			5
+//			4
+/			4
+*			4
+||			3
++			3
+-			3
+<			2
+<=			2
+=			2
+>=			2
+>			2
+~<			2
+~<=			2
+~=			2
+~>=			2
+~>			2
+&			1
+CAND			1
+|			0
+COR			0
+
+The order of evaluation for operators of the
+same precedence is left to right.  However,
+depending on this order when using expressions
+which have side effects is strongly discouraged.
+
+.section "Conversion Expressions"
+
+.para
+There are no implicit type conversions in CLU.
+Three conversion expressions exist for doing
+explicit conversions. (A conversion statement
+for oneof types also exists and will be discussed
+in section ??.)
+
+The three conversion expressions are:
+.show
+up(expression)
+down(expression)
+force[type_spec](expression)
+.eshow
+Up and down may only be used within the body of a cluster operation.
+Up changes the type of the expression from the representation type
+of the cluster to the abstract type.
+Down converts the type of the expression
+from the abstract type to the representation type.
+
+.para
+Force[type_spec] is the name of the procedure
+which takes an object of type any
+as an argument and converts it to an object
+of type 2type_spec*.
+The argument must have base type 2type_spec*.

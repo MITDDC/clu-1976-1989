@@ -1,0 +1,165 @@
+%	ATYPE EQUATE
+%
+%	CLUMAC assembler: type-related equates
+
+_typlo		= 0400;
+_refbit		= 0400000;
+_relbit		= 0200000;
+_repbit		= 0200000;
+_gcbit		= 0100000;
+_typmsk		= 07777;
+
+%	offsets for blocks used in the CLU support system.
+
+%	arep,array_rep
+
+_ar_cod		= 0;		% tarep+low_bound
+_ar_rel		= 1;		% [rsb,,rel] -size,,rel to usable stuff in vector
+_ar_vec		= 2;		% [rsb,,ref] predict,,ref to real vector
+
+%	crep,call_block_rep
+
+_pc_cod		= 0;		% tcrep+size (in words)
+_pc_set		= 1;		% [rsb] the setup for the procedure (_pc_set=_en_set !)
+_pc_num		= 2;		% [rsb] the number of arguments given in the call
+_pc_str		= 3;		% [ref] the external name (or operation name)
+_pc_typ		= 4;		% [ref] the cluster type (if an operation)
+_pc_par		= 5;		% [ref] parms given for the procedure
+_pc_dat		= 6;		% any more words are refs
+
+%	drep,descriptor_rep
+
+_td_cod		= 0;		% [rsb] code for type desc & length
+_td_fix		= 1;		% [ref] the fixed up value for the descriptor (init 0)
+_td_opt		= 2;		% [rsb] the variety of type desc
+_td_nam		= 3;		% [ref] string ref for external name (or 0)
+_td_arg		= 4;		% [ref] to parms or arguments (td,sd,pt,it,ed,zd)
+%		  [ref] to cluster desc (rt,xr)
+%		  [0,,rsb] position of parm (pa)
+_td_rtn		= 5;		% [ref] to return types (for pt,it)
+%		  [ref] to proc parms (rt,xr)
+_td_sig		= 6;		% [ref] to signal types (for pt,it)
+
+%	option codes in _td_opt (must be single bits)
+
+_tdc_td		= 1;		% simple type desc
+_tdc_sd		= 2;		% selected type desc
+_tdc_pa		= 4;		% cluster/proc parm
+_tdc_rt		= 010;		% return type desc
+_tdc_pt		= 020;		% proc type desc
+_tdc_it		= 040;		% iterator type desc
+_tdc_ed		= 0100;		% exception desc
+_tdc_xr		= 0200;		% external proc desc
+_tdc_pp		= 0400;		% proc parm dependent
+_tdc_cp		= 01000;	% cluster parm dependent
+_tdc_zd		= 02000;	% zdesc (for records/oneofs)
+
+%	erep,entry_rep
+
+_en_cod		= 0;		% terep+size (in words)
+_en_set		= 1;		% [rsb,,rel] the setup inst to XCT (_en_set=_pc_set !)
+_en_lpr		= 2;		% [ref,,ref] the (lr,,pr) pair
+_en_vi		= 3;		% [ref+1,,rsb] the variable init pair (ref+1,,len)
+_en_par		= 4;		% [ref,,ref] the (proc parm,,cluster parm) pair
+_en_tr		= 5;		% [rsb,,ref] the trace info (if any)
+_en_typ		= 6;		% [ref] the type (or type desc) for this entry
+_en_nxt		= 7;		% [ref] the chain of entry blocks (for parameters)
+_en_dat		= 010;		% any more words are refs
+_en_odv		= 010;		% [ref] optional vector to own data
+
+%	prep,pure_part_rep
+
+_pr_cod		= 0;		% tprep+size (in words)
+_pr_err		= 1;		% [rsb,,rsb] LH is prc codes, RH is disp to error info
+_pr_cut		= 2;		% [rsb] stack cutback on exit
+_pr_nam		= 3;		% [rsb] disp to names in pr block
+_pr_go		= 4;		% [rsb] first word of code here
+%		  further words are [rsb], except that
+%		  [ref]'s start where pr_err is an offset to
+
+% prc codes
+
+_prc_ni		= 1;		% no interrupts while this proc is current
+_prc_cp		= 2;		% this proc is dependent on cluster parms
+_prc_na		= 4;		% no array chopping while in this procedure
+_prc_pp		= 010;		% this proc is dependent on proc parms
+_prc_it		= 020;		% this proc is really an iterator
+_prc_ma		= 040;		% this proc is multi-argument (top one gives #)
+
+%	orep,oneof_rep
+
+_on_cod		= 0;		% torep+tag
+_on_ref		= 1;		% [ref] info part
+
+%	srep,string_rep
+
+_st_cod		= 0;		% tsrep+number_of_chars
+_st_dat		= 1;		% [rsb] characters immediately follow
+
+%	vec,vector
+
+_ve_cod		= 0;		% tvec+size (in words)
+_ve_dat		= 1;		% [ref] references follow
+
+%	wvec,word_vector
+
+_wv_cod		= 0;		% twvec+size (in words)
+_wv_dat		= 1;		% [rsb] words of raw seething bits follow
+
+%	xvec,ref_vector
+
+_xv_cod		= 0;		% txvec+size (in words)
+_xv_dat		= 1;		% [rsb,,ref] words in remainder
+
+_fb_cod		= 0;
+_fb_dev		= 1;
+_fb_nm1		= 2;
+_fb_nm2		= 3;
+_fb_usr		= 4;
+_fb_		= 5;
+
+_typlen		= 0100;
+_typesd		= _typlo-2;
+
+%	The most basic type codes to occur as LH of references
+
+_tref		= _typlo+_refbit;
+_txref		= _tref+1;
+
+_trel		= _txref+1+_relbit;
+_txrel		= _trel+1;
+
+%	The most basic type codes to appear as LH of 1st words
+
+_tarep		= _txrel+1-_refbit-_relbit+_repbit;
+_tcrep		= _tarep+1;
+_tdrep		= _tcrep+1;
+_terep		= _tdrep+1;
+_tprep		= _terep+1;
+_torep		= _tprep+1;
+_tsrep		= _torep+1;
+_tvec		= _tsrep+1;
+_twvec		= _tvec+1;
+_txrep		= _twvec+1;
+
+_tint		= _txrep+1-_repbit;
+_tbool		= _tint+1;
+_tchar		= _tbool+1;
+_ttype		= _tchar+1;
+_tmrtn		= _ttype+1;
+_tchan		= _tmrtn+1;
+
+_tstr		= _tchan+1;
+_str		= _tstr+_refbit;
+_treal		= _tstr+1;
+
+_tpcb		= _treal+1+_refbit;		% procedure call block
+_ttd		= _tpcb+1;			% normal-type descriptor
+_tppd		= _ttd+1;			% proc parm desc
+_tcpd		= _tppd+1;			% cluster parm desc
+
+_tnull		= _tcpd+1-_refbit;
+_tnone		= _tnull+1;			% null return
+_tany		= _tnone+1;			% type any
+
+% User-defined types from here on

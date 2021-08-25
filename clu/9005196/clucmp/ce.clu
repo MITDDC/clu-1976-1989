@@ -1,0 +1,385 @@
+%	CE CLU
+%
+%	CLU Compiler Version 3: compilation environment
+
+CE = cluster is		create,			% -> CE
+			reset_entries,		% CE, bool ->
+			reset,			% CE ->
+			keep,			% CE ->
+			lookup,			% CE, str -> idnkind
+						%	  => non_existent, obscured
+			obscure,		% CE, str -> bool
+			add_entry,		% CE, idn => already_exists
+			get_unknown_type,	% CE -> typespec
+			get_null_type,		% CE -> typespec
+			get_bool_type,		% CE -> typespec
+			get_int_type,		% CE -> typespec
+			get_real_type,		% CE -> typespec
+			get_char_type,		% CE -> typespec
+			get_str_type,		% CE -> typespec
+			get_type_type,		% CE -> typespec
+			get_cvt_type,		% CE -> typespec
+			get_any_type,		% CE -> typespec
+			get_array_fake,		% CE -> DUfake
+			get_record_fake,	% CE -> DUfake
+			get_oneof_fake,		% CE -> DUfake
+			get_proc_fake,		% CE -> DUfake
+			get_iter_fake,		% CE -> DUfake
+			fix_type,		% CE, typespec -> bool
+			add_dufake;		% CE, DUfake -> DUfake
+
+size		= 211;
+mspecs		= oneof[specs: DUspecs,
+			none:  null];
+DUlist		= array[DUfake];
+entry		= record[id:   str,
+			 kind: idnkind,
+			 code: int];
+no_refs_	= 0;					% codes
+refs_		= 1;
+lasting_	= 2;
+hidden_		= 3;
+vanish_		= 4;
+entrylist	= array[entry];
+bucket		= record[ents:  entrylist,
+			 types: typelist,
+			 tkeep: int,			% number of types to keep
+			 dus:   DUlist,
+			 dkeep: int];			% number of DUfakes to keep
+table		= array[bucket];
+
+rep		= record[table:     table,
+			 tkeep:     int,		% last permanent type id
+			 type_seed: int,
+			 array_,
+			 record_,
+			 oneof_,
+			 proctype_,
+			 itertype_: DUfake,
+			 unknown,
+			 null_,
+			 bool_,
+			 int_,
+			 real_,
+			 char_,
+			 str,
+			 any_,
+			 type_,
+			 cvt_:      typespec];
+
+create = proc () returns (CE);
+	tab: table := table$fill_copy(1, size, bucket${ents:  entrylist$create(1),
+						       types: typelist$create(1),
+						       tkeep: 0,
+						       dus:   DUlist$create(1),
+						       dkeep: 0});
+	parms: exprlist := exprlist$create(1);
+	libr: LIB := get_library();
+	nullt: clutype := clutype${gen:   DUfake$create(LIB$lookup(libr, "null")),
+				   parms: parms};
+	boolt: clutype := clutype${gen:   DUfake$create(LIB$lookup(libr, "bool")),
+				   parms: parms};
+	intt:  clutype := clutype${gen:   DUfake$create(LIB$lookup(libr, "int")),
+				   parms: parms};
+	realt: clutype := clutype${gen:   DUfake$create(LIB$lookup(libr, "real")),
+				   parms: parms};
+	chart: clutype := clutype${gen:   DUfake$create(LIB$lookup(libr, "char")),
+				   parms: parms};
+	strt:  clutype := clutype${gen:   DUfake$create(LIB$lookup(libr, "string")),
+				   parms: parms};
+	typet: clutype := clutype${gen:   DUfake$create(LIB$lookup(libr, "type")),
+				   parms: parms};
+	e: rep := rep${table:     tab,
+		       array_:    DUfake$create(LIB$lookup(libr, "array")),
+		       record_:   DUfake$create(LIB$lookup(libr, "record")),
+		       oneof_:    DUfake$create(LIB$lookup(libr, "oneof")),
+		       proctype_: DUfake$create(LIB$lookup(libr, "proctype")),
+		       itertype_: DUfake$create(LIB$lookup(libr, "itertype")),
+		       unknown:   typespec$create(typeabs$make_unknown(nil), 0),
+		       null_:     typespec$create(typeabs$make_cluster_(nullt), 0),
+		       bool_:     typespec$create(typeabs$make_cluster_(boolt), 0),
+		       int_:      typespec$create(typeabs$make_cluster_(intt), 0),
+		       real_:     typespec$create(typeabs$make_cluster_(realt), 0),
+		       char_:     typespec$create(typeabs$make_cluster_(chart), 0),
+		       str:       typespec$create(typeabs$make_cluster_(strt), 0),
+		       type_:     typespec$create(typeabs$make_type_(typet), 0),
+		       cvt_:      typespec$create(typeabs$make_cvt_(nil), 0),
+		       any_:      typespec$create(typeabs$make_any_(nil), 0),
+		       tkeep:     0,
+		       type_seed: 0};
+	ne: CE := up(e);
+	fix_type(ne, e.unknown);
+	fix_type(ne, e.null_);
+	fix_type(ne, e.bool_);
+	fix_type(ne, e.int_);
+	fix_type(ne, e.real_);
+	fix_type(ne, e.char_);
+	fix_type(ne, e.str);
+	fix_type(ne, e.type_);
+	fix_type(ne, e.cvt_);
+	fix_type(ne, e.any_);
+	add_dufake(ne, e.array_);
+	add_dufake(ne, e.record_);
+	add_dufake(ne, e.oneof_);
+	add_dufake(ne, e.proctype_);
+	add_dufake(ne, e.itertype_);
+	keep(ne);
+	return(ne);
+	end create;
+
+reset_entries = proc (e: cvt, lasting: bool);
+	for buck: bucket in table$elements(e.table) do
+		ents: entrylist := buck.ents;
+		for i: int in entrylist$indexes(ents) do
+			ent: entry := ents[i];
+			code: int := ent.code;
+			if code = refs_  cand  lasting
+			   then ent.code := lasting_;
+			elseif code = vanish_
+			   then	entrylist$trim(ents, 1, i - 1);
+				break;
+			elseif code ~= lasting_
+			   then ent.code := no_refs_; end;
+			end;
+		end;
+	end reset_entries;
+
+reset = proc (e: cvt);
+	for buck: bucket in table$elements(e.table) do
+		types: typelist := buck.types;
+		tkeep: int := buck.tkeep;
+		for i: int in int$from_to_by(tkeep + 1, typelist$size(types), 1) do
+			types[i].id := 0;
+			 end;
+		typelist$trim(types, 1, tkeep);
+		dus: DUlist := buck.dus;
+		for d: DUfake in DUlist$elements(dus) do
+			d.mspecs := mspecs$make_none(nil);
+			end;
+		DUlist$trim(dus, 1, buck.dkeep);
+		ents: entrylist := buck.ents;
+		for i: int in entrylist$indexes(ents) do
+			ent: entry := ents[i];
+			if ent.code = vanish_
+			   then entrylist$trim(ents, 1, i - 1);
+				break;
+			   else ent.code := no_refs_;
+			   end;
+			end;
+		end;
+	e.type_seed := e.tkeep;
+	end reset;
+
+keep = proc (e: cvt);
+	tab: table := e.table;
+	for i: int in int$from_to_by(1, size, 1) do
+		buck: bucket := tab[i];
+		buck.tkeep := typelist$size(buck.types);
+		buck.dkeep := DUlist$size(buck.dus);
+		end;
+	e.tkeep := e.type_seed;
+	end keep;
+
+lookup = proc (e: cvt, s: str) returns (idnkind) signals (non_existent, obscured);
+	buck: bucket := e.table[hash(s, size)];
+	for ent: entry in entrylist$elements(buck.ents) do
+		if ent.id = s
+		   then code: int := ent.code;
+			if code >= hidden_
+			   then signal obscured;
+			elseif code = no_refs_
+			   then ent.code := refs_; end;
+			return(ent.kind);
+		   end;
+		end;
+	signal non_existent;
+	end lookup;
+
+obscure = proc (e: cvt, s: str) returns (bool);
+	buck: bucket := e.table[hash(s, size)];
+	for ent: entry in entrylist$elements(buck.ents) do
+		if ent.id = s
+		   then	old: int := ent.code;
+			ent.code := hidden_;
+			return(old = refs_  cor  old = lasting_);
+		   end;
+		end;
+	entrylist$addh(buck.ents, entry${id:   s,
+					 kind: idnkind$make_unknown(nil),
+					 code: vanish_});
+	return(false);
+	end obscure;
+
+add_entry = proc (e: cvt, i: idn) signals (already_exists);
+	s: str := i.str;
+	buck: bucket := e.table[hash(s, size)];
+	for ent: entry in entrylist$elements(buck.ents) do
+		if ent.id = s then signal already_exists; end;
+		end;
+	entrylist$addh(buck.ents, entry${id:   s,
+					 kind: i.kind,
+					 code: no_refs_});
+	end add_entry;
+
+get_unknown_type = proc (e: cvt) returns (typespec);
+	return(e.unknown);
+	end get_unknown_type;
+
+get_null_type = proc (e: cvt) returns (typespec);
+	return(e.null_);
+	end get_null_type;
+
+get_bool_type = proc (e: cvt) returns (typespec);
+	return(e.bool_);
+	end get_bool_type;
+
+get_int_type = proc (e: cvt) returns (typespec);
+	return(e.int_);
+	end get_int_type;
+
+get_real_type = proc (e: cvt) returns (typespec);
+	return(e.real_);
+	end get_real_type;
+
+get_char_type = proc (e: cvt) returns (typespec);
+	return(e.char_);
+	end get_char_type;
+
+get_str_type = proc (e: cvt) returns (typespec);
+	return(e.str);
+	end get_str_type;
+
+get_type_type = proc (e: cvt) returns (typespec);
+	return(e.type_);
+	end get_type_type;
+
+get_cvt_type = proc (e: cvt) returns (typespec);
+	return(e.cvt_);
+	end get_cvt_type;
+
+get_any_type = proc (e: cvt) returns (typespec);
+	return(e.any_);
+	end get_any_type;
+
+get_array_fake = proc (e: cvt) returns (DUfake);
+	return(e.array_);
+	end get_array_fake;
+
+get_record_fake = proc (e: cvt) returns (DUfake);
+	return(e.record_);
+	end get_record_fake;
+
+get_oneof_fake = proc (e: cvt) returns (DUfake);
+	return(e.oneof_);
+	end get_oneof_fake;
+
+get_proc_fake = proc (e: cvt) returns (DUfake);
+	return(e.proctype_);
+	end get_proc_fake;
+
+get_iter_fake = proc (e: cvt) returns (DUfake);
+	return(e.itertype_);
+	end get_iter_fake;
+
+% Returns true if the type already was in the table
+
+fix_type = proc (e: cvt, t: typespec) returns (bool);
+	ta: typeabs := t.abs;
+	types: typelist := e.table[hash_type(t, size)].types;
+	for typ: typespec in typelist$elements(types) do
+		if typeabs$similar(ta, typ.abs) 		% Search for it
+		   then	t.abs := typ.abs;
+			t.id := typ.id;
+			return(true);
+		   end;
+		end;
+	e.type_seed := e.type_seed + 1;
+	t.id := e.type_seed;
+	typelist$addh(types, t);
+	tagcase ta
+	   tag cluster_, type_ (clut: clutype):
+		clut.gen := add_dufake(up(e), clut.gen);
+	   tag select (selt: seltype):
+		selt.gen := add_dufake(up(e), selt.gen);
+	   tag apply (apt: applytype):
+		apt.gen := add_dufake(up(e), apt.gen);
+	   others:
+	   end;
+	return(false);
+	end fix_type;
+
+add_dufake = proc (e: cvt, mod: DUfake) returns (DUfake);
+	dus: DUlist := e.table[hash(mod.unique, size)].dus;
+	for d: DUfake in DUlist$elements(dus) do
+		if DUfake$similar(mod, d)
+		   then return(d); end;
+		end;
+	DUlist$addh(dus, mod);
+	return(mod);
+	end add_dufake;
+
+end CE;
+
+hash_exprs = proc (exprs: exprlist, z: int) returns (int);
+	index: int := 0;
+	for x: expr in exprlist$elements(exprs) do
+		add: int;
+		tagcase x.abs
+		   tag type_ (xa: typespec):
+			add := xa.id;
+		   tag int_ (xa: int):
+			add := xa;
+		   tag str (xa: str):
+			add := hash(xa, z);
+		   others:
+			add := 0;
+		   end;
+		index := index + add;
+		end;
+	return(index // z + 1);
+	end hash_exprs;
+
+hash_type = proc (t: typespec, z: int) returns (int) signals (illegal_typespec);
+	index : int := 0;
+	tagcase t.abs
+	   tag cluster_ (x: clutype):
+		index := hash_exprs(x.parms, z) + hash(x.gen.unique, z);
+	   tag select (x: seltype):
+		index := hash(x.gen.unique, z);
+		for fs: fieldspec in fieldspeclist$elements(x.parms) do
+			index := index + name$size(fs.sel) * fs.type_.id;
+			end;
+	   tag apply (x: applytype):
+		index := hash(x.gen.unique, z);
+		args: typelist := x.args;
+		vals: typelist := x.vals;
+		for i: int in typelist$indexes(args) do
+			index := index + (i + 1) * args[i].id;
+			end;
+		for i: int in typelist$indexes(vals) do
+			index := index + (i + 4) * vals[i].id;
+			end;
+	   tag idn (x: idn):
+		index := hash(x.str, z);
+	   tag other (x: othertype):
+		tagcase x
+		   tag du (xx: clutype):
+			index := 1 + hash(xx.gen.unique, z) + hash_exprs(xx.parms, z);
+		   tag op (xx: clusterop):
+			index := xx.type_.id + hash(xx.name, z);
+		   tag return_ (xx: typespec):
+			index := 1 + xx.id;
+		   end;
+	   tag unknown:
+		index := 1;
+	   tag type_:
+		index := 2;
+	   tag cvt_:
+		index := 3;
+	   tag any_:
+		index := 4;
+	   others:
+		signal illegal_typespec;
+	   end;
+	return(index // z + 1);
+	end hash_type;

@@ -1,0 +1,154 @@
+.if version>0&version<29
+.nx clu;refman r28
+.en
+.
+.
+.
+.
+.dv xgp
+.fo 0 fonts1;30vrx rwskst
+.fo 1 31vgb
+.fo 2 fonts1;30vrix ebmkst
+.fo 3 37vrb
+.fo 4 30vrb
+.fo 5 40vgl
+.fo 6 s30grk
+.fo 7 20vg
+.fo 8 20vr
+.fo 9 22fg
+.fo A fonts1;52meta rwskst
+.fo B 31vg
+.fo C 25fg
+.ls 1.5
+.tr ` 
+.nr verbose 1
+.nr tty_table_of_contents 1
+.nr print_page1_headings 1
+.nr chapter_starts_page 0
+.sr left_heading 4DRAFT*
+.sr right_heading fdate
+.so r;r macros
+.so clu;clukey r
+.so clu;clusym r
+.am chapter
+.if \font~=0
+.tm "Current font not 0!"
+.en
+.em
+.am section
+.if \font~=0
+.tm "Current font not 0!"
+.en
+.em
+.de end_keep
+.am keep_holder
+.br
+\.em
+.size keep_holder
+.if vsize<(pl-bottom_margin_size-top_margin_size)
+.ne vsize!m
+.en
+.keep_holder
+.em
+.
+ paragraph macro
+.
+.de para
+.if nargs>0&\0
+.sp (ls-100)/200
+.ef
+.sp 3*(ls-100)/200
+.en
+.ne 3
+.em
+.
+ show macro
+.
+.de show
+.be show_block
+.nv ols ls
+.nv ls 100
+.sp (ols-100)/100
+.nv indent indent
+.hx indent indent 8
+.nf
+.em
+.
+ eshow macro
+.
+.de eshow
+.fi
+.en
+.sp (ls-100)/100
+.em
+.
+ stab macro
+.
+.de stab
+.nr tab_pos\0 hpos
+.em
+.
+ tab macro
+.
+.de tab
+.nr hpos tab_pos\0
+.em
+.
+ btab macro
+.
+.de btab
+.br
+.nr hpos tab_pos\0
+.em
+ and
+.ec a
+ bottom
+.ec b
+ down arrow
+.ec c
+ equivalence
+.ec d
+ epsilon
+.ec e
+ right arrow
+.ec f
+ >=
+.ec g
+ up arrow
+.ec h
+ <->
+.ec i
+ union (join)
+.ec j
+ |-
+.ec k
+ lambda
+.ec l
+ intersection (meet)
+.ec m
+ not
+.ec n
+ or
+.ec o
+ domain sum
+.ec p
+ <=
+.ec q
+ define
+.ec r	
+ subset
+.ec s
+ top
+.ec t
+ left arrow
+.ec u
+ for all
+.ec v
+ there exists
+.ec w
+ domain cross product
+.ec x
+ left double bracket
+.ec y
+ right double bracket
+.ec z

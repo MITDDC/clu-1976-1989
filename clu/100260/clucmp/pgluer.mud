@@ -1,0 +1,81 @@
+<BLOAT 80000 16000 1200 1000 100 514 0 60000>
+ 
+<REMOVE GLUE>
+
+<SETG L-NOISY #FALSE ()>
+
+<USE "PDUMP">
+
+<USE "GLUE">
+ 
+<USE "EVIL">
+
+<SET GLUE T>   
+ 
+<SET REASONABLE T>  
+ 
+<SET GLUE-IT T>
+
+<DEFINE FL ("TUPLE" L "AUX" (GLUE-IT <>))
+	#DECL ((GLUE-IT) <SPECIAL ANY>)
+	<GL !.L>>
+
+<DEFINE GL (FBIN-NAME "TUPLE" L "AUX" T)
+	#DECL ((FBIN-NAME) ATOM (GROUP:ATOM PROCLIST) LIST (T) FLOAT)
+	<SET GROUP:ATOM ()> 
+	<SET PROCLIST ()>
+	<MAPF <>
+	      #FUNCTION ((N "AUX" C FX S) 
+			 #DECL ((N) ATOM (C) <OR CHANNEL FALSE> (FX) VECTOR
+				(S) STRING)
+			 <SET S <PNAME .N>>
+			 <SET C <OPEN "READ" .S "NBIN" "DSK" "CLUCMP">>
+			 <OR .C <SET C <OPEN "READ" .S "NBIN" "DSK" "CLUSYS">>>
+			 <OR .C <SET C <OPEN "READ" .S "NBIN" "DSK" <SNAME>>>>
+			 <COND (.C
+				<SET FX <CHTYPE .C VECTOR>>
+				<SET S <STRING <9 .FX>
+					       ":"
+					       <10 .FX>
+					       ";"
+					       <7 .FX>
+					       " "
+					       <8 .FX>>>
+				<PRINC .S>
+				<PRINC "   ">
+				<CLOSE .C>
+				<GROUP-LOAD .S Y>
+				<SET GROUP:ATOM (!.GROUP:ATOM !.Y)>
+				<PRINC "   LOADED">)
+			       (ELSE <PRINC <STRING <PNAME .N> "        MISSING">>)>
+			 <TERPRI>)
+	      .L>
+	<MAPF <> <FUNCTION (A) #DECL ((A) ATOM) <UNASSIGN .A>> .PROCLIST>
+	<SET .FBIN-NAME .GROUP:ATOM>
+	<COND (.GLUE-IT
+		<PRINC "GLUING...">
+		<TERPRI>
+		<SET T <TIME>>
+		<GROUP-GLUE .FBIN-NAME>
+		<PRINC "   GLUED IN ">
+		<PRINC <- <TIME> .T>>
+		<TERPRI>)>
+	<PRINC "PDUMPING...">
+	<TERPRI>
+	<SET T <TIME>>
+	<PROG (OSNAME CH N1)
+		#DECL ((OSNAME N1) STRING (CH) <OR CHANNEL FALSE>)
+		<SET OSNAME <SNAME>>
+		<SNAME "CLU">
+		<SET N1 <STRING "DSK:CLU;" <PNAME .FBIN-NAME> " FBIN">>
+		<SET CH <OPEN "READ" .N1>>
+		<COND (.CH
+		       <CLOSE .CH>
+		       <RENAME .N1 TO <STRING "CLU;O" <PNAME .FBIN-NAME> " >">>)>
+		<PDUMP .FBIN-NAME>
+		<SNAME .OSNAME>>
+	<PRINC "   PDUMPED IN ">
+	<PRINC <- <TIME> .T>>
+	<TERPRI>
+	<MAPF <> <FUNCTION (A) #DECL ((A) ATOM) <GUNASSIGN .A>> .PROCLIST>
+	"DONE">

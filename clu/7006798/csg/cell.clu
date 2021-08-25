@@ -1,0 +1,42 @@
+%   The cells hold the symbol value pairs.  
+
+
+cell = cluster is create, name, value, print, lt, equal
+
+
+    rep = record [id:string, val:int ]
+
+
+    create = proc ( n:string, v:int ) returns (cvt)
+	return (rep${id:n, val:v})
+	end create
+
+
+    name = proc ( c:cvt ) returns (string)
+	return (c.id)
+	end name
+
+
+    value = proc ( c:cvt) returns (int)
+	return (c.val)
+	end value
+
+
+    print = proc ( o:stream, c:cvt)
+	stream$puts (o, c.id)
+	stream$puts (o, " = ")
+	stream$putl (o, int$unparse ( c.val ))
+	end print
+
+
+    lt = proc (c1, c2:cvt) returns (bool)
+	return ( c1.id < c2.id )
+	end lt
+
+
+    equal = proc (c1, c2:cvt) returns (bool)
+	return ( c1.id = c2.id )
+	end equal
+
+
+    end cell

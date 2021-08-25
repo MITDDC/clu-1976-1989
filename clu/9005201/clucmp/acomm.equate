@@ -1,0 +1,111 @@
+%	ACOMM EQUATE
+%
+%	CLUMAC assembler: equates for locations in CLUSYS
+
+_dtrue		= _comadr;		% boolean true
+_dfalse		= _dtrue+2;		% boolean false
+_dnone		= _dfalse+2;		% the null return
+_dnull		= _dnone+2;		% the null object
+_dnil		= _dnull;
+_dnulls		= _dnull+2;		% the null string
+_dnullv		= _dnulls+2;		% the unusable vector
+_dneg1		= _dnullv+2;		% -1
+_dzero		= _dneg1+2;		% 0
+_done		= _dzero+2;		% 1
+_dtwo		= _done+2;		% 2
+_dtyo		= _dtwo+2;		% default tty output
+_dtyi		= _dtyo+2;		% default tty input
+_dwork		= _dtyi+2;		% a page to work with
+_dents		= _dwork+2;		% the system entries
+
+% Can't $rtnc following stuff
+
+_dmemhi		= _dents+2;		% current high bound on free mem
+_dmemlo		= _dmemhi+1;		% current low bound on free mem
+_dstkhi		= _dmemlo+1;		% upper bound on stack
+_dpure		= _dstkhi+1;		% current pure stuff
+_dpurtop	= _dpure+1;
+_dtypes		= _dpurtop+1;		% the types vector
+_dsigpr		= _dtypes+1;		% signal printing flag
+_dmtab		= _dsigpr+1;		% the module table
+_dintlock	= _dmtab+1;		% this locks up the world
+_intchk		= _dintlock+1;		% this gets hit when we want to interrupt
+_dbptab		= _intchk+1;
+_dr_get		= _dbptab+5;		% get record component (get_*)
+_dr_put		= _dr_get+1;		% put record component (put_*)
+_dr_acc		= _dr_put+1;		% general access entry
+_do_new		= _dr_acc+1;		% make a new oneof (make_*)
+_dtypbp		= _do_new+1;
+_dvtab		= _dtypbp+1;		% the vector table (for desc canon)
+_do_is		= _dvtab+1;		% test for taggedness of oneof
+_do_get		= _do_is+1;		% force a get of a oneof component
+_dtrace		= _do_get+1;		% the trace flag
+_dtrxct		= _dtrace+1;
+_dtrsav		= _dtrxct+1;		% trace request
+_dlflag		= _dtrsav+1;		% listen loop recovery flag
+_dbad		= _dlflag+1;		% Bad thing
+_tbad		= _tref+_dbad;
+
+%	jumps to internal routines
+
+_jumplo		= _dbad+1;
+_setup		= _jumplo;
+_exiter		= _setup+1;
+_qsetup		= _exiter+1;
+_yield		= _qsetup+1;
+_resume		= _yield+1;
+_exitc		= _resume+1;
+_qexit		= _exitc+1;
+_notref		= _qexit+1;
+_notrsb		= _notref+1;
+_badrep		= _notrsb+1;
+_frog		= _badrep+1;
+_linker		= _frog+1;
+_buggy		= _linker+1;
+_mexit		= _buggy+1;
+_badrtn		= _mexit+1;
+_memout		= _badrtn+1;
+_framer		= _memout+1;
+_itpop		= _framer+1;
+_siggy		= _itpop+1;
+_causer		= _siggy+1;
+_notype		= _causer+1;
+_mxrout		= _notype+1;			% qproc return
+_vcopy		= _mxrout+1;			% copy a vector
+_rcopy		= _vcopy+1;			% copy a range
+_yldout		= _rcopy+1;
+_agnew		= _yldout+1;
+_nixon		= _agnew+1;
+_i_ofl		= _nixon+1;			% overflow signal
+_myield		= _i_ofl+1;
+_amake		= _myield+1;			% make an array
+_badtyp		= _amake+1;			% bad type code from force
+_safex		= _badtyp+1;			% jumper to safe exit
+_chkout		= _safex+1;			% check interrupts and jrst (xr)
+_jumphi		= _chkout;			% highest jumper
+
+_nulls_		= _nullsd;
+_noned		= _nulls_+2;
+_nulld		= _noned+2;
+_nullvd		= _nulld+2;
+_dsname		= _nullvd+2;
+_dbvec		= _dsname+1;			% vector of basic areas
+_dstack		= _dbvec+1;			% start of stack
+_dgcsav		= _dstack+1;			% # of words saved by last gc
+_dgcreq		= _dgcsav+1;			% # of GC requests
+_dahack		= _dgcreq+1;			% # of hacked array arguments
+_d_greq		= _dahack+1;			% ^G request
+_d_sreq		= _d_greq+1;			% ^S request
+_dihand		= _d_sreq+1;			% inferior interrupt handler (proc obj)
+_dinfer		= _dihand+1;			% 0,,lh of .ifpir user variable
+_dinreq		= _dinfer+1;			% inferior interrupt requests
+_dsafex		= _dinreq+1;			% safex hacking flag
+_dindef		= _dsafex+1;			% any interrupt request increments this
+_dotty		= _dindef+1;			% non-zero if tty is open
+_dstart		= _dotty+1;			% starting address
+_dcflag		= _dstart+1;			% arg checking flag (1 -> no check)
+_dsnap		= _dcflag+1;			% # of things snapped
+_dgcopt		= _dsnap+1;			% GC options word
+_dfhand		= _dgcopt+1;			% 1 -> propagate failure
+_dhheap		= _dfhand+1;			% hi heap marker
+_dstyx		= _dhheap+1;			% statistics-keeping flag

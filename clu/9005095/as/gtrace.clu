@@ -1,0 +1,195 @@
+# extend
+
+%
+%	GC: Trace Phase
+%	Multiple Storage Types
+%
+%	Version using FORCE statement.
+%
+%	Many operations per storage type.
+%	Iterative.
+%
+%	NoType = a special Type not otherwise occurring
+%	NoValue = a value of type NoType
+%
+
+Dummy = Array[NoType]	% let the compiler know that NoType is a TYPE
+
+StorageType = {t | t has
+	incr_newrc: proctype (t) returns (bool),
+
+	% If the reference X is a pointer to separately allocated
+	% storage managed by a reference count (all objects that may
+	% have components must have this property), then increment the
+	% new reference count field of X.  If the new value is 1
+	% and the object X may have component references, then
+	% set the internal state of X to indicate that no elements of
+	% X have been processed by the garbage collector and return
+	% TRUE.  Otherwise return FALSE.
+
+	get_next_element: proctype (t) returns (any) signals (no_more),
+
+	% If all of the elements of X have been processed, then signal.
+	% Otherwise, return the next element to be processed and
+	% update the state to indicate that it has been processed.
+
+	exchange_reference: proctype (t, any) returns (any)
+
+	% Valid only if at least one element of X has been processed.
+	% Store the reference R in the location that contained the
+	% element of X last processed.  Return the previous contents
+	% of that location.
+	}
+
+gc_trace_phase = proc (root: any)
+
+	force r:t = root where t in StorageType
+	if t$incr_newrc (r) then
+		gc_trace (r)
+		end
+	end gc_trace_phase
+
+gc_trace = proc (node: any)
+
+	% NODE is a structured object whose new reference count has
+	% just been incremented to one.  Trace the components of NODE.
+
+	father: any := NoValue
+
+	while TRUE do
+
+	    % At this point, NODE is the node being processed.
+	    % FATHER is the node to be processed
+	    % after we are completely finished processing NODE.
+
+	    begin
+		force n:t = node where t in StorageType
+		son: any := t$get_next_element (n)
+		force s:st = son where st in StorageType
+		if st$incr_newrc (s) then
+			t$exchange_reference (n, father)
+				% save father where son was
+			father := node
+			node := son
+			end
+		end
+	    except when no_more:
+		son: any := node
+		node := father	% resume processing father
+		if type_of (node) = NoType then return end
+		force n:t = node where t in StorageType
+		father := t$exchange_reference (n, son)
+			% restore father and element of node
+		end
+	    end
+	end gc_trace
+
+%
+%	The following version of GC_TRACE has a bounded stack to hold
+%	some of the state.  The tree is modified only when the stack
+%	is full.
+%
+
+stack_gc_trace = proc (node: any)
+
+	% NODE is a structured object whose new reference count has
+	% just been incremented to one.  Trace the components of NODE.
+
+	STACKSIZE = 1024
+
+	stack: array[any] := array[any]$fill (0, STACKSIZE, NoValue)
+	stackdepth: int := 0
+
+	father: any := NoValue
+
+	while TRUE do
+
+	    % At this point, NODE is the node being processed.
+	    % FATHER is the node to be processed
+	    % after we are completely finished processing NODE.
+
+	    begin
+		force n:t = node where t in StorageType
+		son: any := t$get_next_element (n)
+		force s:st = son where st in StorageType
+		if st$incr_newrc (s) then
+			if stackdepth < STACKSIZE
+			    then stack[stackdepth] := father
+			    else t$exchange_reference (n, father)
+			    end
+			stackdepth := stackdepth + 1
+			father := node
+			node := son
+			end
+		end
+	    except when no_more:
+		son: any := node
+		node := father	% resume processing father
+		if type_of (node) = NoType then return end
+		force n:t = node where t in StorageType
+		stackdepth := stackdepth - 1
+		if stackdepth < STACKSIZE
+		    then father := stack[stackdepth]
+		    else father := t$exchange_reference (n, son)
+		    end
+		end
+	    end
+	end stack_gc_trace
+
+%
+%	The following version of GC_TRACE also allows multiple
+%	processes to be created, subject to a fixed maximum number
+%	of simultaneously existing processes.
+%
+
+multi_gc_trace = proc (node: any)
+
+	% NODE is a structured object whose new reference count has
+	% just been incremented to one.  Trace the components of NODE.
+
+	STACKSIZE = 1024
+
+	stack: array[any] := array[any]$fill (0, STACKSIZE, NoValue)
+	stackdepth: int := 0
+
+	father: any := NoValue
+
+	while TRUE do
+
+	    % At this point, NODE is the node being processed.
+	    % FATHER is the node to be processed
+	    % after we are completely finished processing NODE.
+
+	    begin
+		force n:t = node where t in StorageType
+		son: any := t$get_next_element (n)
+		force s:st = son where st in StorageType
+		if st$incr_newrc (s) then
+			p: process := process$allocate ()
+			args: array[any] := array[any]$fill (0, 1, son)
+			process$initialize (p, multi_gc_trace, args)
+			process$start (p)
+			end
+		    except when too_many_processes:
+			if stackdepth < STACKSIZE
+			    then stack[stackdepth] := father
+			    else t$exchange_reference (n, father)
+			    end
+			stackdepth := stackdepth + 1
+			father := node
+			node := son
+			end
+		end
+	    except when no_more:
+		son: any := node
+		node := father	% resume processing father
+		if type_of (node) = NoType then return end
+		force n:t = node where t in StorageType
+		stackdepth := stackdepth - 1
+		if stackdepth < STACKSIZE
+		    then father := stack[stackdepth]
+		    else father := t$exchange_reference (n, son)
+		    end
+		end
+	    end
+	end multi_gc_trace

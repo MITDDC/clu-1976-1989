@@ -1,0 +1,174 @@
+broff=procedure(ifname,ofname:string,ll,ps:int);
+	fline:fl:=fl$create();
+	infile:file:=file$open_read(ifname);
+	outfile:file:=file$open_write(ofname);
+	for i:int:=0 to 3 do
+		file$putc(outfile,'\n');
+	p:int:=1;
+	ln:int:=1;
+	fill,tcon:bool:=true;
+	while ~file$eof(infile)do
+		input_line(infile,outfile,fill,tcon,fline,ln,p,ll,ps)except eof:;end;
+	file$close(infile);
+	file$close(outfile);
+end broff;
+
+input_line=procedure(infile,outfile:file,fill,tcon:bool,fline:fl,ln,p,ll,ps:int)signals(eof);
+	s=string;
+	w:s;
+	ch:char;
+	w,ch:=first_word(infile)except eof:signal eof;end;
+	case w in
+		"wbk",".br":fill:=false;
+		".nf":begin fill:=false;tcon:=false;end;
+		".fi":begin fill:=true;tcon:=true;end;
+		out:fill:=tcon;
+		end except eof:signal eof;end;
+	case w in
+		".br",".nf",".fi":begin while file$getc(infile)~='\n' do;
+					return;
+					end;
+		out:;
+		end except eof :signal eof;end;
+	if(fill)then begin
+			make_fline(infile,outfile,fline,ln,p,ll,ps,w,ch)except eof:
+							signal eof;end;
+			return;
+			end;
+	else if fl$put(outfile,fline)then
+		page(outfile,ln,p,ll,ps);
+	copy_nfline(infile,outfile,ch)except eof: signal eof;end;
+	page(outfile,ln,p,ll,ps);
+	return;
+end input_line;
+
+
+
+first_word=procedure(infile:file)returns(string,char)signals(eof);
+	c:char:=file$getc(infile)except eof:signal eof;end;
+	w:string:="";
+	case c in
+		' ','\t','\n':return("wbk",c);
+		'.':begin for i:int:=0 to 2 do begin
+				w:=string$concat(w,char$c2s(c));
+				c:=file$getc(infile)except eof:signal eof;end;
+				end;
+			return(w,'');
+			end;
+		out:return("",c);
+	end;
+end first_word;
+
+
+				
+copy_nfline=procedure(infile,outfile:file,ch:char)signals (eof);
+ 	file$putc(outfile,ch);
+	c:char;
+	if ch~='\n' then
+		repeat begin
+			c:=file$getc(infile)except eof:signal eof;end;
+			file$putc(outfile,c);
+			end;
+		until c='\n';
+	return;
+end copy_nfline;
+
+
+page=procedure(outfile:file,ln,p,ll,ps:int);
+	ln:=ln+1;
+	if ln>ps then begin
+		for i:int:=0 to 3 do
+			file$putc(outfile,'\n');
+		for i:int:=0 to ps/2 do
+			file$putc(outfile,' ');
+		file$puti(outfile,p);
+		for i:int:=0 to 4 do
+			file$putc(outfile,'\n');
+		p:=p+1;
+		end;
+	return;
+end page;
+
+
+make_fline=procedure(infile,outfile:file,fline:fl,ln,p,ll,ps:int,w:string,ch:char)
+					signals (eof);
+	if ~fl$zero(fline)then
+		w:=string$concat(" ",w);
+	while fl$insert(fline,w,ll)do begin
+		nw:string;
+		nc:char;
+		nw,nc:=get_word(infile)except eof:signal eof;end;
+		w:=string$concat(char$c2s(ch),nw);
+		ch:=nc;
+		if ch='\n' then 
+			if fl$insert(fline,w,ll) then return;			
+			else ch:=' ';
+		end;
+	fl$adjust(fline,ll);
+	fl$put(outfile,fline);
+	page(outfile,ln,p,ll,ps);
+	fl$flush(fline);
+	w:=string$rest(w,1);                %FURTHER STRIPPING HERE NEEDED
+	make_fline(infile,outfile,fline,ln,p,ll,ps,w,ch)except eof:signal eof;end;
+	return;
+end make_fline;
+
+
+get_word=procedure(infile:file)returns(string,char)signals (eof);
+	w:string:="";
+	c:char:=file$getc(infile)except eof:signal eof;end;
+	while((c~=' ')&(c~='\t')&(c~='\n'))do begin
+		w:=string$concat(w,char$c2s(c));
+		c:=file$getc(infile)except eof:return(w,'');end;
+	end;
+	return(w,c);
+end get_word;
+
+
+fl=cluster is create,insert,adjust,put,flush,length,zero;
+	rep=array[string];
+
+	create=oper()returns(cvt);
+		return(rep$create(1));
+	end create;
+
+	insert=oper(fline:cvt,w:string,ll:int)returns(bool);
+		if(fl$length(fline)+string$size(w))>ll then
+			return(false);
+		else rep$extendh(fline,w);
+		return(true);
+	end insert;
+
+	adjust=oper(fline:cvt,ll:int);
+		n:int:=ll-fl$length(fline);
+		for i:int:=rep$low(fline) to rep$low(fline)+n-1 do
+		fline[i]:=string$concat(fline[i]," ");
+	end adjust;
+
+	put=oper(outfile:file,fline:cvt)returns(bool);
+		if fl$zero(fline)  then return (false);
+		else for i:int:=rep$low(fline) to rep$high(fline)do
+			file$puts(outfile,fline[i]);
+		file$putc(outfile,'\n');
+		return(true);
+	end put;
+
+	flush=oper(fline:cvt);
+		rep$flush(fline);
+	end flush;
+
+	length=oper(fline:cvt)returns(int);
+		l:int:=0;
+		for i:int:=rep$low(fline) to rep$high(fline)do
+			l:=l+string$size(fline[i]);
+		return(l);
+	end length;
+
+	zero=oper(fline:cvt)returns(bool);
+		if rep$size(fline)=0 then return(true);
+		else return(false);
+	end zero;
+		
+end fl;
+
+

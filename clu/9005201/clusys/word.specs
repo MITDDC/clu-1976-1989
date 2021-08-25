@@ -1,0 +1,136 @@
+word = cluster is	create,		% int, int -> word
+			extend,		% int -> word
+			and,		% word, word -> word
+			or,		% word, word -> word
+			xor,		% word, word -> word
+			add,		% word, word -> word
+			sub,		% word, word -> word
+			mul,		% word, word -> word
+			div,		% word, word -> word
+			mod,		% word, word -> word
+			comp,		% word -> word
+			minus,		% word -> word
+			shift,		% word, int -> word
+			get_right,	% word -> word
+			get_left,	% word -> word
+			swap,		% word -> word
+			bit,		% word, int -> bool
+			set_bit,	% word, int -> word
+			clear_bit,	% word, int -> word
+			s2w,		% str -> word
+			w2s,		% word -> str
+			w2i,		% word -> int, int
+			w2runt,		% word -> int, int, int
+			ascii2s,	% word -> str
+			s2ascii,	% str -> word
+			zero,		% word -> bool
+			equal,		% word, word -> bool
+			similar,	% word, word -> bool
+			copy,		% word -> word
+			parse,		% str -> word => bad_format, overflow
+			dparse,		% str -> word => bad_format, overflow
+			unparse,	% word -> string
+			print;		% word, file ->
+
+rep = any;
+
+create = proc (left, right: int) returns (word);
+	end create;
+
+extend = proc (right: int) returns (word);
+	end extend;
+
+and = proc (w1, w2: word) returns (word);
+	end and;
+
+or = proc (w1, w2: word) returns (word);
+	end or;
+
+xor = proc (w1, w2: word) returns (word);
+	end xor;
+
+add = proc (w1, w2: word) returns (word);
+	end add;
+
+sub = proc (w1, w2: word) returns (word);
+	end sub;
+
+mul = proc (w1, w2: word) returns (word);
+	end mul;
+
+div = proc (w1, w2: word) returns (word);
+	end div;
+
+mod = proc (w1, w2: word) returns (word);
+	end mod;
+
+comp = proc (w: word) returns (word);
+	end comp;
+
+minus = proc (w: word) returns (word);
+	end minus;
+
+shift = proc (w: word, cnt: int) returns (word);
+	end shift;
+
+get_right = proc (w: word) returns (word);
+	end get_right;
+
+get_left = proc (w: word) returns (word);
+	end get_left;
+
+swap = proc (w: word) returns (word);
+	end swap;
+
+bit = proc (w: word, pos: int) returns (bool);
+	end bit;
+
+set_bit = proc (w: word, pos: int) returns (word);
+	end set_bit;
+
+clear_bit = proc (w: word, pos: int) returns (word);
+	end clear_bit;
+
+s2w = proc (s: string) returns (word);
+	end s2w;
+
+w2s = proc (w: word) returns (string);
+	end w2s;
+
+w2i = proc (w: word) returns (int, int);
+	end w2i;
+
+w2runt = proc (w: word) returns (int, int, int);
+	end w2runt;
+
+ascii2s = proc (w: word) returns (string);
+	end ascii2s;
+
+s2ascii = proc (s: string) returns (word);
+	end s2ascii;
+
+zero = proc (w: word) returns (bool);
+	end zero;
+
+equal = proc (w1, w2: word) returns (bool);
+	end equal;
+
+similar = proc (w1, w2: word) returns (bool);
+	end similar;
+
+copy = proc (w: word) returns (word);
+	end copy;
+
+parse = proc (s: string) returns (word) signals (bad_format, overflow);
+	end parse;
+
+dparse = proc (s: string) returns (word) signals (bad_format, overflow);
+	end dparse;
+
+unparse = proc (w: word) returns (string);
+	end unparse;
+
+print = proc (w: word, f: file);
+	end print;
+
+end word;

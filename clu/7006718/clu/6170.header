@@ -1,0 +1,192 @@
+.dv xgp
+.fo 0 30vr
+.fo 1 31vgb
+.fo 2 30vri
+.fo 3 37vrb
+.fo 4 s30grk
+.fo 5 30fg
+.fo 6 36vbee
+.fo 7 25fg
+.fo F 2as
+.nr both_sides 1
+.sr figure_name Figure \
+.sr table_name Table \
+.sr list_left_margin 250m
+.sr list_right_margin 250m
+.nr top_margin_size 500
+.nr reset_per_page 0
+.nr para_indent 5
+.so r.macros
+.nr verbose 1
+.tr @ 
+.sr and 5*
+.sr not 5*
+.sr requires 5*
+.sr implies 5*
+.sr inter 5*
+.sr union 5*
+.sr forall 5*
+.sr exists 5*
+.sr equiv 5*
+.sr or 5*
+.
+.
+.de handout  <title>
+.
+.if nargs<1
+.tm Warning: handout title not specified!
+.end
+.
+.if \?handout_number
+.sr handout_number \handout_number
+.elseif
+.tm Warning: handout_number not specified!
+.sr handout_number ?
+.end
+.
+.if \?problem_number
+.tm Warning: problem_number specified, should use .problem?
+.end
+.
+.if \?handout_date==0
+.tm Warning: handout_date not specified!
+.sr handout_date \fdate
+.end
+.
+.MITheader
+.ls 0
+6.170Handout \handout_number\handout_date
+.ls 1
+.br
+.new_font F
+__
+.new_font 0
+.sp
+.if nargs>0
+.sp
+.new_font 1
+.nf c
+\0
+.new_font 0
+.nf l
+.sp
+.end
+.fi
+.nr top_margin_size 1000
+.em
+.
+.de problem
+.
+.if nargs<1
+.tm Warning: problem title not specified!
+.end
+.
+.if \?handout_number
+.sr handout_number \handout_number
+.elseif
+.tm Warning: handout_number not specified!
+.sr handout_number ?
+.end
+.
+.if \?problem_number
+.sr problem_number \problem_number
+.elseif
+.tm Warning: problem_number not specified!
+.sr problem_number ?
+.end
+.
+.if \?handout_date==0
+.tm Warning: handout_date not specified!
+.sr handout_date \fdate
+.end
+.
+.if \?due_date==0
+.tm Warning: due_date not specified!
+.sr due_date \fdate
+.end
+.
+.MITheader
+6.170  Handout: \handout_date
+.ls 0
+Handout \handout_number  Due: \due_date
+.ls 1
+.br
+.new_font F
+__
+.new_font 0
+.sp 2
+.new_font 1
+.nf c
+.if nargs>0
+Problem \problem_number: \0
+.else
+Problem \problem_number
+.end
+.new_font 0
+.nf l
+.sp
+.fi
+.em
+.
+.de MITheader
+.new_font 1
+.nf c
+Massachusetts Institute of Technology
+Department of Electrical Engineering and Computer Science
+.new_font 0
+.sp 2
+.nf l
+.nr top_margin_size 1000
+.em
+.
+.de bold
+.sr \0 1\0*
+.em
+.
+.bold begin
+.bold bin
+.bold bit
+.bold by
+.bold call
+.bold char
+.bold condition
+.bold dcl
+.bold do
+.bold else
+.bold end
+.bold entry
+.bold fixed
+.bold get
+.bold if
+.bold include
+.bold list
+.bold on
+.bold proc
+.bold put
+.bold return
+.bold returns
+.bold signal
+.bold skip
+.bold then
+.bold to
+.bold varying
+.bold while
+.
+.de sec  <title>
+.
+.sp
+.ne 8l
+1\0*
+.sp
+.ns
+.ti para_indent
+.em
+.
+.de para
+.
+.sp
+.ne 5l
+.ti para_indent
+.em
+.
+.nr started 1

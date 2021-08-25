@@ -1,0 +1,82 @@
+;CLU Compiler Version 3.76
+
+.symtab 8000.,4095.
+.insrt clusys;alpha >
+cluster
+;							1
+ptdesc t$1,[],[],[]
+;							print_facts
+proc f$1,[],[v$1,v$2,v$3,v$4,v$5,v$6,v$7],[tbad,tbad,tbad,tbad,tbad,tbad,tbad],t$1,[]
+;							2
+pcdesc f$2,file$tyo,0.
+pcall f$2
+assn v$1(er),rr
+;							3
+args [v$1(er)]
+string s$1,ppart\011frame\011link\011pparm\011cparm\011owndat\012
+link c$1,s$1
+args [c$1(lr)]
+pcdesc f$3,file$puts,2.
+pcall f$3
+;							4
+pcdesc f$4,facts,0.
+pcall f$4
+$for l1,[v$7(er),v$6(er),v$5(er),v$4(er),v$3(er),v$2(er)]
+;							5
+args [v$1(er)]
+args [v$2(er)]
+pcdesc f$5,file$puti,2.
+pcall f$5
+;							6
+args [v$1(er)]
+link c$2,tchar+9.
+args [c$2(lr)]
+pcdesc f$6,file$putc,2.
+pcall f$6
+;							7
+args [v$1(er)]
+args [v$3(er)]
+pcall f$5
+;							8
+args [v$1(er)]
+args [c$2(lr)]
+pcall f$6
+;							9
+args [v$1(er)]
+args [v$4(er)]
+pcall f$5
+;							10
+args [v$1(er)]
+args [c$2(lr)]
+pcall f$6
+;							11
+args [v$1(er)]
+args [v$5(er)]
+pcall f$5
+;							12
+args [v$1(er)]
+args [c$2(lr)]
+pcall f$6
+;							13
+args [v$1(er)]
+args [v$6(er)]
+pcall f$5
+;							14
+args [v$1(er)]
+args [c$2(lr)]
+pcall f$6
+;							15
+args [v$1(er)]
+args [v$7(er)]
+pcall f$5
+;							16
+args [v$1(er)]
+link c$3,tchar+10.
+args [c$3(lr)]
+pcall f$6
+$rof l1
+$rtnc $none
+corp print_facts,[]
+retsulc
+
+.insrt clusys;omega >

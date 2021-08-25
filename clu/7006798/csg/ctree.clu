@@ -1,0 +1,72 @@
+%  This is the cluster that supports the binary tree.  Its operations
+% include the ability to traverse the tree and the ability to insert
+% cells into the tree in the correct positions.
+
+
+celltree = cluster is create, empty, leaf, right, left, insert
+
+
+    rep = variant [empty:null, node: node]
+    node = record [leftleaf, rightleaf: celltree, value:cell ]
+
+
+    create = proc () returns (cvt)
+	return (rep$make_empty (nil) )
+	end create
+
+
+    empty = proc (c:cvt) returns (bool)
+	return (rep$is_empty (c) )
+	end empty
+
+
+    % left returns the left subtree of the tree.  It signals if there is
+    % none.
+
+
+    left = proc (c:cvt) returns (celltree) signals (emptytree)
+
+	if empty( up(c) ) then signal emptytree
+	   else return ( rep$value_node (c).leftleaf)
+	   end
+	end left
+
+    %and right returns the right subtree
+
+    right = proc (c:cvt) returns (celltree) signals (emptytree)
+
+	if empty( up(c) ) then signal emptytree
+	   else return (rep$value_node (c).rightleaf)
+	   end
+	end right
+
+
+    % leaf returns the cell associated with the tree node.
+
+    leaf = proc (c:cvt) returns (cell) signals (emptytree)
+
+	if empty ( up(c) ) then signal emptytree
+	   else return ( rep$value_node (c).value)
+	   end
+	end leaf
+
+    %  insert inserts a cell into the tree.  If the name associated with
+    % the cell is already there it replaces the old cell with the new cell.
+
+
+    insert = proc ( thing:cell, c:cvt)
+
+	if empty ( up(c) )
+	   then rep$change_node ( c, 
+				  node${rightleaf:create(),
+					leftleaf:create(),
+					value:thing})
+	   elseif thing < rep$value_node(c).value
+	   then insert (thing, rep$value_node(c).leftleaf )
+	   elseif thing = rep$value_node(c).value
+	   then rep$value_node(c).value := thing
+	   else insert (thing, rep$value_node (c).rightleaf)
+	   end
+	end insert
+ 
+    end celltree

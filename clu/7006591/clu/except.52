@@ -1,0 +1,1396 @@
+.sr figure_name Figure \
+.sr table_name Table \
+.nr table_of_figures 1
+.nr tty_table_of_contents 1
+.nr verbose 1
+.nr immediate_figure 0
+.so csg;usual rmacs
+.so clu;clukey r
+.so csg;ref rmac
+.ls 2
+.fi
+.sr bind 5*
+.tr @ 
+.ref Boch
+Bochmann, G. V.
+Multiple exits from a loop without the GOTO.
+2Comm. of the ACM 16*, 7 (July 1973), 443-444.
+.em
+.ref Good
+Goodenough, J. B.
+Exception handling:  issues and a proposed notation.
+2Comm. of the ACM 18*, 12 (December 1975), 683-696.
+.em
+.ref Levin
+Levin, R.
+"Program Structures for Exceptional Condition Handling."
+Ph.D Thesis, Department of Computer Science, Carnegie-Mellon University,
+Pittsburgh, Pa., June 1977.
+.em
+.ref LSAS
+Liskov, B., A. Snyder, R. Atkinson, and C. Schaffert.
+Abstraction mechanisms in CLU.
+2Comm. of the ACM 20*, 8 (August 1977), 564-576.
+.em
+.ref LDRS
+2Proceedings of an ACM Conference on Language Design for
+Reliable Software*.  2SIGPLAN Notices 12*, 3 (March 1977).
+.em
+.ref Zahn
+Zahn, C. T., Jr.
+A control statement for natural top-down structured programming.
+2Programming Symposium*.  2Lecture Notes in Computer Science 19*,
+B. Robinet (Ed.), Springer-Verlag, N. Y., 1974, 170-180.
+.em
+STRUCTURED EXCEPTION HANDLING
+.br
+by
+.br
+Barbara Liskov
+.br
+Alan Snyder
+.sp 2
+1Abstract*
+	For programs to be reliable and fault tolerant,
+each program module must be defined to behave reasonably
+under a wide variety of circumstances.
+An exception handling mechanism supports the construction
+of such modules.
+This paper describes an exception handling mechanism developed as part
+of the CLU programming language.
+The CLU mechanism is based on a simple model of exception
+handling that leads to well-structured programs.  It is
+engineered for ease of use and enhanced program readability.
+This paper discusses the various models of exception handling,
+the syntax and semantics of the CLU mechanism, and methods of
+implementing the mechanism and integrating it in
+debugging and production environments.
+.chapter "Introduction"
+	Recently, there has been considerable emphasis on the
+development of programming language features that enhance the
+verifiability of programs [LDRS].
+While it is desirable that the task of developing correct programs
+be simplified as much as possible,
+another important goal of program construction is that
+the programs behave "reasonably" under a wide range of circumstances.
+Such programs have been variously termed as reliable, robust, or
+fault tolerant.
+	In a reliable program, each procedure 
+must be designed as generally as possible.
+It should respond in some way to all possible
+combinations of legal inputs (inputs satisfying the type constraints),
+and even when lower level modules on which this procedure is
+depending fail.
+Of course, different responses will be appropriate in the
+different cases.
+Even if the procedure cannot perform its intended task,
+in no case should it abort the program.
+	This paper describes a linguistic mechanism that supports
+the construction of reliable software.
+The mechanism, called an 2exception handling mechanism*, facilitates
+communication of certain information among procedures at different
+levels.  The mechanism supports the view that different responses are
+appropriate in different situations.
+We assume that for each procedure there is a set of circumstances
+in which it will terminate "normally";
+in general, this happens when the input arguments are in a certain
+range and the lower level modules (implemented in both hardware
+and software) on which the procedure depends are all working
+properly.
+In other circumstances, the procedure is unable to
+perform any action that would lead to normal termination,
+but instead must notify some other procedure (for example,
+the invoking procedure) that an 2exceptional condition*
+(or 2exception*) has occurred.
+	For example, suppose 2search* is a procedure that retrieves information
+associated with a given identifier in a symbol table.
+2Search* can return this information only if the
+identifier is present in the symbol table.
+The absence of the identifier constitutes an exceptional condition.
+Other exceptional conditions might also occur, for example,
+if the symbol table is implemented using a stack and the
+module implementing stacks is not working properly.
+Note that even if the software has been verified, the
+possibility of hardware failure implies that software modules may
+fail, as does the presence of resource constraints.
+	In referring to the conditions as exceptions rather than
+errors we are following Goodenough [Good].
+The term "exception" is chosen because, unlike the term
+"error", it does not imply that anything is wrong; this
+connotation is appropriate because an event that is viewed as an
+error by one procedure may not be viewed that way by another.
+In fact, the term "exception" indicates that something unusual has
+occurred, and even this may be misleading: 
+if the exception handling mechanism were efficient enough,
+exceptions might be used to convey information about normal
+and usual situations.
+For example, the 2search* procedure might terminate normally only
+if the identifier were a local variable of the current block
+and use the exception handling mechanism to convey extra information
+about non-local variables.
+	Exception handling mechanisms have been largely ignored
+in programming languages.
+For a discussion of
+existing mechanisms, the reader is referred to [Good] and [Levin];
+In our opinion, the existing mechanisms are overly powerful
+and ill-structured.
+For example, in the on-condition mechanism of PL/I, on-units are
+associated with invocations dynamically rather than statically,
+and global variables must be used to communicate data between
+the procedure performing the signal and the on-unit.
+Goodenough [Good]
+proposes a new mechanism that is more constrained and better
+structured.
+The mechanism presented in this paper is still more constrained.
+We also believe it to be conducive to the development of
+well-structured programs.
+	The mechanism we describe facilitates communication of information that can be
+used by programs (not programmers) to recover from erroneous data
+and failures.
+We do not discuss the methods, e.g. redundancy, that are used for
+fault detection and recovery.
+Mechanisms that are designed to facilitate fault detection and
+recovery, e.g., recovery blocks [recov], are complementary to ours,
+as was noted in [M-S].
+The mechanism we describe has been defined as part of the
+CLU programming language [LSAS].
+The mechanism is of general interest because it is
+constrained and simple 
+and because it has been carefully
+designed to be easy to use and to enhance program readability.
+The mechanism has been designed for a sequential language
+(without coroutines or parallel processes).
+Otherwise, however,
+the mechanism is not dependent on CLU semantics, and could be
+incorporated in any block-structured language.
+	In the next section we discuss the main decisions that must
+be made in designing an exception handling mechanism and the
+exception handling models that result from these decisions;
+we also discuss our decisions and our reasons for making them.
+In Section 3 we describe the syntax and semantics of the CLU exception
+handling mechanism.
+In Section 4 we discuss some methods of implementing the
+mechanism and also how the mechanism,
+although not intended to provide information of
+interest to programmers, can enhance programmer
+effectiveness in a debugging and a production environment.
+In Section 5, we discuss the expressive power of our
+mechanism and compare it with some other mechanisms of greater power.
+Finally, in Section we summarize and evaluate what we have done.
+.chapter "The Model"
+	To discuss exception handling we must first introduce
+some terminology about programs.
+The term 2procedure* will be used to mean program text,
+either in a higher level language or in machine language.
+A procedure implements a 2procedural abstraction*,
+which is a mapping from a set of argument objects to a set of
+result objects, possibly modifying some of the argument objects.
+A procedure may be 2invoked* (or called) by an 2invocation*,
+which is textually part of some procedure;
+that procedure is referred to as the 2caller*.
+Invocation results in 2activation* of the invoked procedure.
+An activation may 2signal* an exception; the invocation
+that caused the activation 2raises* that exception.
+The program text intended to be executed when an exception is
+raised is called the 2handler*.
+	Our model of exception handling involves the communication
+of information from the procedure activation that detects an
+exceptional condition (the 2signaller*) to some other
+procedure activation that is prepared to handle an occurrence of
+that condition (the 2catcher*).
+In designing this model, we faced two major questions:
+(1) which procedure activations may catch an exception signalled by a procedure
+activation and (2) does the signaller continue to exist after
+signalling.
+These two questions are independent and may be addressed separately.
+.section "Single Versus Multi-level Mechanisms"
+	The obvious candidates
+.foot
+Levin [Levin] discusses an additional set of candidates.
+We will discuss Levin's work in Section 5.
+.efoot
+for handling an exception
+signalled by some procedure activation are the
+activations in existence at the time the signal occurs.
+We can rule out the signaller itself, as exceptions are, by
+definition, conditions that the signalling procedure is unable to handle.
+The remaining question is whether to allow activations other than
+the immediate caller of the signaller to handle the exception.
+	Our answer to this question is based on the
+hierarchical program design methodology that CLU is intended to
+support [LSAS].
+As was explained above, each procedure implements a mapping.
+The caller of a procedure invokes the procedure to have
+the mapping performed;
+the caller need know only what the mapping is, and not how
+the procedure implements the mapping.
+Thus, while it is appropriate for the caller to know about the
+exceptions signalled by the procedure (and these are part of the
+abstraction implemented by that procedure), the caller should
+know nothing about the exceptions signalled by procedures used
+in the implementation of the invoked procedure.
+	The above considerations lead us to allow only the immediate
+caller of a procedure to handle exceptions signalled by that procedure.
+Of course, the caller can itself signal an exception,
+but that exception will then be part of the caller's
+abstraction.
+	We believe that the decision to limit handling of
+exceptions to the immediate caller is necessary for any
+well-structured exception handling mechanism.
+To maintain intellectual manageability of software,
+program structures that support understanding and verification
+through local code examination are needed.
+In particular, to understand how a procedure is implemented,
+one should not have to examine implementations of any other
+procedures.
+An understanding of the mappings performed by invoked procedures
+is needed, but this understanding should be obtained by reading
+specifications of those procedures and not their code.
+This requirement implies that specifications must describe all
+exceptions arising from invoking a procedure,
+including information about exceptions arising from
+procedures called at a lower level if the mechanism does not
+limit the handling of these exceptions.
+The point is that all exceptions that may be raised by a procedure,
+whether explicitly or implicitly, must be considered part of that
+procedural abstraction.
+Limiting the handling of exceptions to just the caller simply insures
+that the linguistic constructs match the proper conceptual view.
+Note, however, that this constraint does 2not* prevent the
+language designer from providing simplified ways of passing
+exceptions from one level to the next where appropriate.
+	The exception handling mechanism proposed by
+Goodenough [Good] does impose our constraint on handling exceptions.
+The PL/I mechanism does not, 
+nor does the mechanism of Lampson et al [Lampson].
+.section "Resumption vs. Termination Model"
+	The second question, whether the signaller should
+continue to exist after the exception is signalled, involves a
+tradeoff between expressive power and the complexity of
+the semantics.
+If the signaller can continue to exist after signalling, then
+it is possible that a catcher may fix up the exceptional condition
+so that processing of the signaller may be resumed.
+For this reason, we refer to this model as the 2resumption model*.
+The model in which the signalling activation ceases to exist we refer
+to as the 2termination model*.
+	In this section we assume that the decision to support a
+one-level mechanism has been made, and we therefore limit our
+analysis to this case.
+A one-level resumption model works as follows:  
+Suppose that there are three procedures 2P, Q*, and 2R*, and that
+2P* invokes 2Q* and 2Q* invokes 2R*.
+If 2R* signals an exception 2r*, then 2Q* must
+handle it.
+Let Hr denote the statements in 2Q* that handle 2r* (2Hr*
+is the handler for 2r*).
+In the course of handling 2r*, 2Hr* may signal an exception 2q*,
+which
+must be handled by 2P* (since P is the caller of Q).
+.foot
+If dynamic scopes for exception names are used
+(as is done in PL/I),
+then 2R* would be required to handle 2q*.
+Making this assumption leads to a model at least as complex as
+the one we are considering.
+Furthermore, it is impossible under this assumption for a
+procedure to reflect an exception to its caller, i.e., enlist its
+caller's aid in handling an exception,
+without resorting to a multilevel mechanism.
+.efoot
+Let 2Hq* denote
+the statements in 2P* that handle 2q*,
+and 2Hq* is the handler for 2q*.
+When 2Hq* terminates, then 2Q* is resumed in the
+middle of 2Hr*;
+only when 2Hr* terminates is the execution of 2R*
+continued.
+.nr resumption current_figure
+This situation is illustrated in Figure resumption.
+.begin_figure "Flow of control in resumption model."
+.table
+			P
+
+	signals q	   invokes	resumes
+
+			Q
+
+	signals r	   invokes	resumes
+
+			R
+
+.ns
+.end_table
+.finish_figure
+Note that information
+about signals flows upward one level at a time, while
+resumption flows downward one level at a time;
+multi-level flow is not permitted in either direction.
+	This resumption model is most easily understood by
+viewing the handler as an implicit procedure parameter of
+the signaller.
+The handler is called by the signaller when the exception it
+handles is signalled.
+The handler procedure is declared in the calling procedure,
+and its free variables get their meaning in the caller's
+environment, as do any exceptions it signals.
+.foot
+That is, exception names have static scope.
+In PL/I the names of exceptions have dynamic scope.
+.efoot
+	The complexity of the resumption model can be
+appreciated by considering its effect on the semantics of
+procedural abstractions
+The ordinary view of procedures is that, in the absence of recursion,
+the calling procedure is dependent on the called procedure but
+not vice versa.
+However, in the resumption model, the signaller and catcher are
+mutually dependent:  the catcher invoked the signaller to perform
+some mapping, or satisfy some input/output relation, but the
+signaller depends on (the handler in) the caller to satisfy a similar relation
+when an exception is signalled.
+	To specify the behavior of a procedural abstraction in the
+resumption model, it is necessary to state for each exception what
+behavior the signaller expects from the handler, and also to state
+how the behavior of the handlers affects the behavior of the
+signaller.
+.foot
+For a presentation of proof rules for a particular resumption
+model, see [Levin].
+.efoot
+The expected behavior of each handler can be given by a pair of assertions
+.table
+		Pree {he} Poste
+.end_table
+where 2Pree* is an assertion that will be true when
+exception 2e* is signalled, and 2Poste* is an
+assertions signalled, and 2Poste* is an assertion
+that must be true when a handler 2he* returns to the signaller.
+In general 2Poste* can be subdivided as follows:
+.table
+		Poste equiv (Succeede or Faile) & Ie
+.end_table
+2Ie* represents some invariant on variables shared
+by the signaller and handler that must be presumed by the handler.
+The other clause shows that in general a handler may not succeed
+in clearing up the problem that led to the signal.
+2Succeede* is a predicate (again over variables shared
+by the signaller and handler) that will be true if the handler
+did succeed, while 2Faile* will be true if it did not.
+	Now consider what the full specification of the signaller
+is like.
+An assertion will be needed that describes its behavior in case
+it terminates successfully.
+This assertion will have as a pre-condition a predicate stating
+that either no exception was raised, or that every exception raised
+was handled successfully.
+In addition, since in general, the signaller cannot always complete
+successfully, additional assertions will be needed to describe alternative
+termination states.
+The postcondition for such an assertion will describe the termination
+state while the precondition will describe the
+situation that led to that state.
+	The complexity of the resumption model also shows up in the
+syntax and semantics of a supporting linguistic mechanism.
+It is fairly common when a handler cannot correct the problem that
+caused the signal that there is nothing useful left for the
+signaller to do, other than possibly clean up (restore some non-local
+variables to a consistent state).
+A good resumption mechanism will provide support for programming
+this common case.
+The complexity of such a mechanism is illustrated
+by Goodenough's proposal [Good], which is a carefully
+considered design of a complete mechanism supporting the resumption model.
+Three types of signals are recognized, corresponding to
+cases where the signaller may not be resumed, must be
+resumed, or where resumption is optional.
+In case the caller is unable to resume a signaller that must or
+could be resumed, a special ability is provided to permit the
+signaller to clean up before its activation is terminated.
+In addition, a default mechanism is provided to permit
+the signaller to handle its own exception in case the caller does not.
+	In the termination model, mutual dependencies between
+caller and called procedure do not arise:  the caller is dependent
+on the called procedure, but not vice versa.
+However, different kinds of behavior are expected of the called
+procedure under different conditions.
+The view taken is that a procedure may terminate in one of a number
+of conditions.
+One of these is the 2normal condition*, while others are
+2exception conditions*.
+In each condition, it may be convenient to return a number of result
+objects; these will differ in number and type in the different conditions.
+In any case, the environment must be cleaned up before termination.
+	Specification of the behavior of a procedural abstraction
+is straightforward under the termination model.
+Each procedure is specified by a number of clauses, one for the normal
+case and one for each exception case.
+Note that such clauses also exist in the resumption model,
+since it was still possible that the signaller would be
+unable to terminate normally
+	For example, the 2mod* operation for integers could be specified
+by two clauses as follows:
+		y =/ 0 {m := mod(x, y)} m = x 1mod* y
+		y = 0 {m := mod(x, y)} "zero_divide"
+.br
+(where 1mod* stands for the mathematical modulo function).
+Note that in the case of the 2zero_divide* exception,
+no result object is returned, and therefore, there is no
+meaningful value to assign to 2m*.
+The handler mechanism described in the next section is defined to
+allow control flow to be altered so that code in the caller that depends on
+the value of 2m* is not executed.
+	The termination model requires a simpler linguistic
+mechanism for its support than does the resumption model.
+Since a signal terminates the signaller, there is no need for
+multiple kinds of signals.
+Also, special mechanisms for cleaning up are not needed.
+	Since the termination model is simpler,
+both in the semantics of procedural abstractions and in the
+linguistic mechanisms needed,
+it is preferable to the resumption
+model, provided it supplies adequate expressive power.
+We conjecture that the expressive power is adequate: 
+that cases handled awkwardly by the termination model and simply
+by the resumption model are not frequent.
+We will discuss this conjecture 
+further in Section 5.
+.chapter "Syntax and Semantics of the CLU Exception Mechanism"
+	In Section 2 we explained the rationale for our major decisions:
+.list
+1.@@The exceptions signalled by a procedure must be caught by the
+immediate caller.
+.next
+2.  Signalling an exception terminates the signalling procedure.
+.end_list
+These two decisions lead to a single-level termination
+model of computation in which a procedure
+may terminate in one of a number of conditions.
+Thus, instead of a single return path, each procedure has several
+return paths.
+One of these is considered the normal path,
+while others are considered exceptional.
+In each case, result objects may be returned;
+the result objects may differ in number and type in the
+different cases.
+	An exception handling semantics that terminates execution
+of the signalling procedure could be incorporated in a programming
+language with no additional mechanism.
+The signalling procedure could simply return, passing back
+in addition to the real result objects
+a tag that identifies the
+reason for termination. 
+Indeed, such a convention is often adopted as a way of dealing
+with exceptions in a language that has no exception handling mechanism.
+However, this approach has a major defect:  every invocation must be
+followed by a conditional test to determine what the outcome was.
+This requirement leads to programs that are
+difficult to read, and probably inefficient as well,
+thus discouraging
+programmers from signalling and handling exceptions.
+	To aid programmers in building reliable software,
+an exception handling mechanism must be devised that can be
+implemented efficiently and that enhances program readability.
+In the remainder of this section we describe the CLU
+exception handling mechanism, which was developed to
+satisfy these goals.
+The discussion identifies some problems that arise in
+designing any such mechanism;
+the CLU mechanism provides a possible set of solutions to
+these problems.
+.section "Signalling"
+	To provide a convenient method of signalling
+information about exceptions, we included directly in CLU the model
+of a procedure having many kinds of returns.
+A CLU procedure, therefore, can terminate in the normal way
+by returning and can terminate in an exceptional condition
+by signalling.
+In each case, result objects, differing in number and type,
+can be returned.
+	The information about the ways in which a procedure
+may terminate must be included in its heading.
+For example, the procedure performing integer division
+has the following heading:
+.table
+	div = proc (x, y: int) returns (int) signals (zero_divide)
+.end_table
+which indicates that 2div* may terminate by returning a
+single integer (the quotient of the two input arguments)
+or by signalling 2zero*_2divide* (which indicates that the
+second argument was zero) and returning no results.
+	A CLU procedure terminates its execution by performing
+a 2return statement* or a 2signal statement*.
+The return statement terminates execution normally, while
+the signal statement terminates execution in the named
+exceptional condition.
+For example, the following (fairly useless) procedure determines
+the sign of an integer:
+.table
+	sign = proc (x: int) returns (int) signals (zero, neg (int))
+	         if x < 0 then signal neg (x)
+	              elseif x = 0 then signal zero
+	              else return (x)
+	              end
+	         end sign
+.end_table
+	The information in the procedure heading is used to check that
+the exception names actually signalled are the correct ones and that
+the correct number and types of result objects are returned in both
+the normal and exceptional cases.
+This information is also used to determine that the exceptions
+handled by a calling procedure are named in the heading of the
+called procedure, and that, again, the number and types of result
+objects are correct in both the normal and exceptional cases.
+.section "Handling Exceptions"
+	In CLU, exceptions arise only from invocations.
+.foot
+Except for the special exception 2failure* (described in Section 3.4),
+which may be signalled at any point by the underlying implementation of CLU.
+.efoot
+In particular, all uses of infix and prefix operators in CLU are
+considered to be "syntactic sugar" for invocations.
+For example, the expression
+.table
+		x + y
+.end_table
+is syntactic sugar for the invocation
+.table
+		t$add (x, y)
+.end_table
+where 2t* is the type of 2x*.
+Thus if 2x* is an integer, 2x* + 2y* is an invocation of
+the integer addition operation.
+This viewpoint permits exceptions arising from built-in operations
+and user-defined procedures to be treated uniformly.
+.foot
+The viewpoint does 2not* require that an expression be
+implemented by a closed routine; in-line code is perfectly
+permissible and consistent.
+.efoot
+	In this section we discuss how handlers are associated
+with invocations.
+For useability and program readability, it is necessary
+to permit considerable flexibility in the placement of handlers.
+For example, requiring that the text of a handler be attached to the
+invocation that raises the exception would lead to
+unreadable programs in which expressions were broken up with
+handlers.
+Furthermore, the control flow of a program is often affected by the
+occurrence of an exception (for example, an 2end*_2of*_2file*
+exception will terminate a loop).
+Therefore, our mechanism was designed to permit placement of a handler
+where the programmer deemed convenient, out of the main flow when
+possible to enhance readability, and altering the control flow
+when this was desired.
+	Two major decisions determined the form of CLU exception handling
+statements:
+.br
+.ne 4
+.list
+1.  Handlers are statically associated with invocations.
+.next
+2.  Handlers may be attached only to statements, not to expressions.
+.end_list
+Static association means that the handler associated with
+a particular exception condition that may be raised by a
+particular invocation can be determined by static
+analysis of the program text.
+This decision enhances not only program readability, but makes
+possible a more efficient implementation
+of the exception handling mechanism.
+	The decision to attach handlers only to statements and not expressions
+was made to simplify the mechanism.
+When a handler attached to an expression terminates,
+unless an explicit return, signal, or exit (see Section 3.3)
+is performed, it must provide a value to be used as the
+value of the expression.
+By allowing handlers to be attached only to statements, we
+avoid providing a mechanism for substituting new
+values for expressions.
+We believe that the need to substitute a value for an expression is not
+great.
+In any case, the effect of attaching handlers to expressions can usually
+be obtained by breaking up complex expressions into
+sequences of assignment statements.
+	Handlers are placed in CLU programs by means of the
+2except statement*, which has the form
+.table
+		2statement* except 2handler list* end
+.end_table
+This statement has the following interpretation:  the 2statement*
+raises all the exceptions raised by the invocations it
+textually contains, excluding those handled by embedded
+except statements.
+The 2handler list* will handle some subset (possibly all) of these exceptions.
+The except statement as a whole raises all the exceptions of
+the 2statement* that are not handled by the 2handler list* plus any
+exceptions raised by the 2handler list*.
+Thus, when an exception is raised by an invocation, control goes to
+the innermost handler that handles that exception and is part of an
+except statement containing the invocation in
+its 2statement* part.
+	Each handler in the 2handler list* names one or more
+exceptions to be handled, followed by a list of statements
+(called the 2handler body*) describing what to do.
+Permitting several exceptions to be named in the same handler
+avoids code duplication when the exceptions are all handled
+in the same way.
+	Several different forms are available for handlers depending
+on whether the named exceptions have associated result objects
+and whether those objects are used in the handler body.
+To handle one or more exceptions with no associated objects,
+the exception names are simply listed.
+For example,
+.table
+	when underflow, zero_divide:  2body*
+.end_table
+will handle exceptions named 2underflow* and 2zero*_2divide*,
+neither of which has any associated result objects.
+	To handle exceptions with result objects that are to be
+used in the handler body, names must be associated with the
+objects.
+Again a list of exception names is given, but it is followed by
+declarations of local variables to name the result objects,
+for example,
+.table
+	when e1, e2 (s: string, i: int): 2body*
+.end_table
+The scope of the declarations is the handler body.
+All of the named exceptions must return
+objects of the types listed in the declaration, in the order stated.
+When the handler is executed, these objects are bound to the
+declared variables and the body is executed.
+(This binding is similar to the binding of formal arguments to
+actual arguments that occurs when procedures are invoked.
+However, a return or signal in the handler body, rather
+than terminating just the handler, will instead terminate the
+entire enclosing procedure.)
+	To handle exceptions with result objects when the objects are not
+used in the handler body, the list of exception names is
+followed by (*) as shown below:
+.table
+	when neg, underflow (*):  2body*
+.end_table
+There need be no agreement between the number and types of result
+objects associated with the exceptions in this form; for example,
+the 2neg* exception had a single argument, while 2underflow* had none.
+This form encourages a programming style in which a
+procedure returns all possibly
+useful information when signalling;
+if this information is not needed in
+the calling procedure, it can easily be ignored.
+	If the
+programmer wishes to handle all remaining exceptions without
+listing their names, one of the two following forms can be used
+as the last handler in an except statement.
+The form
+.table
+	others: 2body*
+.end_table
+will handle all remaining exceptions;
+information about exception names and result objects is lost.
+If information about the exception name is desired, the form
+.table
+	others (e_name: string): 2body*
+.end_table
+may be used.
+Here the name of the exception is given to the handler body
+as a string.
+	The handler body may contain any legal CLU statement.
+If the handler body returns or signals,
+then the containing procedure will be terminated
+as discussed in Section 3.1.
+The handler body may also be terminated by an exit (see next section)
+or because an invocation within it raises an exception that is not
+handled within the handler body.
+Otherwise, when the handler body is finished,
+the next statement following the except statement in the normal flow
+will be executed.
+	The example below illustrates the association of handlers
+with exceptions:
+.table
+	begin   % start of inner block
+	     S1 except
+	               when e: x := sign (x)
+	               when zero: S2
+	               end
+	     ...
+	    end   % end of inner block   
+	      except
+	           when zero: S3
+	           end
+.end_table
+Statement 2S1* contains invocations that raise (at least)
+exceptions 2e* and 2zero*.
+Note that if 2zero* is raised by an invocation in 2S1*,
+it will be handled by 2S2*, not 2S3*.
+However,
+if 2zero* is raised by the invocation of the
+2sign* procedure contained in the handler for exception 2e*,
+then statement 2S3* will be executed, not 2S2*.
+.section "Exits and the Placement of Handlers"
+	Our intention in defining the except statement is to
+permit the programmer to position handlers as is convenient.
+There are two constraints on the placement of handlers:
+.list
+1.@@The handler must be placed on the statement whose execution is
+to be terminated if the handler body terminates without returning
+or signalling.
+.next
+2.@@Suppose that an exception named 2e* is raised by
+two invocations, and we wish to handle the occurrences of
+2e* differently.
+We do not permit multiple handlers to be provided for
+2e* in a single except statement.
+(This rule holds even if the invocations raising 2e* provide
+different numbers or types of result objects; we do not allow
+such information to be used in selecting a handler.)
+Therefore, the two handlers must be in two except statements,
+each situated such that only one of the invocations raising
+2e* is in its scope.
+.end_list
+	These two constraints may conflict.
+For example, suppose that within a statement,
+2S*, the procedure 2sign*, mentioned earlier, is invoked
+at two different points.
+Suppose also that the programmer wishes to handle the 2neg*
+exception signalled by 2sign* in a different manner for each
+of the two invocations, but in each case wishes execution to then continue with the
+statement following 2S*.
+The first constraint would require that both handlers
+be placed on 2S*, so that the execution of 2S*
+would be terminated when the exceptions are raised.
+However, the second constraint requires that at least one
+handler be placed within 2S* to resolve the ambiguous association
+between the invocations and the handlers.
+	We resolve this conflict in CLU by the addition of an exit
+mechanism, similar to those proposed by Zahn [Zahn] and Bochmann [Boch].
+The handlers are placed near the invocations.
+.nr exit current_figure
+They terminate by
+exiting to a handler attached to the statement 2S*.
+For example, one could handle the 2neg* exceptions as shown
+in Figure exit.
+.begin_figure "Example illustrating use of exit mechanism."
+.table
+	begin   % beginning of S
+	  a := sign(x)
+	    except when neg(i: int):
+	            S1
+	           exit done
+		    end
+	  b := sign(y)
+	    except when neg(i: int):
+		    S2
+		    exit done
+		    end
+	  ...
+	  end   % end of S
+	    except when done:
+	       ...
+	       end
+.ns
+.end_table
+.finish_figure
+	The exit statement can be used anywhere within a CLU procedure;
+its use is not restricted to handler bodies.
+The exit statement is similar to the signal statement, except that
+while the signal statement signals the condition to the calling
+procedure activation, the exit statement directly raises
+the condition so that it can be handled
+in the same procedure activation.
+The exit statement can specify a number of result objects to be
+passed to the handler.
+	We chose to have separate mechanisms for exits and exceptions
+(rather than using signal for both exits and exceptions)
+because the two mechanisms capture different programmer intentions
+and thus naturally have different restrictions on their use.
+The intent of an exit is a local transfer of control.
+Thus, we require that exits be handled in the same procedure
+activation where they are raised.
+Furthermore,
+we require that exits be handled
+by a when arm
+(not an others arm), and if there are
+result objects, these must be accepted as arguments by the handler.
+The justification for these requirements is that exit names
+and result objects (unlike exception names and result objects)
+are under the control of the programmer of the procedure,
+and therefore should be chosen to mean something within
+that procedure.
+	The exit mechanism meshes nicely with the exception handling
+mechanism.
+In fact, the signal statement can be viewed simply as terminating a
+procedure invocation
+and exiting to the appropriate handler in the caller.
+.section "Uncaught Exceptions"
+	Now we address the question of what happens if a
+procedure provides no handler for an exception raised by some
+contained invocation.
+One possibility would be to treat this as an error;
+the compiler can detect this error and complain at compile time.
+This is the approach taken by Goodenough [Good].
+	We have taken another approach.
+We felt it was unrealistic to require the programmer to provide
+handlers in the case where no meaningful action can be taken.
+One situation in which this will occur is when
+a used abstraction is
+not working properly.
+For example, consider the statement
+.table
+	if ~ stack$empty(s) then
+	     ...
+	     x := stack$pop(s)
+	     ...
+	     end
+.end_table
+Here the programmer invokes the 2pop* operation for stacks only
+when the stack is non-empty.
+Now suppose that nevertheless stack underflow occurs.
+This situation is unlikely to arise in a debugged or verified
+program (but see Section 4).
+If it does arise, it indicates that the stack abstraction is not
+behaving correctly and often there is no appropriate action for this
+procedure to take other than to report the fact to its caller.
+Since almost every abstraction can potentially behave
+incorrectly or in a way not expected by its caller,
+procedures must always be prepared to handle such cases.
+However, the action taken is almost always the same,
+and to require explicit handling of such cases would load
+every procedure with uninteresting code.
+	To facilitate reporting of failures and to relieve
+the programmer of the burden of handling such errors,
+CLU has one language-defined exception, named 2failure*.
+2Failure* has one associated result object, a string that
+may contain some information about the cause of the failure.
+Every procedure can potentially signal 2failure*;
+therefore 2failure* is implicitly an exception of every
+procedure and may not be listed in the procedure heading explicitly.
+2Failure* may be signalled explicitly, however, in the
+usual way:
+.table
+	signal failure ("reason is ...")
+.end_table
+	The most common way that 2failure* is signalled,
+however, is by an uncaught exception being automatically turned
+into a 2failure* exception.
+For example, procedure 2nonzero*
+.table
+	nonzero = proc (x: int) returns (int)
+		  return (sign (x))
+			except
+				when neg (y: int): return (y)
+				end
+		  end nonzero
+.end_table
+does not catch exception 2zero* signalled by 2sign*.
+If this exception is signalled, the invocation of 2nonzero*
+will be terminated with the exception
+.table
+	failure ("unhandled exception: zero")
+.end_table
+The effect is equivalent to attaching a handler to the
+procedure body, e.g.,
+.table
+	nonzero = ...
+		  ...
+		  except
+			others (s: string): signal failure ("unhandled exception: " || s)
+			end
+		  end nonzero
+.end_table
+Here the symbol || is string concatenation.
+	A common case in which an exception will not be handled is when
+the unhandled exception is 2failure*.
+Note that in this case it is
+the string argument of 2failure* (rather than the
+string "failure") that is of interest.
+Therefore this string is
+retained when 2failure* is passed up to the next level.
+This effect is equivalent to attaching to the procedure body
+the handler
+.table
+	except
+		when failure (s: string): signal failure (s)
+		end
+.end_table
+	Sometimes before signalling 2failure* some cleaning up
+is needed.
+In this case, the others or failure form is used explicitly, and after cleaning up,
+2failure* is signalled explicitly.
+.section "Example"
+	We now present an example demonstrating the use of
+exception handlers.  We will write a procedure, 2sum_stream*,
+which reads in a sequence of signed decimal
+integers from a character
+stream and returns the sum of those integers.
+The input stream is viewed
+as containing a sequence of fields separated by spaces and new lines;
+each field must consist of a non-empty sequence of
+digits, optionally preceded by a single minus sign.
+2Sum_stream* has the form
+.table
+	sum_stream = proc (s: stream) returns (int)
+			signals (overflow,
+				unrepresentable_integer (string),
+				bad_format (string))
+		. . .
+		end sum_stream
+.end_table
+2Sum*_2stream* will signal 2overflow* if the sum of the
+numbers or an intermediate sum is outside the implemented range of integers.
+2Unrepresentable*_2integer* will be signalled if the stream contains
+an individual number that is outside the implemented range of
+integers.  
+2Bad*_2format*
+will be signalled if the stream contains a
+field that is not an integer. 
+.nr sum_stream current_figure
+	An implementation of 2sum_stream* is presented in
+Figure sum_stream.
+.begin_figure "The sum_stream procedure."
+.table
+.in 8
+sum_stream = proc (s: stream) returns (int)
+		signals (overflow,
+			 unrepresentable_integer (string),
+			 bad_format (string))
+	sum: int := 0
+	while true do
+		sum := sum + get_number (s)
+		end
+	  except
+	    when end_of_file:
+		return (sum)
+	    when unrepresentable_integer (num: string):
+		signal unrepresentable_integer (num)
+	    when bad_format (num: string):
+		signal bad_format (num)
+	    when overflow:
+		signal overflow
+	    end
+	end sum_stream
+.in 0
+.end_table
+.finish_figure
+It consists of a simple loop that accumulates the sum, using a
+procedure 2get_number* to remove the next integer from the stream.
+2Get_number* will signal 2end_of_file* if the stream contains
+no more fields, in which case 2sum_stream*
+will return the accumulated sum.
+2Get_number* will also signal 2bad_format* or
+2unrepresentable_integer* if an invalid field is encountered;
+these exceptions are passed upward by 2sum_stream*.
+The 2overflow* handler in 2sum_stream* catches exceptions
+signalled by the int$add procedure, which is invoked using
+the infix + notation.
+We have placed the exception handlers on the while
+statement for readability;
+they could also have been placed directly on the assignment statement.
+.nr get_number current_figure
+	The procedure 2get_number* is presented in Figure get_number.
+.begin_figure "The sum_stream procedure."
+.table
+.in 8
+get_number = proc (s: stream) returns (int)
+		signals (end_of_file,
+			 unrepresentable_integer (string),
+			 bad_format (string))
+	field: string := get_field (s)
+	    except when end_of_file:
+		signal end_of_file
+		end
+	return (s2i (field))
+	  except
+	    when unrepresentable_integer:
+		signal unrepresentable_integer (field)
+	    when bad_format, invalid_character (*):
+		signal bad_format (field)
+	    end
+	end get_number
+.in 0
+.end_table
+.finish_figure
+It calls a procedure 2get_field* to obtain the next field
+in the stream and then uses 2S2i* to convert the returned string
+to an integer.
+2S2i* has the following form:
+.table
+	s2i = proc (s: string) returns (int)
+		signals (invalid_character (char),
+			   bad_format,
+			   unrepresentable_integer)
+		. . .
+		end s2i
+.end_table
+2S2i* will signal 2invalid*_2character* if the string 2s*
+contains a character other than a digit or a minus sign.
+2Bad*_2format* will be signalled if 2s* contains
+a minus sign following a digit, more than one minus
+sign, or no digits.  2Unrepresentable*_2integer* will be
+signalled if 2s* represents an integer that is outside
+the implemented range of integers.
+2Get_number* handles the exceptions signalled by 2get_field*
+and 2s2i* and reflects them upward in terms that are meaningful
+to its callers.
+Although some of the names may be unchanged, the meanings of the
+exceptions (and even the number of arguments)
+are different in the two levels.
+Note the use of the (*) form in the handler for the
+2bad_format* and 2invalid_character* exceptions
+since the signal arguments are not used.
+.nr get_field current_figure
+	The 2get_field* procedure is presented in Figure get_field.
+.begin_figure "The sum_stream procedure."
+.table
+.in 8
+get_field = proc (s: stream) returns (string) signals (end_of_file)
+	field: string := ""
+	begin	% delimits scope of outermost end_of_file handler
+		c: char := stream$getc (s)
+		% search for field
+		while c=' ' cor c='\n' do
+			c := stream$getc (s)
+			end
+		% accumulate field
+		while c~=' ' cand c~='\n' do
+			field := string$append (field, c)
+			c := stream$getc (s)
+			    except when end_of_file:
+				return (field)
+				end
+			end
+		end
+		    except when end_of_file:
+			signal end_of_file
+		        end
+	return (field)
+	end get_field
+.in 0
+.end_table
+.finish_figure
+It uses the following operation of the 2stream* data type:
+.table
+	getc = proc (s: stream) returns (char) signals (end_of_file)
+	       . . .
+	       end getc
+.end_table
+The 2stream$getc* operation returns the next character
+from the stream and signals 2end*_2of*_2file* if the stream is empty.
+Note that if 2end_of_file* is signalled when a field is being
+accumulated, then that field is returned.
+Otherwise, 2get_field* signals 2end_of_file*.
+.section "On Disabling Exceptions"
+	One question that naturally arises about an exception
+handling mechanism is whether exceptions can be disabled.
+By disabling exceptions two kinds of savings can (potentially)
+be realized:  the time spent detecting the occurrence of the
+exception can be saved, and the space used for the handlers and the
+information used to find the handlers can be saved.
+However, it is unacceptable if the result of disabling exceptions
+is that errors still occur, but are simply not recognized.
+Therefore, we do not believe that providing a means for programmer
+disabling of exceptions is consistent with encouraging good
+programming practice, and no such mechanism has been provided
+in CLU.
+	The situation still arises, however, in which it is possible
+to 2guarantee* that the exception cannot occur, and it is
+desirable to take advantage of that guarantee to generate more
+efficient code.
+Looked at in this way, disabling of exceptions is seen as a kind of
+program optimization technique, since program optimization makes
+use of properties detected from program analysis to control the
+generation of code.
+There are two ways in which such properties can be detected.
+First, the combination of in-line substitution followed by
+analysis across module boundaries can result in more efficient
+code.
+For example, consider
+.sp
+	if ~stack$empty(s) then x := stack$pop(s)
+.sp
+where 2s* is a 2stack*.
+If both 2empty* and 2pop* are expanded inline, the result
+will be code roughly like
+.table
+	if s.size > 0   % body of empty
+	     then   % body of pop
+	          if s.size > 0 then ...
+.end_table
+Conventional techniques like redundant expression elimination
+and dead code removal
+can then be used to improve the code.
+	Alternatively, it would be fruitful to integrate the
+activities of a program verification system with the compiler.
+Then, for example, a verifier might prove of the user of 2s*
+that 2pop* is never called if 2s* is empty.
+This assertion could then be used later to control the
+compilation of both the program using 2s*, and the program implementing the 2stack*
+module.
+.chapter "Implementation, Debugging, and Diagnostics"
+	In this section we discuss some implementation issues.
+First we sketch some methods for implementing the exception
+handling mechanism.
+Then we discuss how the mechanism can be incorporated in a
+debugging environment and in a production environment.
+.section "Implementation"
+	There are several possible methods of implementing the exception
+handling mechanism.
+As usual, tradeoffs must be made between efficiency of space and time.
+We believe the following are appropriate criteria for an implementation:
+.list
+1.@@normal case execution efficiency should not be impaired at all.
+.next
+2.@@exceptions should be handled reasonably quickly, but not necessarily as fast as possible.
+.next
+3.@@use of space should be reasonably efficient.
+.end_list
+The tradeoff to be made is the speed with which exceptions are
+handled versus the space required for code or data used to locate handlers.
+	The implementation of signalling an exception involves the
+following actions:
+.list
+1.@@discarding the activation record of the signalling activation
+(but saving the result objects associated with the exception).
+.next
+2.@@locating the appropriate handler in the calling procedure.
+.next
+3.@@adjusting the caller's activation record to reflect the possible
+termination of execution of expressions and statements.
+.next
+4.@@copying the result objects into the caller's activation record.
+.next
+5.@@transferring control to the handler.
+.end_list
+Actions (3) and (5) are equivalent to a 1goto* from the invocation
+to the handler.
+Actions (1) and (4) are similar to those occurring in normal
+procedure returns.
+Because the association between invocations and handlers is static,
+the compiler can provide the information needed to perform actions (2) and (3).
+Below we sketch two methods of providing this information;
+these methods differ considerably in their performance characteristics.
+	The first method, called the 2branch table method*, is to follow
+each subroutine call with a branch table containing one entry for each
+exception that can be signalled by the procedure being called.
+The invocation of a procedure whose heading lists 2n* exceptions
+will have a branch table of 2n* + 1 entries;
+the first 2n* entries correspond to the exceptions
+listed in the procedure heading, while
+the last entry is for 2failure*.
+In each case, an entry contains the location of a handler
+for the corresponding exception.
+	Using this method, return and signal are easy to
+implement:
+return transfers control to the location following the
+branch table, while signal transfers control to the location
+stored in the branch table entry for the exception being signalled.
+The information needed to adjust the caller's activation record could
+.nr branch current_figure
+be stored with the handler,
+as could information about whether to discard the returned objects
+and whether this is an others handler;
+for example, this information could be stored in a table placed
+just before the first
+instruction of the handler.
+An example is given in Figure branch of the code generated by
+this method.
+.begin_figure "Sketch of code generated by the branch table method."
+.table
+Code for invocation p( ) of p = proc ( ) returns ( ) signals (e1, e2):
+.sp
+			call   p
+			elhandler		; branch table
+			e2handler
+			failurehandler
+			...			; normal return here
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+			s1			; new activation record size
+			...			; other information about the handler
+	e1handler:	...			; code for e1 handler
+.ns
+.end_table
+.finish_figure
+	The branch table method provides for efficient signalling of
+exceptions, but at a considerable cost in space,
+since every invocation must be followed by a branch table
+(all invocations may at least signal 2failure*).
+The following method trades off some speed for space.
+It was designed under the assumption that there are many fewer
+handlers than invocations, which is consistent with our experience
+in using the mechanism.
+	This second method, the 2handler table method*, 
+is the one used by the
+current CLU implementation.
+The method
+works
+as follows.
+Rather than build a branch table per invocation, the compiler
+builds a single table for each procedure.
+This table contains an entry for each handler in the procedure.
+An entry contains the following information:
+(1) a list naming the exceptions handled by the handler (a null list
+can be used to indicate an others handler),
+(2) a pair of values defining the 2scope* of the handler,
+that is, the object code corresponding to the statement to which the
+handler is attached,
+(3) the location
+of the code of the handler, (4) the new activation record size, and
+(5) an indicator of whether the returned objects are used in the
+handler.
+The scope and exceptions list together permit candidate handlers to
+be located; only an invocation occurring within the scope and
+raising an exception named in the exception list can possibly be
+handled by the handler (for an others handler, only the
+scope matters).
+	In this method, a return statement is implemented just
+as it would be in a language without exception handling.
+A signal statement requires searching the handler table
+to find entries for candidate handlers;
+if several entries exist, the one with the smallest scope is selected.
+Listing information for handlers in the (linear) order in which the
+handlers appear in the source text guarantees that the first
+handler to match is the handler to use.
+Unhandled exceptions can be recognized either by the absence of
+candidates or by storing one additional entry at the end of the handler
+table for this case.
+.section "Debugging and Diagnostics"
+	As we mentioned in the Introduction, our exception handling
+mechanism is designed explicitly to provide information that
+programs (not programmers) can use to recover from exceptional conditions.
+However, the mechanism can also merge smoothly with mechanisms intended
+to collect information of interest to programmers.
+The kind of behavior desired will differ, however, from a
+debugging environment to a production environment.
+	In an interactive debugging environment it is likely that
+a programmer would wish to be informed about the occurrence of
+some or all exceptions as they are signalled and be given
+a chance to handle them himself or take some other corrective action.
+Two possible modes might be useful here:  
+The programmer may be interested only in signals of 2failure*
+(especially those resulting from unhandled exceptions), or he may
+in addition name some particular exceptions of interest.
+	An exception handling mechanism running in such an
+environment, before locating a handler, would consult some debugging
+system information to determine if the current exception is one that
+the programmer wishes to know about.
+If the exception is of interest to the programmer, then system
+routines can be invoked to initiate a dialogue with the programmer.
+This dialogue may result in the program being continued or terminated.
+	It is worth noting that one argument in favor of the
+resumption model has been that it integrates debugging with program
+execution.
+The programmer (or actually the system as his representative)
+is thought of as the highest level activation, which will handle all
+exceptions not otherwise handled and which may later resume execution
+of some lower level activation.
+Note that this viewpoint allows the programmer to examine only unhandled
+exceptions.
+At any rate, we believe that it is not productive to try to merge debugging
+with ordinary processing, since the requirements in the two cases are
+quite different.
+	In a production environment, there is no programmer available
+to interact with the program.
+Of course, there may be an operator present, and a program may
+attempt to recover by requesting some operator action
+(e.g., mounting a tape).
+This action can be accomplished by ordinary program structures
+(e.g., invoking a procedure to print a message on the operator's console).
+	When 2failure* occurs in a production environment, there is
+still a good chance that program error is responsible.
+Therefore, it would be helpful if information about the failing
+programs were collected	for later examination by a programmer.
+This capability can easily be provided.
+Whenever 2failure* is signalled, the exception handling
+mechanism can output information about each activation before
+terminating it.
+In the case of the first implicit signal of the "unhandled exception"
+failure, the mechanism should also provide information about the
+activation that signalled the unhandled exception.
+The information collected as 2failure* propagates upwards will
+provide a trace of the failing program, which should be
+helpful for the programmer who determines later what the problem was.
+Debugging in a batch environment can be facilitated similarly,
+except that information about more exceptions than just 2failure* may
+be of interest.
+Note that in either case the information being collected is 2not*
+useful to programs (since it describes the states of implementations
+of other procedures) and therefore need not be made available to them.
+.chapter "Not yet written!!!"
+.chapter "Discussion"
+	In this paper we have discussed exception handling and
+described an exception handling mechanism.
+An exception handling mechanism is a tool for enhancing
+program reliability and fault tolerance.
+To enhance reliability, procedures should be defined as generally
+as possible, that is, they should respond "reasonably" in as
+many situations as possible.
+An exception handling mechanism simplifies the writing of such
+procedures; it is primarily a mechanism for generalizing
+the behavior of procedures.
+	In Section 2 we discussed major decisions that must
+be made in designing an exception handling mechanism and the
+exception handling models that result from these decisions.
+We argued that any well-structured mechanism should be one-level:
+only the invoker should handle exceptions raised by the invoked
+procedure.
+We further argued that the termination model, in which the
+signalling activation terminates, is better than the
+resumption model, in which the signalling activation continues to exist.
+The termination model is clearly simpler than the resumption
+model; we believe that it is also sufficiently powerful,
+admittedly a conjecture in need of verification.
+Note that in our termination model, a procedure may terminate in
+one of a number of conditions (one of which is the so-called
+"normal" condition) and may return result objects differing in
+number and type for each condition.
+The ability to return objects provides a kind of expressive power
+not found in other exception handling mechanisms.
+	Section 3 described the syntax and semantics of the CLU
+exception handling mechanism, which supports the
+termination model.
+While in Section 2 we were concerned primarily with inter-procedure
+control and data flow, in Section 3, we were concerned primarily with intra-
+procedure control and data flow.
+Our goal was to permit the programmer to place handlers where he wanted,
+without constraints due to conflict of exception names.
+This goal led to the introduction of an exit mechanism
+similar to those described by Zahn [Zahn]
+and Bochmann [Boch].
+Our design also acknowledged that many exceptions cannot be handled.
+These exceptions may not occur often, but they can potentially
+occur almost anywhere.
+The special exception named 2failure*, which is signalled implicitly
+for all uncaught exceptions, was introduced to accommodate this situation.
+We also discussed why disabling exceptions is not a good idea, and
+suggested that research in program optimization techniques may be
+fruitful in avoiding the cost of checking for errors that are known not
+to occur.
+	In Section 4, we discussed two methods of implementing the exception
+handling mechanism, the branch table method and the handler table method.
+Both methods process normal returns as fast as possible;
+the branch table method also processes exceptions as fast as possible,
+while the signal table method is somewhat slower, but more
+space-efficient.
+We also discussed the integration of the mechanism in debugging
+and production environments.
+The mechanism is defined to communicate information that can be used
+by 2programs*, but this does not preclude an implementation
+that produces additional information for use by 2programmers*.
+	The CLU exception handling mechanism has been
+implemented by the handler table method.
+We have used the mechanism in writing many CLU programs
+(for example, most of the CLU compiler is written in CLU).
+We are convinced that our programs are better structured than they
+would be in the absence of the mechanism.
+In addition, we believe that the mechanism is a good compromise
+between expressive power and simplicity.
+For example, we have not felt the lack of the resumption model,
+although the existence of 2iterators* in CLU (see [LSAS]),
+which permit the elements of a data structure to be produced
+incrementally, removes one situation in which Goodenough [Good]
+felt resumption was necessary.
+Thus, our experience so far has been favorable, but further
+experimentation is needed to determine the utility of the
+mechanism and the wisdom of our choices.
+.insert_refs

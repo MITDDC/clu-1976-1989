@@ -1,0 +1,5 @@
+;;
+;; File for assembling Clu garbage collector for ITS
+;;
+its==	1
+	.insrt	clusys;gcpcod >

@@ -1,0 +1,38 @@
+setup = proc (n: string);
+	strs :=  strtab$create();
+	chars := chartab$create();
+	ints :=  inttab$create();
+	types := typetab$create();
+	idents := identtab$create();
+	inf := file$open_read(n || " TEST");
+	erf := file$open_write(n || " ERRORS");
+	env := p_env$create({strs:   strs,
+			     chars:  chars,
+			     ints:   ints,
+			     types:  types,
+			     idents: idents,
+			     inf:    inf,
+			     erf:    erf});
+	end setup;
+
+parse = proc ();
+	def: definition := p_definition(env);
+	file$putc(erf, '\n');
+	set_margin(0);
+	print(def, erf);
+	pt_newline(erf);
+	end parse;
+
+finish = proc ();
+	chartab$print(chars, erf);
+	pt_newline(erf);
+	inttab$print(ints, erf);
+	pt_newline(erf);
+	typetab$print(types, erf);
+	pt_newline(erf);
+	identtab$print_names(idents, erf);
+	pt_newline(erf);
+	identtab$print_idns(idents, erf);
+	file$close(inf);
+	file$close(erf);
+	end finish;

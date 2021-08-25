@@ -1,0 +1,110 @@
+ do a .so clu;refman insert at the beginning of your file
+ you do not have to do a .so r;r macros !
+.nd _refman_insert_loaded 0
+.if _refman_insert_loaded
+.tm Ignoring reload of clu;refman insert
+.nx
+.en
+.nr _refman_insert_loaded 1
+.dv xgp
+.fo 0 fonts1;30vrx rwskst
+.fo 1 31vgb
+.fo 2 fonts1;30vrix ebmkst
+.fo 3 37vrb
+ this has no particular use
+.fo 4 30vrb
+ this is used for some meta syntax characters
+.fo 5 40vgl
+ this is used for small super- and sub-scripts
+.fo 7 20vg
+ this is used for some meta syntax characters
+.fo A fonts1;52meta rwskst
+.ls 1.5
+.tr ` 
+.tr @ 
+.nr verbose 1
+.nr tty_table_of_contents 1
+.nr print_page1_headings 1
+.nr chapter_starts_page 1
+.sr left_heading 4DRAFT*
+.sr right_heading fdate
+.so r;r macros
+.so clu;clukey r
+.so clu;clusym r
+.
+.am chapter			 Ignore this
+.if font
+.tm "Current font not 0 at chapter end!"
+.en
+.em
+.
+.am section			 Ignore this
+.if font
+.tm "Current font not 0 at section end!"
+.en
+.em
+.
+.de end_keep			 Ignore this
+.am keep_holder
+.br
+\.em
+.size keep_holder
+.if vsize<(pl-bottom_margin_size-top_margin_size)
+.ne vsize!m
+.en
+.keep_holder
+.em
+.
+ paragraph macro - put it before every paragraph
+ if you only want a small space before the paragraph
+ (e.g. the first paragraph in a chapter or section
+ then do a .para 1,  otherwise just a .para
+.
+.de para
+.if nargs&\0
+.sp (ls-100)/200
+.ef
+.sp 3*(ls-100)/200
+.en
+.ne 3
+.em
+.
+ show macro - to start an indented example in nofill, single-spaced
+.
+.de show
+.be show_block
+.nv ols ls
+.nv ls 100
+.sp (ols-100)/100
+.nv indent indent
+.hx indent indent 8
+.nf
+.em
+.
+ eshow macro - to end a .show
+.
+.de eshow
+.fi
+.en
+.sp (ls-100)/100
+.em
+.
+ stab macro - stab(n) sets "tab" n at the current horizontal position
+.
+.de stab
+.nr tab_pos\0 hpos
+.em
+.
+ tab macro - tab(n) resets the horizontal position to "tab" n
+.
+.de tab
+.hp tab_pos\0!m
+.em
+.
+ btab macro - btab(n) does a line break and then goes to "tab" n
+.
+.de btab
+.br
+.hp tab_pos\0!m
+.em
+.

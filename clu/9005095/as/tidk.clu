@@ -1,0 +1,149 @@
+# extend
+# include "tidefs.clu"
+
+%
+%	Diskpages are pages in secondary storage.  A diskpage is
+%	represented by its secondary storage address, which consists
+%	of a disk, a block number, and an offset within the block.
+%	Each block is used to allocate exactly one size of page.
+%	Thus, the page size can be determined from the block number.
+%
+%	[Previous version: 7 Aug 1977]
+%
+%	The diskpage cluster serves primarily to direct operation
+%	requests to the proper disk module.
+%
+
+diskpage = cluster is allocate, free, equal, get_sizeno, get_size,
+		read, write,
+		print
+
+	rep = struct [
+		d: disk,
+		a: address
+		]
+
+	% The rep actually fits in one word.
+
+allocate = proc (sizeno: word) returns (cvt) signals (full)
+	for d: disk in diskset$disks () do
+	    begin
+		a: address := disk$allocate_page (d, sizeno)
+		return (rep${d: d, a: a})
+		end except when full: end
+	    end
+	signal full
+	end allocate
+
+free = proc (p: cvt)
+	disk$free_page (p.d, p.a)
+	end free
+
+equal = proc (p1, p2: cvt) returns (bool)
+	return (p1 = p2)
+	end equal
+
+get_sizeno = proc (p: cvt) returns (word)
+	return (disk$get_sizeno (p.d, p.a))
+	end get_sizeno
+
+get_size = proc (p: diskpage) returns (word)
+	return (sizetab (p.sizeno))
+	end get_size
+
+read = proc (p: cvt) returns (sequence[any])
+	return (disk$read_page (p.d, p.a))
+	end read
+
+write = proc (p: cvt, v: sequence[any])
+	disk$write_page (p.d, p.a, v)
+	end write
+
+%
+%	Debugging operations for the DISKPAGE cluster.
+%
+
+print = proc (p: cvt, s: stream)
+	bn, o: word := address$unpack (p.a)
+	stream$puts ("<", s)
+	disk$print (p.d, s)
+	stream$puts (",", s)
+	stream$puts (word$unparse (bn), s)
+	stream$puts (",", s)
+	stream$puts (word$unparse (o), s)
+	stream$puts (">", s)
+	end print
+
+	end diskpage
+
+%
+%	An address consists of a block number and an offset.
+%
+
+address = cluster is create, equal, get_block, get_offset, unpack
+
+	rep = struct [
+		bn: word,
+		o: word
+		]
+
+	% Actually fits in one word.
+
+create = proc (bn, o: word) returns (cvt) signals (bad_block, bad_offset)
+	if bn < 0 then signal bad_block end
+	if o < 0 | o >= BLOCKSIZE then signal bad_offset end
+	return (rep${bn: bn, o: o})
+	end create
+
+equal = proc (a1, a2: cvt) returns (bool)
+	return (a1 = a2)
+	end equal
+
+get_block = proc (a: cvt) returns (word)
+	return (a.bn)
+	end get_block
+
+get_offset = proc (a: cvt) returns (word)
+	return (a.o)
+	end get_offset
+
+unpack = proc (a: cvt) returns (word, word)
+	return (a.bn, a.o)
+	end unpack
+
+	end address
+
+%
+%	The diskset represents the set of all known secondary
+%	storage devices.  It knows about reconfiguration.
+%	There is no diskset object.  The diskset cluster operates
+%	using an own variable to hold the set of known disks.
+%
+
+diskset = cluster is disks
+
+	diskinfo = record [disk: disk, online: bool]
+	disktable = array [diskinfo]
+	rep = any
+	own dt: disktable := disktable$[
+			diskinfo${ disk: disk$create (dskdev$create (0)),
+				   online: true},
+			diskinfo${ disk: disk$create (dskdev$create (1)),
+				   online: true}
+					]
+
+	% We are describing the disktable as an array.  In reality,
+	% it would be implemented directly as a RAM.
+
+disks = iter () yields (disk)
+
+	% Return each disk in turn.
+
+	for di: diskinfo in disktable$elements (dt) do
+		if di.online then yield (di.disk) end
+		end
+	end disks
+
+% No reconfiguration operations are yet defined.
+
+	end diskset

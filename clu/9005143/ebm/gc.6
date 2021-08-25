@@ -1,0 +1,38 @@
+;;
+;; Main file for CLU Garbage Collector
+;;
+;;	Just inserts other sections
+;;
+;;		set flag to my special value and insert type code
+;;		stuff from clu system code
+;;
+usrflg==-1
+	.insrt	clusys;types >
+;;
+;;		gcincl has macros and global symbol definitions
+;;
+	.insrt	gcincl >
+;;
+;;		gc0 sets up arguments for debugging
+;;
+	.insrt	gc0 >
+;;
+;;		gc1 checks arguments, creates inferior, and maps pages out
+;;
+	.insrt	gc1 >
+;;
+;;		gc2 transform frames to "nice" format
+;;
+	.insrt	gc2 >
+;;
+;;		gccall has all the .call's
+;;
+	.insrt	gccall >
+;;
+;;		symbol defines the end of space we use for our code
+;;
+last:
+;;
+;;		start at begin, which is in gc0
+;;
+	end	begin

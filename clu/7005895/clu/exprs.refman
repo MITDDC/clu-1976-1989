@@ -1,0 +1,517 @@
+              Expressions Section   CLU Reference Manual
+.
+.sr syntype [syntactic type]
+.sr store 13.2.1
+.sr set 13.2.2
+.sr typeapndx II
+.sr literals 9.1 to 9.6
+.sr constants 10.3
+.sr procstmt 13.1
+.sr forstmt 13.5.2
+.sr updown 15.4
+.sr signalling 14
+.sr invoke 11.3
+.
+.am table_of_contents
+.  bp
+.  em
+.chapter Expressions
+.nr sn chapter
+.para 1
+A CLU expression evaluates to an object in the CLU universe.
+This object is said to be the 2result* or 2value*
+of the expression.
+Expressions are used to acquire or name the object to which they evaluate.
+The simplest forms of expressions are literals, variables, and routine names.
+These forms directly name their result object.
+More complex expressions are
+generally built up out of nested procedure invocations.
+The results of these
+expressions are the values returned by the outermost invocations.
+.para
+Like many other languages, CLU has prefix and infix operators
+for the common arithmetic and comparison
+operations, and uses the familiar syntax for array indexing and record component
+selection (e.g., 2a*[2i*] and 2r*.2s*).
+However, in CLU these notations are considered to be abbreviations for
+procedure calls.  This allows built-in types and user-defined types to be treated as
+uniformly as possible, and also allows the programmer to use familiar
+notation when appropriate.
+.para
+In addition to invocation, four
+other forms are used to build complex expressions out of simpler ones.
+These are the conditional operators cand and cor (see Section sn.8),
+and the type conversion operations up and down (see Section sn.10).
+These forms cannot be explained in terms of procedure invocations.
+.para
+There is a restricted form of expression called a 2primary*.  A primary
+is any expression except a prefix expression, an infix expression, or a parenthesised
+expression.  In certain places, the syntax requires a primary rather than a general
+expression.  This has been done to increase the readability of the resulting programs.
+.para
+As a general rule, procedures with side effects should not be used in expressions,
+and programs should not depend on the order in which expressions are evaluated.
+However, to avoid surprises, the subexpressions of any expression are
+evaluated in strict left-to-right order.
+.para
+As was explained in Section syntype, each expression has a syntactic type.  This is
+either a base type or the type any.  The result of the expression is always
+included in the expression's syntactic type.
+.para
+The various forms of expressions,
+their meanings, and their syntactic types, are given below.
+.
+.section Literals
+.
+.para 1
+Integer, real, character, string, boolean and null literals are expressions.
+The syntax for literals is given in Sections literals.
+The type of a literal expression is the type of the object named by the literal.
+For example, true is of type bool, "abc" is of type string, etc.
+.
+.section Variables
+.
+.para 1
+Variables are identifiers that name objects of a given type.
+The syntactic type of a variable is the type given in the declaration of that variable,
+and determines which objects may be named by the variable.
+.
+.section "Procedure and Iterator Names"
+.
+.para 1
+Procedures and iterators may be defined as separate modules,
+or in a cluster as operations of the type.
+Those defined as separate modules are named by expressions of the form:
+.show
+idn lbkt [constant, etc ] rbkt
+.eshow
+The optional constants are the parameters of the procedure or
+iterator abstraction.  A constant is either a type specification, or a
+restricted form of expression that can be evaluated at compile time (see Section
+constants).
+.para
+When a procedure or iterator is defined as an operation of a type,
+that type must be included in the name of the routine.
+The form for naming an operation of a type is:
+.show
+type_spec $ name lbkt [constant, etc ] rbkt
+.eshow
+.para
+The syntactic type of a procedure or iterator name is just the type of the
+named routine.
+.para
+Some examples of procedure and iterator names are:
+.show
+sort
+.br
+int$add
+.br
+array [bool]$elements
+.eshow
+.
+.section "Procedure Invocations"
+.
+.para 1
+Procedure invocations have the form
+.show
+primary ( lbkt expression, etc rbkt )
+.eshow
+The primary is evaluated to obtain a procedure object, and then the expressions
+are evaluated left-to-right to obtain the argument objects.  The procedure is
+invoked with these arguments, and the returned object is the result of the entire
+expression.
+For more discussion see Section invoke.
+.para
+The following expressions are invocations:
+.show
+p (x)
+.br
+int$add (a, b)
+.br
+within [3.2] (7.1, .003e7)
+.eshow
+.para
+Any procedure invocation P(E1, ... En) must satisfy two constraints:@
+the syntactic type of P must be of the form
+.show
+proctype (T1, ... Tn) returns (R) signals (...)
+.eshow
+and the type of each expression Ei must be included in the corresponding type
+Ti.  The syntactic type of the entire invocation expression is given by R.
+.para
+Procedures can also be invoked as statements (see Section procstmt).
+Iterators can only be invoked by a for statement (see Section forstmt).
+.
+.section "Selection Operations"
+.
+.para 1
+Arrays and records are collections of objects.
+Selection operations access to the individual elements or
+components of the collection.
+Simple notations are provided for invoking
+the 2fetch* and 2store* operations of array types,
+and the 2get* and 2set* operations of record types.
+In addition, these "syntactic sugarings" for selection operations may be used for
+user-defined types with the appropriate properties.
+.
+.subsection "Element Selection"
+.
+.para 1
+An element selection expression has the form:
+.show
+primary [ expression ]
+.eshow
+This form is just syntactic sugar for an invocation of a 2fetch* operation,
+and is completely equivalent to:
+.show
+T$fetch (primary, expression)
+.eshow
+where T is the syntactic type of 2primary*.
+.para
+For example, if a is an array of integers,
+.show
+a [27]
+.eshow
+is completely equivalent to the invocation
+.show
+array [int]$fetch (a, 27)
+.eshow
+.para
+The element selection expression is not restricted to arrays.
+The expression is legal whenever the corresponding invocation is legal.
+In other words, T (the type of 2primary*)
+must provide a procedure operation named 2fetch*,
+which takes two arguments whose types include the syntactic types of
+2primary* and 2expression*, and which returns a single result.
+When 2primary* is an array@[S] for some type S,
+2expression* must be an int, and the result has type S.
+.para
+The use of fetch for user-defined types should be
+restricted to types with array-like behavior.  Objects of such
+types will contain (along with other information) a collection of objects,
+where the collection can be indexed in some way.
+For example, it might make sense for an associative_memory
+type to provide a fetch operation to access the value
+associated with a key.  Fetch operations are used almost exclusively in expressions;
+thus they should never have side-effects.
+.para
+Array-like types may also provide a 2store* operation; see Section store.
+.
+.subsection "Component Selection"
+.
+.para 1
+The component selection expression has the form:
+.show
+primary 1.* name
+.eshow
+This form is just syntactic sugar for an invocation of a 2get_name*
+operation, and is completely equivalent to:
+.show
+T$get_2name* (primary)
+.eshow
+where T is the syntactic type of 2primary*.
+.para
+For example, if x has type record [first: int, second: real], then
+.show
+x1.*first
+.eshow
+is completely equivalent to
+.show
+record [first: int, second: real] $ get_first (x)
+.eshow
+.para
+The component selection expression is not restricted to records.
+The statement is legal whenever the corresponding invocation is legal.
+In other words, T (the type of 2primary*) must provide a procedure
+operation named 2get_name*, which takes one argument whose type
+includes the type of 2primary*, and which returns a single result.
+When T is a record type, then T must have a selector
+called 2name*, and the type of the result will be the
+type of the component named by that selector.
+.para
+The use of get_name operations for user-defined types should be
+restricted to types with record-like behavior.  Objects of such
+types will contain (along with other information) one or more named objects.
+For example, it might make sense for a file
+type to provide a get_author operation, which returns the name of a file's
+creator.  Get_name operations are used almost exclusively in expressions,
+thus they should never have side-effects.
+.para
+Types with named components may also provide 2set_name* operations;
+see Section set.
+.
+.section "Constructing Arrays and Records"
+.
+.para 1
+Constructors are expressions that enable users to create and initialize
+arrays and records.  Constructors are not provided for user-defined types.
+.
+.subsection "Array Constructors"
+.
+.para 1
+An array constructor has the form:
+.show
+type_spec $ [ lbkt expression: rbkt lbkt expression, etc rbkt ]
+.eshow
+The type specification must name an array type: array [T].  This will
+be the type of the constructed array.
+The expression preceding the ":" must evaluate to an integer.
+It will be the low bound of the constructed array.  If this expression
+is omitted, the low bound will be 1.
+The expressions following the ":" will be evaluated to obtain the
+elements of the array.  They correspond (left-to-right) to the
+indices 2low_bound*, 2low_bound*+1, 2low_bound*+2, ...
+.para
+For example, the expression
+.show
+array [bool] $ [ 79: true, false ]
+.eshow
+constructs a new boolean array with two elements: true (at index 79), and
+false (at index 80).  The expression
+.show
+array [array [int]]  $  [  array [int]$[],  array [int]$[]  ]
+.eshow
+creates two distinct integer arrays, both empty, and creates a third array
+to hold them.  The low bound of each array is 1.
+.para
+The syntactic type of each element expression must be included in T.
+The syntactic type of the entire constructor expression is array [T].
+This constructor is computationally equivalent to the array create operation,
+followed by a number of addh operations.  However, such a sequence of
+operations could not be written as an expression.
+.
+.subsection "Record Constructors"
+.
+.para 1
+A record constructor has the form:
+.show
+type_spec $ { field, etc }
+.eshow
+where each 2field* has the form
+.show
+name, etc : expression
+.eshow
+Whenever a field has more than one name, it is equivalent to a sequence of
+fields, one for each name.  Thus, the following two constructors are
+equivalent:
+.show
+R = record [ a: int, b: int, c: int ]
+R $ { a, b: 7, c: 9 }
+R $ { a: 7, b: 7, c: 9 }
+.eshow
+.para
+In a record constructor, the type specification
+must name a record type: record@[S1:T1,@...,@Sn:Tn].
+This will be the type of the constructed record.  The component names
+in the field list must be exactly the names S1,@...,@Sn,
+although these names may appear in any order.
+The expressions are evaluated left-to-right, and there is one evaluation per
+component name even if component names are "factored."  The results of these
+evaluations form the components of a newly constructed record.  This record is
+the value of the entire constructor expression.
+.para
+As an example, consider the following record constructor:
+.show
+AS = array [string]
+.br
+RT = record [list1, list2: AS, item: int]
+.br
+RT $ {item: 2,  list1, list2: AS$["Susan", "George", "Jan"]}
+.eshow
+This produces a record that contains an integer and two distinct arrays.
+The arrays are distinct because the array constructor expression is evaluated
+twice, once for 2list1* and once for 2list2*.
+.para
+The syntactic type of the expression for component Si must be included in Ti.
+The syntactic type of the entire constructor expression is
+record@[S1:T1,@...,@Sn:Tn].
+This constructor is computationally equivalent to a record create operation (see
+Appendix typeapndx), but that operation is not available to the user.
+.
+.section "Prefix and Infix Operators"
+.
+.para 1
+CLU allows infix and prefix notation to be used as a shorthand for the following
+operations.  The table shows the shorthand form and
+the equivalent expanded form for each operation.
+For each operation, the type T is the syntactic type of the first operand.
+.show
+.sp .5
+.ta 1i 2.3i
+Shorthand form	Expansion
+.sp .5
+expr1 ** expr2	T$power (expr1, expr2)
+expr1 // expr2	T$mod (expr1, expr2)
+expr1 / expr2	T$div (expr1, expr2)
+expr1 * expr2	T$mul (expr1, expr2)
+expr1 || expr2	T$concat (expr1, expr2)
+expr1 + expr2	T$add (expr1, expr2)
+expr1 - expr2	T$sub (expr1, expr2)
+expr1 < expr2	T$lt (expr1, expr2)
+expr1 <= expr2	T$le (expr1, expr2)
+expr1 = expr2	T$equal (expr1, expr2)
+expr1 >= expr2	T$ge (expr1, expr2)
+expr1 > expr2	T$gt (expr1, expr2)
+expr1 ~< expr2	~ (expr1 < expr2)
+expr1 ~<= expr2	~ (expr1 <= expr2)
+expr1 ~= expr2	~ (expr1 = expr2)
+expr1 ~>= expr2	~ (expr1 >= expr2)
+expr1 ~> expr2	~ (expr1 > expr2)
+expr1 & expr2	T$and (expr1, expr2)
+expr1 | expr2	T$or (expr1, expr2)
+-@	expr	T$minus (expr)
+~@	expr	T$not (expr)
+.eshow
+.para
+Infix and prefix notation is most heavily used for the built-in types, but may be
+used for user-defined types as well.  When these operations are provided for
+user-defined types, they should always be side-effect-free, and they should
+mean roughly the same thing as they do for the built-in types.
+For example, the comparison operations should only be used for types
+that have a natural partial order.
+Usually, the comparison operations (lt, le, equal, ge, gt) will be of type
+.show
+proctype (T, T) returns (bool) signals (...)
+.eshow
+the other binary operations (e.g., add, sub) will be of type
+.show
+proctype (T, T) returns (T) signals (...)
+.eshow
+and the unary operations will be of type
+.show
+proctype (T) returns (T) signals (...)
+.eshow
+.
+.section "CAND and COR"
+.
+.para 1
+Two additional binary operators are provided in CLU.
+These are the conditional and operator, CAND,
+and the conditional or operator, COR.
+.show
+expression1 CAND expression2
+.eshow
+is the boolean 2and* of expression1 and expression2.
+However, if expression1 is false, expression2 is never evaluated.
+.show
+expression1 COR expression2
+.eshow
+is the boolean 2or* of expression1 and expression2,
+but expression2 is not evaluated unless expression1 is false.
+.para
+Conditional expressions can be used to avoid run-time errors.  Thus,
+the following boolean expressions can be used without fear of "bounds"
+or "zero_divide" errors:
+.show
+(low_bound <= i) cand (i <= high_bound) cand (A[i] ~= 0)
+.br
+(n = 0) cor (1000//n = 0)
+.eshow
+.para
+For both cand and cor, expression1 and expression2 must have syntactic
+type bool.  1Cand* and cor are not equivalent to any procedure invocation.
+.
+.section Precedence
+.
+.para 1
+When an expression is not fully parenthesized, the proper nesting of subexpressions
+might be ambiguous.  The following precedence rules are used to resolve
+such ambiguity.  The precedence of each infix operator is given in the
+table below.  Higher precedence operations are performed first.
+Prefix operators always have precedence over binary operators.
+.ne 8
+.para
+The precedence for infix operators is as follows:
+.show
+.ta 1.5i 2i 2.5i 3i 3.5i 4i
+.sp .5
+Precedence	Operators
+.sp .5
+5	**
+.sp .5
+4	*	/	//
+.sp .5
+3	+	-	||
+.sp .5
+.ne 2
+2	<	<=	=	>=	>
+	~<	~<=	~=	~>=	~>
+.sp .5
+1	&	cand
+.sp .5
+0	|	cor
+.rtabs
+.eshow
+.para
+The order of evaluation for operators of the
+same precedence is left-to-right, except for **, which is right-to-left.
+.para
+The following examples illustrate the precedence rules.
+.show
+.sp .5
+.ta 3i
+Expression	Equivalent Form
+.sp .5
+a + b // c	a + (b // c)
+.sp .5
+a + b - c	(a + b) - c
+.sp .5
+a + b ** c ** d	a + (b ** (c ** d))
+.sp .5
+a = b | c = d	(a = b) | (c = d)
+.sp .5
+- a * b	(-a) * b
+.eshow
+.
+.section "UP and DOWN"
+.
+.para 1
+There are no implicit type conversions in CLU.  Two conversion expressions exist
+for doing explicit conversions.  These are:
+.show
+up (expression)
+down (expression)
+.eshow
+.para
+1Up* and 1down* may be used only within the body of a cluster operation.
+1Up* changes the type of the expression from the representation type
+of the cluster to the abstract type.
+1Down* converts the type of the expression
+from the abstract type to the representation type.  These conversions will be further
+explained in Section updown.
+.section FORCE
+.para 1
+CLU has a single built-in procedure generator called force.  1Force* takes
+one type parameter, and is written
+.show
+force [ type_spec ]
+.eshow
+The procedure force@[T] has type
+.show
+proctype (any) returns (T) signals (wrong_type)
+.eshow
+If force@[T] is applied to an object that is included in type T, then
+it returns that object.  If force@[T] is applied to an object that is not in type
+T, then it signals "wrong_type" (see Section signalling).
+.para
+1Force* is a necessary companion to the type any.  The type any allows
+programs to pass around objects of arbitrary type.  However, to do anything substantive
+with an object, we must use the basic operations of that object's type.
+This raises a conflict with compile-time type-checking, since we can only
+apply an operation when we know that the arguments are of the correct types.
+This conflict is resolved by using force.  1Force*@[T] allows a program
+to check, at run-time, that a particular object is actually of type T.
+If this check succeeds, then the object can be used in all the ways appropriate
+for objects of type T.
+.para
+Thus, the procedure force@[T] allows us to legally write the following code:
+.show
+x: any := 3
+y: int := force [int] (x)
+.eshow
+while the following would be illegal:
+.show
+x: any := 3
+y: int := x
+@@@@@% the syntactic type of y (int) does not include syntactic the type of x (any)
+.eshow

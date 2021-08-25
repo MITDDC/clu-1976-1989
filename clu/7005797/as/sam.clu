@@ -1,0 +1,117 @@
+% A set-associative memory consists of a number of cells
+% arranged as M sets of N cells each.  A fully-associative
+% memory of size N is provided which performs operations
+% on a single set.  Sets are transferred in paralled
+% between the associative memory and the backup store.
+
+SAM = cluster [t: type] is
+	create,			% create the SAM
+	get_nsets,		% return number of sets
+	get_size,		% return number of cells/set
+	select_set,		% select a current set (CS), no cells selected
+	get_nselected,		% return number of selected cells in CS
+	select_by_address,	% select a particular cell in CS
+	select_by_match,	% select cells in CS by matching
+	select_all,		% select all cells in CS
+	read,			% read selected cells in CS
+	write,			% write selected cells in CS
+	update			% update selected cells in CS
+
+at = array[t]
+as = array[at]
+rep = record [m: AM[t], sets: as, cset: int]
+
+create = proc (m, n: int, e: t) returns (cvt) signals (bad_size)
+
+	% Create a SAM with M sets of N cells, all initialized to E.
+
+	if m<=0 cor n<=0 then signal bad_size end
+	ss: as := as$create (1)
+	for i: int in int$from_to (1, m) do
+		as$addh (ss, at$fill (1, n, e))
+		end
+	x: AM[t] := AM[t]$create (n, e)
+	return (rep${m: x, sets: ss, cset: 0})
+	end create
+
+get_nsets = proc (a: cvt) returns (int)
+
+	% Return the number of sets.
+
+	return (as$size (a.sets))
+	end get_nsets
+
+get_size = proc (a: cvt) returns (int)
+
+	% Return the number of cells per set.
+
+	return (a.m.size)
+	end get_size
+
+select_set = proc (a: cvt, n: int) signals (bad_set)
+
+	% Make the Nth set the current set, with no
+	% selected cells.
+
+	x: at := a.sets[n]
+	    except when bounds: signal bad_set end
+	AM[t]$store (a.m, a.sets[a.cset])
+	a.cset := n
+	AM[t]$load (a.m, x)
+	end select_set
+
+get_nselected = proc (a: cvt) returns (int)
+
+	% Return the number of selected cells in the current set.
+
+	return (a.m.nselected)
+	end get_nselected
+
+select_by_address = proc (a: cvt, n: int) signals (bad_address)
+
+	% Select the cell numbered N in the current set.
+
+	AM[t]$select_by_address (a.m, n)
+		except when bad_address: signal bad_address end
+	end select_by_address
+
+select_by_match = proc (a: cvt, x: t, p: proctype (t, t) returns (bool))
+
+	% Select the cells C for which P(C,X) is true in the current set.
+
+	AM[t]$select_by_match (a.m, x, p)
+	end select_by_match
+
+select_all = proc (a: cvt)
+
+	% Select all cells in the current set.
+
+	AM[t]$select_all (a.m)
+	end select_all
+
+read = proc (a: cvt) returns (t) signals (none_selected, many_selected)
+
+	% Read the unique selected cell in the current set.
+
+	AM[t]$read (a.m)
+	    except
+		when none_selected: signal none_selected
+		when many_selected: signal many_selected
+		end
+	end read
+
+write = proc (a: cvt, x: t)
+
+	% Write all selected cells in the current set.
+
+	AM[t]$write (a.m, x)
+	end write
+
+update = proc (a: cvt, x: any, p: proctype (t, any) returns (t))
+
+	% Update all cells C in the current set, C = P(C,X).
+
+	AM[t]$update (a.m, x, p)
+	end update
+
+end SAM

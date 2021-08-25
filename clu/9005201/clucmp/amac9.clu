@@ -1,0 +1,15 @@
+# extend
+env = a_env;
+wrd = a_word;
+RR = 010;
+MOVE = 0200000;
+MOVEM = 0202000;
+
+m_assn = proc (e: env);
+	dst: wrd := get_wrd(e);
+	src: wrd := get_wrd(e);
+	if bool$not(wrd$iequal(src, RR))
+	   then env$add_wrd(e, wrd$inst(MOVE, RR, 0, src)); end;
+	if bool$not(wrd$iequal(dst, RR))
+	   then env$add_wrd(e, wrd$inst(MOVEM, RR, 0, dst)); end;
+	end m_assn;

@@ -1,0 +1,470 @@
+# extend
+# include "tidefs.clu"
+
+	% Mempages are main memory pages.  A mempage is represented by
+	% the main memory address of the first word of the page.  This
+	% address consists of a block number and an offset within the
+	% block.
+
+	% Bounds checking is currently not done.  Any bounds checking
+	% done by mempages would be redundant and could be eliminated
+	% for efficiency reasons.
+
+	% [Previous version: Dec 19 1977  19:01:10 used PMEMBLOCKs]
+
+mempage = cluster is allocate, free, fetch, store,
+	print
+
+	rep = struct [b: memblock, o: word]
+
+allocate = proc (sizeno: word) returns (cvt) signals (full)
+	b: memblock := memblock$find (sizeno)
+	    except when full: signal full end
+	o: word := memblock$allocate_page (b)
+	return (rep${b:b, o:o})
+	end allocate
+
+free = proc (m: cvt)
+	memblock$free_page (m.b, m.o)
+	end free
+
+fetch = proc (m: cvt, i: word) returns (any)
+	return (m.b[m.o+i])
+	end fetch
+
+store = proc (m: cvt, i: word, e: any)
+	m.b[m.o+i] := e
+	end store
+
+%
+%	Debugging operations for the MEMPAGE cluster.
+%
+
+print = proc (m: cvt, s: stream)
+	stream$puts ("<", s)
+	memblock$print (m.b, s)
+	stream$puts (",", s)
+	stream$puts (word$unparse (m.o), s)
+	stream$puts (">", s)
+	end print
+
+	end mempage
+
+%
+%	Memblocks are blocks of main memory.
+%
+
+memblock = cluster is find, fetch, store, allocate_page, free_page,
+	print
+
+	rep = word	% The block number.
+	own bmap: memblkmap := memblkmap$create ()
+
+find = proc (sizeno: word) returns (cvt) signals (full)
+
+	% Return the block number of a non-full block that implements
+	% pages of the specified size.  If there are no such blocks,
+	% then an empty block may be converted to the specified page
+	% size.
+
+	m: rep := memblkmap$find_nonfull_block (bmap, sizeno)
+	    except when none:
+		if sizeno = MAXSIZENO then signal full end
+		m := allocate_block (sizeno)
+		    except when full: signal full end
+		end
+	return (m)
+	end find
+
+fetch = proc (m: cvt, i: word) returns (any)
+	return (pmemdev$fetch (m, i))
+	end fetch
+
+store = proc (m: cvt, i: word, e: any)
+	pmemdev$store (m, i, e)
+	end store
+
+allocate_page = proc (m: cvt) returns (word) signals (block_full)
+
+	% Allocate a page from the block, returning its offset in the
+	% block.  If there are no free pages in the block, signal
+	% block_full.  The free pages are chained together.
+
+	fl: word := memblkmap$get_free_list (bmap, m)
+	if fl<0 then signal block_full end
+	next: word := force[word] (pmemdev$fetch (m, fl))
+	memblkmap$set_free_list (bmap, m, next)
+	return (fl)
+	end allocate_page
+
+free_page = proc (m: cvt, o: word) signals (bad_offset)
+
+	% Free the page at offset o in the block m.  If it's already
+	% free, bad things will happen.  This could be checked by
+	% having a special internal type-code for free-list chains.
+
+	if o<0 | o>=BLOCKSIZE then signal bad_offset end
+	sz: word := sizetab (memblkmap$get_sizeno (bmap, m))
+	if o//sz ~= 0 then signal bad_offset end
+	fl: word := memblkmap$get_free_list (bmap, m)
+	pmemdev$store (m, o, fl)
+	memblkmap$set_free_list (bmap, m, o)
+	end free_page
+
+%
+%	Internal procedures for the MEMBLOCK cluster.
+%
+
+allocate_block = proc (sizeno: word) returns (rep) signals (full)
+
+	% Allocate an empty block to provide pages of the specified
+	% size.  Put it on the head of the appropriate chain.
+	% Construct the free page list.
+
+	b: rep := memblkmap$find_nonfull_block (bmap, MAXSIZENO)
+		except when none: signal full end
+	if sizeno = MAXSIZENO then return (b) end
+	sz: word := sizetab (sizeno)
+	o: word := 0
+	while TRUE do
+		if o+sz>=BLOCKSIZE
+			then pmemdev$store (b, o, -1) break
+			else pmemdev$store (b, o, o+sz)
+			end
+		o := o+sz
+		end
+	memblkmap$change_sizeno (bmap, b, sizeno)
+	memblkmap$set_free_list (bmap, b, 0)
+	return (b)
+	end allocate_block
+
+
+%
+%	Debugging operations for the MEMBLOCK cluster.
+%
+
+print = proc (b: cvt, s: stream)
+	stream$puts (word$unparse (b), s)
+	end print
+
+end memblock
+
+
+	% The memblock map.  We are assuming that the main memory map
+	% can be stored in a dedicated memory (or a fixed part of main
+	% memory).
+
+memblkmap = cluster is create, get_sizeno, get_free_list, set_free_list,
+		chain_elements, find_nonfull_block, put_at_head_of_chain,
+		change_sizeno
+
+	rep = struct [
+		nblocks: word,		% The number of blocks.
+		map: mvector,		% Descriptions of each block.
+		chains: mvector		% Chains of blocks of each size.
+		]
+
+create = proc () returns (cvt)
+
+	nblocks: word := pmemdev$nblocks ()
+	if nblocks>BLOCKSIZE then nblocks := BLOCKSIZE end
+	map: mvector := mvector$create (nblocks)
+	for i: word in word$from_to (0, nblocks-1) do
+		map[i] := blkentry$make_nonexistent ()
+		end
+	chains: mvector := mvector$create (MAXSIZENO+1)
+	ochain: word := -1
+	for bn: word in word$from_to (0, nblocks-1) do
+		if block_exists (bn) then
+			map[bn] := blkentry$make_empty (ochain)
+			pmemdev$store (bn, 0, -1)	% freelist
+			ochain := bn
+			end
+		end
+	for i:word in word$from_to (0, MAXSIZENO-1) do
+		chains[i] := -1
+		end
+	chains[MAXSIZENO] := ochain
+	return (rep${nblocks: nblocks, map: map, chains: chains})
+	end create
+
+get_sizeno = proc (m: cvt, bn: word) returns (word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	return (e.sizeno)
+	end get_sizeno
+
+get_free_list = proc (m: cvt, bn: word) returns (word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	return (e.freelist)
+	end get_free_list
+
+set_free_list = proc (m: cvt, bn: word, fl: word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	e := blkentry$set_freelist (e, fl)
+	m.map[bn] := e
+	end set_free_list
+
+chain_elements = iter (m: cvt, sizeno: word) yields (word)
+	bn: word := force[word] (m.chains[sizeno])
+	while bn>=0 do
+		yield (bn)
+		bn := get_chain (m, bn)
+		end
+	end chain_elements
+
+find_nonfull_block = proc (m: memblkmap, sizeno: word)
+			returns (word) signals (none)
+	for bn: word in memblkmap$chain_elements (m, sizeno) do
+		fl: word := memblkmap$get_free_list (m, bn)
+		if fl >= 0 then
+			memblkmap$put_at_head_of_chain (m, bn)
+			return (bn)
+			end
+		end
+	signal none
+	end find_nonfull_block
+
+put_at_head_of_chain = proc (m: cvt, bn: word)
+	sizeno: word := get_sizeno (up (m), bn)
+	head: word := force[word] (m.chains[sizeno])
+	if bn ~= head then
+		obn: word := head
+		while obn >= 0 do
+			cbn: word := get_chain (m, obn)
+			if cbn = bn then
+				set_chain (m, obn, get_chain (m, bn))
+				set_chain (m, bn, head)
+				m.chains[sizeno] := bn
+				return
+				end
+			obn := cbn
+			end
+		signal failure ("block not on proper chain")
+		end
+	end put_at_head_of_chain
+
+change_sizeno = proc (m: cvt, bn: word, sizeno: word)
+	remove_from_chain (m, bn)
+	set_chain (m, bn, force[word] (m.chains[sizeno]))
+	m.chains[sizeno] := bn
+	set_sizeno (m, bn, sizeno)
+	end change_sizeno
+
+%
+%	Internal procedures for the MEMBLOCKMAP cluster.
+%
+
+block_exists = proc (bn: word) returns (bool)
+
+	% Return TRUE if and only if every word of the block exists.
+
+	for i: word in word$from_to (0, BLOCKSIZE-1) do
+		x: any := pmemdev$fetch (bn, i)
+		    except when nonexistent_memory: return (false) end
+		end
+	return (true)
+	end block_exists
+
+get_chain = proc (m: rep, bn: word) returns (word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	return (e.chain)
+	end get_chain
+
+set_chain = proc (m: rep, bn: word, c: word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	e := blkentry$set_chain (e, c)
+	m.map[bn] := e
+	end set_chain
+
+set_sizeno = proc (m: rep, bn: word, sizeno: word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	e := blkentry$set_sizeno (e, sizeno)
+	m.map[bn] := e
+	end set_sizeno
+
+remove_from_chain = proc (m: rep, bn: word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	osizeno: word := e.sizeno
+	head: word := force[word] (m.chains[osizeno])
+	if bn = head then
+		m.chains[osizeno] := get_chain (m, bn)
+		return
+		end
+	obn: word := head
+	while obn >= 0 do
+		cbn: word := get_chain (m, obn)
+		if cbn = bn then
+			set_chain (m, obn, get_chain (m, bn))
+			return
+			end
+		obn := cbn
+		end
+	signal failure ("block not on proper chain")
+	end remove_from_chain
+
+end memblkmap
+
+
+
+	% Blkentries are the information contained in an entry of a
+	% block table.  Blkentries can be used for both memblocks and
+	% diskblocks.  The size of an entry for a diskblock need be
+	% only 4 bits larger than the size of an address.  Thus, if
+	% there are at least 4 type code bits in a reference
+	% containing an address, then blkentries for diskblocks will
+	% fit in a word.
+
+blkentry = cluster is make_nonexistent, make_empty, get_exists,
+	get_freelist, get_sizeno, get_chain, set_freelist,
+	set_sizeno, set_chain,
+	print
+
+	rep = struct [
+	    exists: bool,	% True if the block exists.
+	    freelist: word,	% The offset of the first free page in
+				% the block.  Is negative if there are
+				% no free pages in the block.
+	    sizeno: word,	% The size of pages provided by this
+				% block.
+	    chain: word		% The number of the next block in the
+				% chain of all blocks providing the
+				% same size pages.  -1 terminates.
+	    ]
+
+make_nonexistent = proc () returns (cvt)
+	return (pack (FALSE, 0, 0, 0))
+	end make_nonexistent
+
+make_empty = proc (chain: word) returns (cvt)
+	return (pack (TRUE, 0, MAXSIZENO, chain))
+	end make_empty
+
+get_exists = proc (e: cvt) returns (bool)
+	exists: bool, freelist, sizeno, chain: word := unpack (e)
+	return (exists)
+	end get_exists
+
+get_freelist = proc (e: cvt) returns (word)
+	exists: bool, freelist, sizeno, chain: word := unpack (e)
+	return (freelist)
+	end get_freelist
+
+get_sizeno = proc (e: cvt) returns (word)
+	exists: bool, freelist, sizeno, chain: word := unpack (e)
+	return (sizeno)
+	end get_sizeno
+
+get_chain = proc (e: cvt) returns (word)
+	exists: bool, freelist, sizeno, chain: word := unpack (e)
+	return (chain)
+	end get_chain
+
+set_freelist = proc (e: cvt, fl: word) returns (cvt)
+	exists: bool, freelist, sizeno, chain: word := unpack (e)
+	return (pack (exists, fl, sizeno, chain))
+	end set_freelist
+
+set_sizeno = proc (e: cvt, sn: word) returns (cvt)
+	exists: bool, freelist, sizeno, chain: word := unpack (e)
+	return (pack (exists, freelist, sn, chain))
+	end set_sizeno
+
+set_chain = proc (e: cvt, c: word) returns (cvt)
+	exists: bool, freelist, sizeno, chain: word := unpack (e)
+	return (pack (exists, freelist, sizeno, c))
+	end set_chain
+
+%
+%	Internal procedures for the BLKENTRY cluster.
+%
+
+pack = proc (exists: bool, freelist, sizeno, chain: word) returns (rep)
+
+	% In reality, the fields would be packed into a single word.
+
+	return (rep${
+		exists: exists,
+		freelist: freelist,
+		sizeno: sizeno,
+		chain: chain
+		})
+	end pack
+
+unpack = proc (w: rep) returns (bool, word, word, word)
+	return (w.exists, w.freelist, w.sizeno, w.chain)
+	end unpack
+
+%
+%	Debugging operations for the BLKENTRY cluster.
+%
+
+print = proc (w: cvt, s: stream)
+	if w.exists then stream$puts ("+", s)
+		else stream$puts ("-", s)
+		end
+	stream$puts ("  sizeno=", s)
+	stream$puts (word$unparse (w.sizeno), s)
+	stream$puts ("  freelist=", s)
+	stream$puts (word$unparse (w.freelist), s)
+	stream$puts ("  chain=", s)
+	stream$puts (word$unparse (w.chain), s)
+	end print
+
+end blkentry
+
+%
+%	Pmemdev is a block-oriented view of main memory.
+%
+
+pmemdev = cluster is nblocks, fetch, store
+
+	rep = any
+
+nblocks = proc () returns (word)
+	return (memdev$size()/BLOCKSIZE)
+	end nblocks
+
+fetch = proc (bn: word, i: word) returns (any) signals (nonexistent_memory)
+	return (memdev$fetch (bn*BLOCKSIZE+i))
+		except when nonexistent_memory: signal nonexistent_memory end
+	end fetch
+
+store = proc (bn: word, i: word, e: any) signals (nonexistent_memory)
+	memdev$store (bn*BLOCKSIZE+i, e)
+		except when nonexistent_memory: signal nonexistent_memory end
+	end store
+
+	end pmemdev
+
+
+	% Memdev is the physical memory, with no added abstractions.
+	% It supports a linear address space, possibly with holes.
+
+memdev = cluster is size, fetch, store
+
+	rep = any
+	aa = array[any]
+	own mem: aa := aa$fill (0, MEMSIZE*BLOCKSIZE-1, nil)
+
+size = proc () returns (word)
+
+	% Return the maximum possible size of the main memory.  This
+	% value may be obtained from a console switch.  There may be a
+	% hole at the top of memory.  It is advantageous only in terms
+	% of efficiency for the size to be minimally larger than the
+	% address of the highest existing word in memory.
+
+	return (MEMSIZE*BLOCKSIZE)
+	end size
+
+fetch = proc (i: word) returns (any) signals (nonexistent_memory)
+	return (mem[i])
+	    except when bounds: signal nonexistent_memory end
+	end fetch
+
+store = proc (i: word, e: any) signals (nonexistent_memory)
+	mem[i] := e
+	    except when bounds: signal nonexistent_memory end
+	end store
+
+	end memdev

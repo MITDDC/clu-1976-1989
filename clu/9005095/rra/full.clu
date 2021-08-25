@@ -1,0 +1,115 @@
+
+start_up = proc()
+	act = array[char]
+	tyi: file := file$tyi()
+	tyo: file := file$tyo()
+	while true do
+		ac: act := act$new()
+		scan$line(tyi,tyo,ac,"\nInput file: ")
+		in_name: string := string$ac2s(ac)
+		if bool$not(file$exists(in_name))
+		   then file$puts(file$tyo(),
+				"Can't open '" ||
+				in_name || "' for input.\n")
+		   else	% We can try to do the file
+			ac := act$new()
+			scan$line(tyi,tyo,ac,"Output file: ")
+			out_name: string := string$ac2s(ac)
+			full_house(in_name,out_name)
+		   end
+		end
+	end start_up
+
+num_pos=proc(s:string,i:int) returns (int)
+	len: int := string$size(s)
+	while i <= len do
+		c: char := s[i]
+		if (c >= '0' cand c <= '9') cor c = '_' then break end
+		if c = '=' then return (len+1) end
+		i := i + 1
+		end
+	return (i)		
+	end num_pos
+
+alpha_pos=proc(s:string,i:int) returns (int)
+	len: int := string$size(s)
+	while i <= len do
+		c: char := s[i]
+		if (c >= 'A' cand c <= 'Z') cor (c >= 'a' cand c <= 'z')
+		   then break end
+		i := i + 1
+		end
+	return (i)		
+	end alpha_pos
+
+scan_num=proc(s:string,i:int) returns (int,int,bool)
+	len: int := string$size(s)
+	i := num_pos(s,i)
+	acc: int := 0
+	found: bool := false
+	while i <= len do
+		c: char := s[i]
+		if c = '_' then acc := 0
+		  elseif c < '0' then break
+		  elseif c > '9' then break
+		  else acc := acc * 10 + char$c2i(c) - char$c2i('0')
+		  end
+		i := i + 1
+		found := true
+		end
+	return (acc, i, found)
+	end scan_num
+
+get_basis = proc() returns (array[int], array[int])
+	ait = array[int]
+	bfile: file := file$open_read("clu;basis scores")
+	s: string := file$gets(bfile,'\n')	% highest scores
+	possible: ait := num_array(file$gets(bfile,'\n'),1)
+	weights: ait := num_array(file$gets(bfile,'\n'),1)
+	file$close(bfile)
+	return (possible,weights)
+	end get_basis
+
+num_array = proc(s: string, i: int) returns (array[int])
+	ait = array[int]
+	a: ait := ait$new()
+	b: bool := true
+	num: int := 0
+	while b do
+		num, i, b := scan_num(s,i)
+		if b then ait$addh(a,num) end
+		end
+	return (a)
+	end num_array
+
+spaces = proc(outfile: file, number: int)
+	while number > 0 do
+		number := number - 1
+		file$putc(outfile, ' ')
+		end
+	end spaces
+
+format_line=proc(outfile: file, header: string, position: int, data: at)
+	at=array[int]
+	file$putc(outfile, '\n')
+	file$puts(outfile, header)
+	spaces(outfile, position - string$size(header))
+	for elem: int in at$elements(data) do
+		numstring: string := int$unparse(elem)
+		spaces(outfile, 4 - string$size(numstring))
+		file$puts(outfile, numstring)
+		end
+	end format_line
+
+format_total=proc(outfile: file, header: string, position: int, data: at)
+	at=array[int]
+	format_line(outfile, header, position, data)
+	sum: int := 0
+	for elem: int in at$elements(data) do
+		sum := sum + elem
+		end
+	file$puts(outfile, " =")
+	sumstring: string := int$unparse(sum)
+	spaces(outfile, 6 - string$size(sumstring))
+	file$puts(outfile, sumstring)
+	end format_total

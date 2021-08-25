@@ -1,0 +1,214 @@
+;****	A BASIC CLUSYS FILE    ****
+
+cluster	%table
+
+st.cod==0	; tvec+5
+st.eq==1	; equal hash chain
+st.lt==2	; lesser hash tree
+st.gt==3	; greater hash tree
+st.ha==4	; hash code
+st..==5
+
+se.cod==0	; tvec+4
+se.nxt==1	; next equal hash item (se.nxt==st.eq)
+se.nam==2	; string
+se.val==3	; value
+se..==4
+
+proc	tb.ha,[s]
+	move	r0,s(er)
+	tcheck	r0,tstr
+	$if	trne	r0,-hichar-1
+	$then	hrrz	n3,r0
+		$go	exit
+	$fi
+	hrrz	n0,(r0)
+	move	n3,n0
+	$loop
+		move	n1,1(r0)
+		hlrz	n2,n1
+		add	n1,n2
+		add	n3,n1
+		subi	n0,bpword
+		skipg	n0
+		$go	exit
+		aos	r0
+	$pool
+	$label	exit
+	imuli	n3,124124
+	hrrz	rr,n3
+	stypi	rr,tint
+	$rtn	rr
+corp	%table$hash,[s]
+
+proc	tb.cr,[]
+	movei	n1,st..
+	hrli	n1,(tvec)
+	alloc	(n1),n1
+	$rtn	rr
+corp	%table$create,[]
+
+proc	tb.lu,[table,name],[hash],[0]
+	tcheck	table(er),tref
+	edesc	badtab,bad_table
+	$if	hrrz	r1,table(er)
+		hrrz	n1,(r1)
+		cain	n1,st..
+	$then	signal	badtab
+	$fi
+	mcall	tb.ha,[name(er)]
+	movem	rr,hash(er)
+	move	r1,table(er)
+	tcheck	st.cod(r1),tvec
+	hrre	n1,rr
+	$loop
+		hrre	n2,st.ha(r1)
+		camn	n1,n2
+		$go	chain
+		hrroi	r0,st.lt(r1)
+		caml	n1,n2
+		hrroi	r0,st.gt(r1)
+		$if	skipe	r1,(r0)	; nothing down this branch!
+		$then	push	sp,r0	; save the plug address
+			mcall	tb.cr	; make a new tree
+			pop	sp,r0
+			movem	rr,(r0)	; plug with new table
+			move	n1,hash(er)
+			movem	n1,st.ha(rr)
+			move	r1,rr
+			$go	chain
+		$fi
+	$pool
+	$label	chain
+	; At this point r1 points at the node & the hash is equal
+	$loop
+		$if	skipe	r0,st.eq(r1)
+		$then	movei	n1,se..
+			hrli	n1,(tvec)
+			alloc	(n1),n1
+			movem	rr,se.nxt(r1)
+			move	r0,$none
+			movem	r0,se.val(rr)
+			move	r0,name(er)
+			movem	r0,se.nam(rr)
+			$go	exit
+		$elf	push	sp,r0
+			mcall	s.eq,[name(er),se.nam(r0)]
+			pop	sp,r1
+			$test
+		$then	move	rr,r1
+			$go	exit
+		$fi
+	$pool
+	$label	exit
+	$rtn	rr
+corp	%table$lookup,[table,name],[hash]
+
+proc	tb.en,[tab,name,val]
+	mcall	tb.lu,[tab(er),name(er)]
+	move	r1,val(er)
+	exch	r1,rr
+	movem	rr,se.val(r1)
+	$rtn	rr
+corp	%table$enter,[tab,name,val]
+
+proc	tb.va,[tab,name]
+	mcall	tb.lu,[tab(er),name(er)]
+	move	rr,se.val(rr)
+	$rtn	rr
+corp	%table$value,[tab,name]
+
+proc	te.va,[ent]
+	move	r0,ent(er)
+	hrrz	n1,(r0)
+	$if	cain	n1,se..
+	$then	edesc	badent,bad_entry
+		signal	badent
+	$fi
+	move	rr,se.val(r0)
+	$rtn	rr
+corp	%table_entry$value,[entry]
+
+proc	te.na,[ent]
+	move	r0,ent(er)
+	hrrz	n1,(r0)
+	$if	cain	n1,se..
+	$then	edesc	badent,bad_entry
+		signal	badent
+	$fi
+	move	rr,se.nam(r0)
+	$rtn	rr
+corp	%table_entry$name,[entry]
+
+proc	tb.sev,[ent,val]
+	move	r0,ent(er)
+	hrrz	n1,(r0)
+	$if	cain	n1,se..
+	$then	signal	badent
+	$fi
+	move	rr,val(er)
+	movem	rr,se.val(r0)
+	$rtn	rr
+corp	%table_entry$set_value,[entry,value]
+
+iter	tb.iv,[tab]
+	$for	left,rr,call	%table$entries,1,[tab(er)]
+		$if	move	rr,se.val(rr)
+			camn	rr,$none
+		$then	$yield	rr
+		$fi
+	$rof	left
+	$rtn	$none	
+reti	%table$values,[tab]
+
+iter	tb.in,[tab]
+	$for	left,rr,call	%table$entries,1,[tab(er)]
+		$if	move	r0,se.val(rr)
+			camn	r0,$none
+		$then	$yield	se.nam(rr)
+		$fi
+	$rof	left
+	$rtn	$none	
+reti	%table$names,[tab]
+
+iter	tb.ie,[tab]
+	move	r0,tab(er)
+	$loop
+		$crtnc	r0,e,$none
+		push	sp,r0		; save the node
+		$loop			; yield all equal hash entries
+			$if	skipe	r1,se.nxt(r0)
+			$then	$go	branch
+			$fi
+			push	sp,r1
+			move	rr,r1
+			$yield	rr
+			pop	sp,r0
+		$pool
+		$label	branch
+		move	r0,(sp)		; restore the node
+		$if	skipn	r1,st.lt(r0)
+		$then	$for	left,rr,call	%table$entries,1,[r1]
+				$yield	rr
+			$rof	left
+		$fi
+		pop	sp,r0		; restore the node again
+		move	r0,st.gt(r0)	; and grab the greater tree
+	$pool
+reti	%table$entries,[tab]
+
+proc	tb.pr,[tab,ch],[obj],[0]
+	$for	all,obj(er),call	%table$entries,1,[tab(er)]
+		call	crlf,1,[ch(er)]
+		move	r0,obj(er)
+		call	chan$writes,2,[ch(er),se.nam(r0)]
+		link	lnk,tchar+11
+		call	chan$writec,2,[ch(er),lnk(lr)]
+		move	r0,obj(er)
+		call	print,2,[ch(er),se.val(r0)]
+	$rof	all
+	call	crlf,1,[ch(er)]
+	$rtn	$none
+corp	%table$print,[table,channel],[obj]
+
+retsulc	%table

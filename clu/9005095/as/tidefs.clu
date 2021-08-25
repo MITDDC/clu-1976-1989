@@ -1,0 +1,11 @@
+word = int
+struct = pathname "record"
+sequence = pathname "array"
+
+MAXSIZENO = 8
+BLOCKSIZE = 2**MAXSIZENO
+
+DISKSIZE = 64			% Number of blocks on each disk device
+MEMSIZE = 64			% Number of blocks of main memory
+
+UNDEFINED = "undefined"		% Some unique value

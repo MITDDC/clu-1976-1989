@@ -1,0 +1,418 @@
+%	ATOP2 CLU
+%
+%	CLUMAC assembler: top level
+
+_symbol		= 0;
+_octal		= 1;
+_decimal	= 2;
+
+min_prec	= 0;
+max_prec	= 3;
+
+dm_lines = proc (e: env, fs: str);
+	f: file := file$open_read(fs);
+	   except when open_failed: env$err(e, "couldn't open " || fs);
+				    return;
+		  end;
+	e.input := f;
+	while true do
+		dm_line(e);
+		k: int := scan_forward(e);
+		if k = _eol
+		   then file$getc(f);
+		elseif k = _eof
+		   then break;
+		elseif k = _semi
+		   then file$gets(f, '\n');
+		else env$err(e, "extraneous input: " || get_literal(e)); end;
+		env$newline(e);
+		end;
+	file$close(f);
+	end dm_lines;
+
+dm_line = proc (e: env);
+	k: int := scan_forward(e);
+	if k < _upper
+	   then return; end;
+	sym: str, kind: int := get_idn(e);
+	if kind ~= _symbol
+	   then env$err(e, "non-symbol for macro name: " || sym);
+		return;
+	   end;
+	k := scan_forward(e);
+	mac: str;
+	if k = _equal
+	   then file$getc(e.input);
+		scan_forward(e);
+		mac, kind := get_idn(e);
+		if kind ~= _symbol
+		   then env$err(e, "non-symbol for macro definition: " || mac);
+			mac := sym;
+		   end;
+	   else mac := "m_" || sym;
+	   end;
+	v: any := value$id(mac);
+	if value$is_none(v)
+	   then env$err(e, "undefined macro definition: " || mac);
+	   else env$defmac(e, sym, force[mtype](v));
+	   end;
+	end dm_line;
+
+do_lines = proc (e: env, fs: str);
+	f: file := file$open_read(fs);
+	   except when open_failed: env$err(e, "couldn't open " || fs);
+				    return;
+		  end;
+	e.input := f;
+	while true do
+		do_line(e);
+		k: int := scan_forward(e);
+		if k = _eol
+		   then file$getc(f);
+		elseif k = _eof
+		   then break;
+		elseif k = _semi
+		   then file$gets(f, '\n');
+		else env$err(e, "extraneous input: " || get_literal(e)); end;
+		env$newline(e);
+		end;
+	file$close(f);
+	end do_lines;
+
+do_line = proc (e: env);
+	k: int := scan_forward(e);
+	if k < _upper
+	   then return; end;
+	sym: str, kind: int := get_idn(e);
+	w: wrd := eval_idn(e, sym, kind);
+	   except when macro (m: mtype):
+				f: file := e.input;
+				if file$peek(f) ~= '\n'
+				   then file$getc(f); end;
+				   except when eof: ; end;
+				m(e);
+				return;
+		  end;
+	k := scan_forward(e);
+	if k = _equal  cand  kind = _symbol
+	   then file$getc(e.input);
+		do_equate(e, sym);
+	   else env$err(e, "bad symbol begins line: " || sym);
+	   end;
+	end do_line;
+
+do_equate = proc (e: env, sym: str);
+	f: file := e.input;
+	begin
+	if file$peek(f) = '='
+	   then file$getc(f); end;
+	if file$peek(f) = ':'
+	   then file$getc(f); end;
+	w: wrd := get_expr(e);
+	if e.lh_equate
+	   then w := wrd$r2l(w); end;
+	env$define(e, sym, w);
+	end;
+	   except when none, eof:
+			env$err(e, "no expression on right side of equate");
+		  when macro:
+			env$err(e, "equate to macro");
+		  end;
+	end do_equate;
+
+scan_forward = proc (e: env) returns (int);
+	f: file := e.input;
+	ctab: ai := e.char_tab;
+	while true do
+		k: int := ctab[char$c2i(file$peek(f))];
+		if k = _space
+		   then file$getc(f);
+		   else return(k);
+		   end;
+		end;
+	   except when eof: return(_eof); end;
+	end scan_forward;
+
+get_idn = proc (e: env) returns (str, int) signals (none);
+	f: file := e.input;
+	ctab: ai := e.char_tab;
+	a: ac := e.temp_ac;
+	kind: int := _octal;
+	while true do
+		c: char := file$peek(f);
+		i: int := char$c2i(c);
+		k: int := ctab[i];
+		if k = _upper
+		   then c := char$i2c(i + 32);
+			kind := _symbol;
+		elseif k = _lower
+		   then if c = '.'  cand  kind = _octal  cand  ac$size(a) > 0
+			   then kind := _decimal;
+			   else kind := _symbol;
+			   end;
+		elseif k < _upper
+		   then break; end;
+		ac$addh(a, c);
+		file$getc(f);
+		end;
+	   except when eof: ; end;
+	if kind = _decimal
+	   then ac$remh(a); end;
+	s: str := str$ac2s(a);
+	if s = ""
+	   then signal none; end;
+	return(s, kind);
+	end get_idn;
+
+get_literal = proc (e: env) returns (str);
+	f: file := e.input;
+	a: ac := e.temp_ac;
+	while file$peek(f) ~= '\n' do
+		ac$addh(a, file$getc(f));
+		end;
+	   except when eof: ; end;
+	return(str$ac2s(a));
+	end get_literal;
+
+get_symbol = proc (e: env) returns (str);
+	return(get_symbol1(e));
+	   except when none: return(""); end;
+	end get_symbol;
+
+get_symbol1 = proc (e: env) returns (str) signals (none);
+	f: file := e.input;
+	ctab: ai := e.char_tab;
+	a: ac := e.temp_ac;
+	while true do
+		c: char := file$peek(f);
+		i: int := char$c2i(c);
+		k: int := ctab[i];
+		if k > _upper
+		   then
+		elseif k = _upper
+		   then c := char$i2c(i + 32);
+		elseif k = _comma
+		   then file$getc(f);
+			break;
+		elseif k = _semi
+		   then while ac$size(a) > 0 do
+				c := ac$top(a);
+				if c = ' '  cor  c = '\t'
+				   then ac$remh(a);
+				   else return(str$ac2s(a));
+				   end;
+				end;
+			signal none;
+		elseif k < _space  cor  k = _badch  cor  k = _rbkt
+		   then break; end;
+		ac$addh(a, c);
+		file$getc(f);
+		end;
+	   except when eof: ; end;
+	return(str$ac2s(a));
+	end get_symbol1;
+
+get_symbols = iter (e: env) yields (str);
+	f: file := e.input;
+	if file$peek(f) ~= '['
+	   then yield(get_symbol1(e));
+		return;
+	   end;
+	   except when eof, none: return; end;
+	file$getc(f);
+	while true do
+		c: char := file$peek(f);
+		if c = ']'
+		   then file$getc(f);
+			if file$peek(f) = ','
+			   then file$getc(f); end;
+			   except when eof: ; end;
+			break;
+		elseif c = '\n'
+		   then exit eof; end;
+		yield(get_symbol1(e));
+		end;
+	    except when eof, none: env$err(e, "missing ] in symbol list"); end;
+	end get_symbols;
+
+get_wrd = proc (e: env) returns (wrd);
+	w: wrd := get_expr(e);
+	   except when none: w := wrd$create(0, 0); end;
+	f: file := e.input;
+	if file$peek(f) = ','
+	   then file$getc(f);
+		   except when eof: ; end;
+	   end;
+	return(w);
+	end get_wrd;
+
+get_wrds = iter (e: env) yields (wrd);
+	f: file := e.input;
+	if file$peek(f) ~= '['
+	   then yield(get_expr(e));
+		if file$peek(f) = ','
+		   then file$getc(f); end;
+		return;
+	   end;
+	   except when eof, none: return; end;
+	file$getc(f);
+	scan_forward(e);
+	while true do
+		c: char := file$peek(f);
+		if c = ']'
+		   then file$getc(f);
+			if file$peek(f) = ','
+			   then file$getc(f); end;
+			break;
+		elseif c = '\n'
+		   then env$err(e, "missing ] in symbol list");
+			break;
+		end;
+		yield(get_wrd(e));
+		end;
+	    except when eof: ; end;
+	end get_wrds;
+
+get_number = proc (e: env) returns (int);
+	left, right: int := wrd$w2i(get_expr(e));
+	if left > 0
+	   then env$err(e, "number exceeds 18 bits"); end;
+	return(right);
+	end get_number;
+
+get_numbers = iter (e: env) yields (int);
+	for w: wrd in get_wrds(e) do
+		left, right: int := wrd$w2i(w);
+		if left > 0
+		   then env$err(e, "number exceeds 18 bits"); end;
+		yield(right);
+		end;
+	end get_numbers;
+
+get_value = proc (e: env) returns (wrd);
+% THIS IS INCOMPLETE !
+	return(get_expr(e));
+	   except when none: return(wrd$create(0, 0)); end;
+	end get_value;
+
+get_expr = proc (e: env) returns (wrd) signals (none);
+	scan_forward(e);
+	w: wrd := get_expr1(e, min_prec);
+	   except when none: signal none; end;
+	while true do
+		scan_forward(e);
+		w := w + get_expr1(e, min_prec);
+		end;
+	    except when none: ; end;
+	return(w);
+	end get_expr;
+
+get_expr1 = proc (e: env, prec: int) returns (wrd) signals (none);
+	w: wrd := get_prim(e);
+	   except when none: signal none; end;
+	f: file := e.input;
+	while true do
+		c: char := file$peek(f);
+		if c = '+'  cor  c = '-'
+		   then if prec > 1
+			   then break; end;
+		elseif c = '*'
+		   then if prec > 2
+			   then break; end;
+		elseif ~(c = '&'  cor c = '\\')
+		   then break; end;
+		file$getc(f);
+		right: wrd := get_expr1(e, prec);
+		   except when none: env$err(e, str$append("missing expression after ",
+							   c));
+				     break;
+			  end;
+		if c = '+'
+		   then w := w + right;
+		elseif c = '-'
+		   then w := w - right;
+		elseif c = '*'
+		   then w := w * right;
+		elseif c = '&'
+		   then w := w & right;
+		else w := w | right; end;
+		end;
+	    except when eof: ; end;
+	return(w);
+	end get_expr1;
+
+get_prim = proc (e: env) returns (wrd) signals (none);
+	f: file := e.input;
+	c: char := file$peek(f);
+	   except when eof: signal none; end;
+	if c = '('
+	   then return(get_pexpr(e)); end;
+	if c = '<'
+	   then return(get_aexpr(e)); end;
+	if c = '-'
+	   then return(- get_prim(e));
+		   except when none: env$err(e, "missing expression after -");
+				     return(wrd$create(0, 0));
+			  end;
+	   end;
+	sym: str, kind: int := get_idn(e);
+	   except when none: signal none; end;
+	return(eval_idn(e, sym, kind));
+	   except when macro (*): ; end;
+	env$err(e, "macro used in expression: " || sym);
+	return(wrd$create(0, 0));
+	end get_prim;
+
+get_pexpr = proc (e: env) returns (wrd);
+	f: file := e.input;
+	if file$eof(f)  cor  file$peek(f) ~= '('
+	   then env$err(e, "OOPS: get_pexpr couldn't find a left parenthesis");
+		return(wrd$create(0, 0));
+	   end;
+	file$getc(f);
+	w: wrd := get_value(e);
+	if file$eof(f)  cor  file$peek(f) ~= ')'
+	   then env$err(e, "missing right parenthesis in expression");
+	   else file$getc(f);
+	   end;
+	return(wrd$swap(w));
+	end get_pexpr;
+
+get_aexpr = proc (e: env) returns (wrd);
+	f: file := e.input;
+	if file$eof(f)  cor  file$peek(f) ~= '<'
+	   then env$err(e, "OOPS: get_pexpr couldn't find a left angle");
+		return(wrd$create(0, 0));
+	   end;
+	file$getc(f);
+	w: wrd := get_value(e);
+	if file$eof(f)  cor  file$peek(f) ~= '>'
+	   then env$err(e, "missing right angle in expression");
+	   else file$getc(f);
+	   end;
+	return(w);
+	end get_aexpr;
+
+eval_idn = proc (e: env, sym: str, kind: int) returns (wrd) signals (macro(mtype));
+	if kind = _symbol
+	   then tagcase env$dlookup(e, sym)
+		   tag value, undef (w: wrd):
+				return(w);
+		   tag macro (m: mtype):
+				signal macro(m);
+		   end;
+	   end;
+	if kind = _decimal
+	   then return(wrd$dparse(sym));
+	   else return(wrd$parse(sym));
+	   end;
+	   except when overflow: ; end;
+	which: str;
+	if kind = _decimal
+	   then which := "decimal value overflowed: ";
+	   else which := "octal value overflowed: ";
+	   end;
+	env$err(e, which || sym);
+	return(wrd$create(0, 0));
+	end eval_idn;
+                                             

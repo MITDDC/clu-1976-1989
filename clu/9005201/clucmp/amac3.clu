@@ -1,0 +1,44 @@
+%	AMAC3 CLU
+%
+%	CLUMAC assembler: macro definitions
+
+m_loc = proc (e: env);
+	env$define(e, ".", get_wrd(e));
+	end m_loc;
+
+m_deft = proc (e: env);
+	name: str := get_symbol(e);
+	xname: str := get_symbol(e);
+	loc: wrd := env$lookup(e, ".");
+	tbit: wrd := env$lookup(e, "typbit");
+	sum: wrd := loc + tbit;
+	env$define(e, "t" || name, wrd$swap(sum));
+	env$define(e, "t%" || name, sum);
+	env$define(e, ".", wrd$iadd(loc, 1));
+	end m_deft;
+
+m_gcon = proc (e: env);
+	name: str := get_symbol(e);
+	val: str := get_symbol(e);
+	loc: wrd := env$lookup(e, ".");
+	env$define(e, name, loc);
+	env$define(e, ".", wrd$iadd(loc, 2));
+	end m_gcon;
+
+m_gconv = proc (e: env);
+	name: str := get_symbol(e);
+	loc: wrd := env$lookup(e, ".");
+	env$define(e, name, loc);
+	cnt: int := 0;
+	for val: str in get_symbols(e) do
+		cnt := cnt + 1;
+		end;
+	env$define(e, ".", wrd$iadd(loc, cnt));
+	end m_gconv;
+
+m_jumper = proc (e: env);
+	name: str := get_symbol(e);
+	loc: wrd := env$lookup(e, ".");
+	env$define(e, name, loc);
+	env$define(e, ".", wrd$iadd(loc, 1));
+	end m_jumper;

@@ -1,0 +1,296 @@
+.so ai:jerryb;.rm >
+.sr chapter_form \section_title
+.sr chapter_toc_form \section_title . \page
+.sr section_form \section_title
+.sr section_toc_form \	\section_title . \page
+.nr chapter_font Bold_font
+.nr section_font Bold_font
+.nr chapter_toc_font bold_fint
+.nr section_toc_font Bold_font
+.de para
+.ne 3l
+.ti +5
+.em
+.ls +1
+.begin_table_of_contents 1
+.chapter "Introduction"
+.fi l
+.para
+Some years ago people who built systems and especially those who tried
+to understand systems without having built them, realized that these
+systems were poorly accessible for future changes, for the sake of
+improvements and extensions, or simply for debugging.
+.para
+Now, some years later it is apparent that the appropriate tools for
+building complex systems hadn't been available, therefore existing
+systems are not reliable or well understood and promis little
+improvement. As more appropriate tools languages have been developped
+that support the construction of modular systems under incremental
+program development and allow the user in his programming effort to
+define the state of his progress in abstract terms. The design of CLU
+and other languages has been based on these ideas.
+.para
+The ideas seemed good, yet the implementation of these languages is
+rather inefficient and does not seem to be acceptable. In this paper I
+will contrast the development of high level language constructs in CLU
+and the efforts in the CLU implementation to produce acceptably
+efficient code. I won't talk about conventional optimization
+techniques,I rather point out new methods that have been proposed for
+languages like CLU.
+.para
+In chapter 1 I will sketch CLU syntax, semantics, and implementation
+as far as necessary as prerequisite for  an understanding of the
+particular implementation issues treated in chapter 2. I will close
+with some remarks stating my own judgement of the CLU system.
+
+.chapter "1   CLU"
+.para
+Objects:  The CLU world is a universe of unique objects. There are
+mutable and immutable ones, those whose state can change and those
+that are constant. CLU objects are represented by object descriptors
+of fixed size length, much like capabilities. They exist independently
+of procedure invocations in a dynamic storage area. This space is
+allocated after invocation of constructor operations of certain
+primitive CLU types. 
+.para
+Variables in Clu are not objects, they exist only during execution
+time as pointers to particular objects, much like in LISP.
+.para
+Assignment to variables does not cause objects to be copied, rather
+objects will be shared by the corresponding variables. Parameters are
+passed by assignment, in that the object descriptor the actual
+parameter points to is copied to the formal parameter, such that both
+share the same object. Assignment and parameter passing are thereby
+very efficient. 
+.para
+Abstractions:  Clu supports three special language constructs,
+procedure-, data-, and iterator-abstractions.
+.para
+Abstractions are meant to guide a user to a high level approach of his
+programming task. He needs to realize how his global task is logically
+structured and how it devides into subtasks that are logically
+contained and can be dealt with independently. The CLU abstractions
+provide the frames for logical units of his program.
+.para
+A procedural abstraction is syntactically and semantically equivalent
+to a procedure or subroutine. It's behavior can be viewed as a mapping
+from its inputs to its outputs. CLU provides runtime support of a one
+stack runtime environment allowing for recursion.
+.para
+A data abstraction specifies an abstract data type. Abstract data
+types are the only types in CLU. Every CLU object is of a particular
+type. A type defines a set of operations that create and manipulate
+objects of that type. For a user the only access he has to a type of
+objects is through any of the operations associated with that type.
+The semantics of an abstract data type are therefore completely
+characterized by the behavior of the operations.
+.para
+Abstract data types are implemented using a construct called cluster. A
+cluster contains the represention of the data types in terms of other
+data types or CLU primitives and the code for each operation allowed
+on that type. Clusters are normally not seen by the user. Invocations
+of operations on abstract objects are implemented as procedure calls.
+.para
+An iterator abstraction is useful in the for-statement of the CLU
+language as a guard of the iteration process. An iterator selects from
+a given set of objects the object that will be iterated over next,
+until its supply is exhausted. Iterators are implemented as coroutines
+by simulation of two runtime stacks on a single stack. 
+.para
+More extensive description of the concept of abstractions in CLU can
+be found in 
+.para
+Library:  CLU supports a permanent library where it collects various
+information about abstractions. For each abstraction the library keeps
+a description unit (DU) which contains the following information:
+.list 0 0
+.nf
+(1)   Common name, given by a user
+(2)   Unique name, given by the system
+(3)   DU's owner
+(4)   DU's interface specifications
+(5)   Association list
+(6)   User list
+(7)   ID of designated version
+(8)   Set of versions
+(9)   Set of unique names, used as version IDs
+(10)  Set of unique numbers, used as version IDs
+.end_list
+.fi l
+.para
+The design of the library has not been finalized in the CLU project
+and is very flexible for extensions. The concept of the library seems
+to be a powerful tool for many reasons:
+.list -2 1
+Program development:  The library supports incremental program
+development, because it allows the user to work on one abstraction at
+a time and makes abstractions defined during the construction of
+earlier programs available for subsequent use.
+.next
+Separate compilation:  Abstractions can be compiled separately. The
+interface specifications provide information to allow for complete
+type-checking of all external references at compile time. With respect
+to this property we will often refer to abstractions as modules.
+.next
+Binding:  Binding of the external names in the module to description
+units is accomplished using the association list of the module, which
+is a list of the DUs that module refers to.
+.next
+Documentation:  Discription units are a good place for documentary
+information about abstractions, formal or informal specifications, and
+description of the diffeerent versions of the abstraction. The set of
+versions actually contains the code of the abstraction, the CLU text
+and the object code.
+.end_list
+.para
+The library is organized as a tree using the same naming strategy to
+access nodes that MULTICS uses for segments. The internal nodes of the
+library represent directories of users, and the leaves represent DUs
+of abstractions. The leaves themselves are organized as a highly interconnected network.
+.chapter "2   Implementation Issues"
+.para
+The implementation of CLU is straightforward in many respects, it is
+remarkable in respect to its support of abstractions. In the following
+I will concentrate on three issues:
+.list 0 0
+.nf
+(1)   Inline Substitution
+(2)   Multiple Representations of Abstractions
+(3)   Semantic Errors
+.end_list
+.fi l
+.para
+Each issue will be discussed in its compilation environment. Thereby I
+hope to engage in all interesting directions of the ongoing CLU
+implementation.
+.para
+From the first chapter it has become apparent that the implementation
+of CLU involves a system which provides a functionality that goes much beyond
+conventional compiler functions. Therefore often it is appropriate to talk
+about the
+CLU system rather than to the CLU compiler.
+.section "(1)  Inline Substitution"
+.para
+According to our previous description every invocation of a procedure,
+data type operation or of an iterator requires the runtime support of
+the CLU system. Those frequent procedure calls cause a substantial
+overhead in execution time compared to conventional languages, a
+problem typical for structured languages supporting program modularity.
+.para
+One very effective optimization technique used to cut down on the number of procedure
+calls is inline substitution. It requires the replacement of a
+procedure invocation (or invocation of an operation or iterator
+respectively) by a modified copy of the procedure body (or the body of the
+operation or iterator respectively). The modifications involve
+substitution of the formal parameters by the actual parameters and
+their respective values, and surrounding of the body with some form of
+begin-end-block parentheses. This expanded form is semantically
+equivalent to the previous invocation.
+.para
+The savings in execution time result in turn in an increase
+of the size of the program. Therefore not every procedure invocation
+seems to be a good candidate for expansion. The use of data
+abstractions often introduces operations that perform little or no
+computation. Those are always good candidates for expansion. According
+to an analysis of Bob Scheifler     , in CLU programs with little
+degree of recursion (in case of recursive procedure calls substantial
+increase in the size of code may result) over 90% of all procedure
+calls can be eliminated with little increase in the size of compiled
+code and small savings in execution time.
+.para
+Since CLU modules can be compiled separately it has been suggested to
+store the object code in the description units of the library. It is
+essential though to realize that code that is inline substituted in
+its context, is subject to farther optimization techniques, that become
+especially effective through the enlarged context. Those are
+optimization techniques based on data flow analysis of program variables.
+.para
+Scheifler's good results about the size of compiled code stem largely
+from the fact that modules were optimized within their context. He
+shows a surprising example about constant folding. My suggestion is to
+store intermediate code in the DUs that has already been optimized
+separately, but is subject to further optimization.
+.section "(2)  Multiple Representations of Data Types"
+.para
+There have been some considerations about allowing multiple
+representations of abstractions, which are kept as valid versions in
+the DUs. Multiple representations seem desirable for two major reasons:
+.list -5 1
+.seq )
+Modifiability:  The ability to add new versions of an implementation
+without having to delete the old ones, this is desirable during debugging to
+correct errors or for coping with different environments. 
+.next
+.seq )
+Flexibility:  A system should support independent uses of different
+implementations for different applications, for example the
+representation of a set should be in one case a linked list, in
+another case a hash table.
+.end_list
+.para
+The last reason is really an efficiency reason. Bruce Daniels suggests
+keeping multiple representations as an optimization technique for very
+high level languages      .His argument goes like the following: Since
+users of very high level languages express the problem they want to
+solve very appropriately on an abstract level, this is an opportunity
+for the system to realize what the particular requirements of the user
+are and provide him with the optimal implementation. To select the
+optimal implementation requires a fair amount of analysis of the
+program context and might be in place for mathematical languages as
+APL and SETL. CLU does hardly seem accessible for this kind of
+analysis, at least at this point in the state of the art.
+.para
+In CLU the selection of the most appropriate representation would be
+mad by the user himself. Only a certain flexibility in the binding
+mechanism of modules would be required. For inline used modules the
+actual selection could occur at load time, otherwise during program
+execution time.
+.para
+A difficult problem arises though if binary operations use twoobjects
+resulting from different representations of the same type. Four
+solutions to this problem have been proposed:
+.list -5 0
+.seq )
+Conversion of one object to the representation of the other;
+conversion routines have to be written going in both directions
+between any pair of representations.
+.next
+.seq )
+Provision of an "abstract representation" for each type which allows only
+unary operations such that any representation of the original type can
+be composed of the unary operations.
+.next
+.seq )
+Combination of 1) and 2).
+.next
+.seq )
+Guarantee that only one representation of a type is used within a
+program scope.
+.end_list
+Solutions 1) to 3) detect the critical case where two different
+representations occur in one operation and provide complex means to
+deal with it correctly. Solution 4) in turn prevents this case from ever
+happening.
+.para
+Concentrating on the first reason "modifiability" for multiple
+representions, solution 4) is good enough, since in the progress of a
+programming project the last version will be the only one of interest
+and will be frozen until a better version is implemented. For detailed
+discussion , see    . 
+.para
+Multiple representations for procedural and iterator abstractions
+won't cause such a problem.
+.section "(3)  Semantic Errors"
+
+
+.chapter "Remarks"
+
+
+
+
+
+
+
+
+
+.exit_macro

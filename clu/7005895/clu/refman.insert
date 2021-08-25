@@ -1,0 +1,276 @@
+.ec k \
+\k
+\k do a .so clu;refman insert at the beginning of your file
+\k you do not have to do a .so r;r macros !
+\k
+.nd _refman_insert_loaded 0
+.if _refman_insert_loaded
+.  tm Ignoring reload of clu;refman insert
+.  nx
+.  en
+.nr _refman_insert_loaded 1
+.dv xgp
+.fo 0 fonts1;30vrx rwskst
+.fo 1 31vgb
+.fo 2 fonts1;30vrix ebmkst
+.fo 3 37vrb
+\k this is used in an appendix
+.fo 4 30vrb
+\k this is used for some meta syntax characters
+.fo 5 40vgl
+\k this is used for small super- and sub-scripts
+.fo 7 20vg
+\k this is used for some special characters
+.fo 8 fonts1;31sym jcskst
+\k this is used for some meta syntax characters
+.fo 9 s30grk
+\k Barbara uses greek letters (why? I don't know!)
+.fo A fonts1;52meta rwskst
+.fo D 25vg
+.fo E 25vgb
+.ls 1.5
+.tr ` 
+.tr @ 
+.nr verbose 1
+.nr tty_table_of_contents 1
+.nr print_page1_headings 1
+.nr chapter_starts_page 1
+.sr left_heading 4DRAFT*
+.sr right_heading date
+.nr both_sides 1
+.nr chapter_toc_font 4
+.nr section_toc_font 4
+.sr chapter_toc_form 3\section_number.t(toc1)\section_title *. \page
+.sr section_toc_form @@@\section_numbert(toc2)\section_title . \page
+.sr appendix_toc_form 3\section_number_title.t(toc3)\section_title *. \page
+.sr achapter_toc_form @@@\section_number.t(toc2)\section_title . \page
+\k
+\k Note: the first module, which adds "part a" to the toc
+\k sets the tabs as well.
+\k
+.so r;r macros
+.so r;div rmac
+.so clu;clukey r
+.so clu;clusym r
+\k
+.am chapter			\k Ignore this
+.  if font
+.    tm "Current font not 0 at chapter end!"
+.    en
+.  em
+\k
+.am section			\k Ignore this
+.  if font
+.    tm "Current font not 0 at section end!"
+.    en
+.  em
+\k
+.de end_keep			\k Ignore this
+.  am keep_holder
+.    br
+\.   em
+.  size keep_holder
+.  if vsize<(pl-bottom_margin_size-top_margin_size)
+.    ne vsize!m
+.    en
+.  keep_holder
+.  em
+\k
+\k paragraph macro - put it before every paragraph
+\k if you only want a small space before the paragraph
+\k (e.g. the first paragraph in a chapter or section
+\k then do a .para 1,  otherwise just a .para
+\k
+.de para
+\k.  if ~nargs
+\k.    sp 3*(ls-100)/200
+\k.  ef \0
+\k.    sp (ls-100)/200
+\k.  en
+.  ne 3
+.  ti 4
+.  em
+\k
+\k show macro - to start an indented example in nofill, single-spaced
+\k
+.de show
+.  be show_block
+.    nv ols ls
+.    nv ls 100
+.    sp (ols-100)/100
+.    hv indent indent 8
+.    nf
+.  em
+\k
+\k eshow macro - to end a .show
+\k
+.de eshow
+.    fi
+.  en
+.  sp (ls-100)/100
+.  em
+\k
+\k stab macro - stab(n) sets "tab" n at the current horizontal position
+\k
+.de stab
+.  nr tab_pos\0 hpos
+.  em
+\k give it a short name, too
+.eq s stab
+\k
+\k tab macro - tab(n) resets the horizontal position to "tab" n
+\k
+.de tab
+.  if
+.    if hpos>tab_pos\0
+.      tm Tabbed backwards with tab \0 at \lineno
+.      en
+.    nv delta tab_pos\0-hpos
+.    hs delta!m
+.    en
+.  em
+\k a short name
+.eq t tab
+\k
+\k btab macro - btab(n) does a line break and then goes to "tab" n
+\k
+.de btab
+.  if
+.    br
+.    nv delta tab_pos\0-hpos
+.    hs delta!m
+.    en
+.  em
+\k a short name
+.eq b btab
+\k long_def - .long_def <non-term>	for defining the longest non-terminal
+\k	after a .long_def, use only .def1's, don't do a .def
+.de long_def
+.  width "\0  "
+.  nr d_stop0 width
+.  width "def"
+.  nr d_stop1 d_stop0+(width/2)
+.  width "def  "
+.  nr d_stop2 d_stop0+width
+.  em
+\k
+\k def macro - .def foo <opt-alt>	for showing full BNF syntax of "foo"
+\k	first alternative is <opt-alt>, if present, else text following .def line
+\k
+.de def
+\0  
+.  nr d_stop0 hpos
+.  width "def"
+.  nr d_stop1 hpos+(width/2)
+def  
+.  nr d_stop2 hpos
+.  if nargs>1
+\1
+.    en
+.  em
+\k
+\k def1 macro - .def1 foo <opt-alt>	for showing full BNF syntax of "foo"
+\k	to be used only after a .def has been done, to line up the ::='s
+\k	first alternative is <opt-alt>, if present, else text following .def line
+\k
+.de def1
+\0
+.  hp d_stop0!m
+def
+.  hp d_stop2!m
+.  if nargs>1
+\1
+.    en
+.  em
+\k
+\k or macro - .or <opt-alt>		for starting next alternative in BNF
+\k	next alternative is <opt-alt>, if present, else text following .or line
+\k
+.de or
+.  if
+.    br
+.    nv delta d_stop1-hpos
+.    hs delta!m
+orbar
+.    nr delta d_stop2-hpos
+.    hs delta!m
+.    if nargs
+\0
+.      en
+.    en
+.  em
+\k
+\k italics macro
+\k
+.de i
+2\0*
+.  em
+\k
+\k boldface macro
+\k
+.de bld
+1\0*
+.  em
+\k
+\k nlist macro   -   for numbered lists
+\k
+.sr list_indent 3
+.sr list_space .5
+.
+.de nlist
+.ilist
+.nnum
+.em
+\k
+\k nnext macro   -   for starting the next element in a numbered list
+\k
+.de nnext
+.next
+.nnum
+.em
+\k
+\k end_list macro   -   for ending a numbered list
+\k
+.de end_list
+.br
+.en
+.rtabs
+.em
+\k
+\k internal macro only
+\k
+.de nnum
+\list_count.	
+.em
+\k
+\k internal macro only
+\k
+.de ibegin_list
+.br
+.nv ls
+.nv indent indent
+.nv rindent rindent
+.nv tab_stop
+.sv list_indent \list_indent
+.sv list_space \list_space
+.nv list_count 0
+.if nargs>1
+.sr list_indent \1
+.en
+.if nargs>2
+.sr list_space \2
+.en
+.in +\list_left_margin
+.if \0
+.in +\list_indent
+.sr list_indent -\list_indent
+.en
+.ta indent!m
+.ir +\list_right_margin
+.nr tab_stop indent
+.ls \list_spacing
+.ns
+.next
+.rs
+.em
+.

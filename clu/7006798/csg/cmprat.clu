@@ -1,0 +1,143 @@
+rat = cluster is create, add, sub, mul, div, minus, lt, equal
+
+    % Representation invariants:
+    %	    denom is always positive
+    %	    fraction is always in lowest terms
+    %       [-num, num] is always contained in [MIN_INT, MAX_INT]
+
+    rep = struct[num: int, denom: int]
+
+    % create the rational number n/d, where d ~= 0
+
+    create = proc(n: int, d: int) returns(cvt) signals(zero_divide, overflow)
+	begin
+	    if d = 0 then signal zero_divide end
+	    if d < 0 then
+		   n := -n
+		   d := -d
+	       end
+	    n, d := cancel(n, d)
+	    return(rep${num: n, denom: d})
+	    end resignal overflow
+	end create
+
+    % add two rational numbers
+    %	    first find gcd of the two denominators
+    %	    use it to determine the least common multiple
+    %	    multiply the numerators by the appropriate factors
+    %	    and add them, then reduce the result to lowest terms
+
+    add = proc(r1: cvt, r2: cvt) returns(rat) signals(overflow)
+	begin
+	    g: int := gcd(r1.denom, r2.denom)
+	    lcm: int := r1.denom * (r2.denom/g)
+	    fact1: int := lcm/r1.denom
+	    fact2: int := lcm/r2.denom
+	    return(create(r1.num*fact1 + r2.num*fact2, lcm))
+	    end resignal overflow
+	end add
+
+    % subtract two rational numbers
+    %	    just negate the second number, then add
+
+    sub = proc(r1: rat, r2: rat) returns(rat) signals(overflow)
+	return(add(r1, minus(r2)))
+	    resignal overflow
+	end sub
+
+    % unary minus
+    %	    just negate the numerator
+
+    minus = proc(r: cvt) returns(rat) signals(overflow)
+	return(create(-r.num, r.denom))
+	    resignal overflow
+	end minus
+
+    % multiplication - first cross-cancel common factors to
+    %	    try to prevent unnecessary overflow, then multiply
+    %	    numerator by numerator, denominator by denominator.
+
+    mul = proc(r1: cvt, r2: cvt) returns(rat) signals(overflow)
+	begin
+	    r1n, r2d: int := cancel(r1.num, r2.denom)
+	    r2n, r1d: int := cancel(r2.num, r1.denom)
+	    return(create(r1n*r2n, r1d*r2d))
+	    end resignal overflow
+	end mul
+
+    % division - just backwards multiplication
+
+    div = proc(r1: rat, r2:cvt) returns(rat) signals(zero_divide, overflow)
+	return(mul(r1, create(r2.denom, r2.num)))
+	    resignal zero_divide, overflow
+	end div
+
+    % equality test
+
+    equal = proc(r1: cvt, r2: cvt) returns(bool)
+	return(r1.num = r2.num & r1.denom = r2.denom)
+	end equal
+
+    % comparison of two rational numbers
+    %	    algorithm prevents possibility of overflow
+
+    lt = proc(r1: cvt, r2: cvt) returns(bool)
+	if up(r1) = up(r2) then return(false) end
+	s1: bool := sign(r1.num)
+	s2: bool := sign(r2.num)
+	if s1 & ~s2 then return(false) end
+	if s2 & ~s1 then return(true) end
+	r1n, r1d, r2n, r2d: int
+	r1n, r1d, r2n, r2d := r1.num, r1.denom, r2.num, r2.denom
+	if ~s1 then r1n := -r1n end
+	if ~s2 then r2n := -r2n	end
+	q1, rm1, q2, rm2: int
+	odd_even: bool := false
+	while true do
+	    q1, rm1, q2, rm2 := r1n/r1d, r1n//r1d, r2n/r2d, r2n//r2d
+	    if q1 ~= q2 | rm1 = 0 | rm2 = 0 then break end
+	    odd_even := ~odd_even
+	    r1n, r1d, r2n, r2d := r1d, rm1, r2d, rm2
+	    end
+	result: bool := compare(q1, rm2, q2, rm2)
+	if odd_even then result := ~result end
+	if ~s1 & ~s2 then result := ~result end
+	return(result)
+	end lt
+
+    compare = proc(q1, r1, q2, r2: int) returns(bool)
+	if q1 = q2 then return(r1 < r2)
+	   else return(q1 < q2) end
+	end compare
+
+    sign = proc(i: int) returns(bool)
+	if i >= 0 then return(true) else return(false) end
+	end sign
+
+    % given a pair of integers, cancel out any common
+    %	    factors
+
+    cancel = proc(i1: int, i2: int) returns(int, int) signals(overflow)
+	begin
+	    g: int := gcd(i1, i2)
+	    return(i1/g, i2/g)
+	    end resignal overflow
+	end cancel
+
+    % find greatest common divisor of two integers
+
+    gcd = proc(x,y: int) returns (int) signals(overflow)
+	begin
+	    if x < 0 then x := -x end
+	    if y < 0 then y := -y end
+	    end resignal overflow
+	if x > y then x, y := y, x end
+	if x = 0 then return(y) end	
+	while true do
+	    u : int := y // x
+	    if u = 0 then return (x) end
+	    x, y := u, x
+	    end
+	end gcd
+
+    end rat

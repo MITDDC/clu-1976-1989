@@ -1,0 +1,8 @@
+fload("clucmp;init bin")
+set_print_level(1)
+initialize_compiler()
+file$puts(file$tyo() "To pdump, do 'EVAL save_compiler()' at command level\n")
+file$puts(file$tyo() "and answer 'no' to the OCLU question!\n")
+erret()
+
+

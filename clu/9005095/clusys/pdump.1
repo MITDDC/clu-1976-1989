@@ -1,0 +1,80 @@
+.insrt	clusys;alpha >
+cluster	%pdump
+
+; Pure_dump(s) causes a  pure dump of  the current program  to
+; the file named by the string s. It currently does so by:
+; 	1: closing all files
+; 	2: valretting a ":pdump s" to DDT
+; 	3: committing  suicide via  a .break  16,160000
+; The suicide is  to ensure  that  the user  will not  attempt 
+; to continue with  files that have  been "magically"  closed.
+; Thus,  one  can   call  pure_dump   from  within   an  xfile 
+; safely.  The alternatives are to either not close the  files
+; (which messes  up the  user of  the  dumped  program) or  to
+; blithely   continue  (which   hurts  an   xfile  caller   of
+; pure_dump).
+
+propt%==prc.ni	; no interrupts, please
+proc	allpur,[s]
+	move	rr,s(er)
+	$if	isrep	rr,tsrep
+	$then	string	scat,string$concat
+		slink	l,\15\12:pdump 
+		scall	scat,2,[l(lr),rr]
+		slink	l,\15\12p\0
+		scall	scat,2,[rr,l(lr)]
+		movem	rr,s(er)
+	$fi
+	$if	isrep	rr,tsrep
+	$then	call	file$close_all,0
+		setzm	$trace	; no tracing
+		setzm	$trsav
+		setzm	$inreq	; no inferior requests
+		setzm	$.greq	; no ^G or ^S requests
+		setzm	$.sreq
+		setzm	$otty	; pretend no tty
+		move	rr,s(er)
+		.value	1(rr)	; valret a pure dump
+		skip
+		.break	16,160000	; quit
+	$fi
+	$rtnc	$none
+corp	pure_dump,[s]
+
+propt%==prc.ni	; no interrupts, please
+proc	gcpur,[s]
+	movei	n1,2
+	movem	n1,$gcopt	; make everything pure
+	aos	$gcreq		; request a GC
+	pushj	sp,safex	; force the GC
+	call	pure_dump,1,[s(er)]
+	$rtnc	$none
+corp	gc_pure_dump,[s]
+
+propt%==prc.ni	; no interrupts, please
+proc	gc
+	setzm	$gcopt
+	aos	$gcreq
+	pushj	sp,safex
+	$rtn	$gcsav
+corp	gc
+
+propt%==prc.ni	; no interrupts, please
+proc	pgc
+	movei	n1,2
+	movem	n1,$gcopt	; make everything pure
+	aos	$gcreq
+	pushj	sp,safex
+	$rtn	$gcsav
+corp	gc_pure
+
+proc	bye
+	call	file$close_all,0
+	.break	16,160000
+	$rtnc	$none
+corp	quit_
+
+retsulc	%pdump
+
+.insrt	clusys;omega >
+

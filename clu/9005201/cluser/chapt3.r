@@ -1,0 +1,697 @@
+.chapter "A Language for Parnas Specifications"
+	This chapter presents the syntax and semantics of a specification
+language for Parnas modules called ALPS (A Language for Parnas Specifications). 
+Section 3.1 describes the syntax of ALPS and Section 3.2 discusses its
+semantics.
+	The discussion here is concrete, dealing with a specific language and its
+semantics.  This chapter is a complement to the abstract discussion in Chapter 2. 
+It shows how an actual language can be used to specify Parnas modules and how its
+semantics can be defined using the model in Chapter 2 as a guide.  The chapter
+concludes with an example discussing a proof that a particular module is
+well-defined and consistent.
+.section "The Syntax of ALPS"
+	An example of a Parnas module specification, described using ALPS,
+is given below in Figure 1.  Here, the data abstraction
+defined is a bounded integer stack with the following operations.
+2Top* is a V-function that is defined as long as the stack is not empty
+and returns the top of the stack.  2Depth* is another V-function that reflects
+the number of integers in the stack.  2Push* and 2pop* are O-functions that
+insert and delete, respectively, integers from the stack.
+.begin_figure "Bounded Integer Stack"
+.ls 1
+.sp 2
+		bounded_stack = 1Parnas_module is* push, pop, top, depth
+
+			depth = 1non-derived V-function*( ) 1returns* integer
+				1Appl. Cond.: true*
+				1Initial Value*: 0
+				1end* depth
+
+			stack = 1hidden V-function*(i:integer) 1returns* integer
+				1Appl. Cond.: true*
+				1Initial Value*: undefined
+				1end* stack
+
+			top = 1derived V-function*( ) 1returns* integer
+				1Appl. Cond.*: ~(depth = 0)
+				1Derivation*: top = stack(depth)
+				1end* top
+
+			pop = 1O-function*( )
+				1Appl. Cond.*: ~(depth = 0)
+		 		1Effects*: 'depth' = depth - 1
+		 		1end* pop
+
+			push = 1O-function*(a:integer)
+				1Appl. Cond.*: depth < 100
+				1Effects*: 'depth' = depth + 1
+				'stack'(depth + 1) = a
+				1end* push
+
+		1end* bounded_stack
+
+
+.finish_figure
+	This specification illustrates the three major components of a Parnas
+module described using ALPS: the defining abstractions,
+the interface description and the definitions of the V-functions and O-functions. 
+The interface description provides a brief description of the
+V-functions and O-functions that users of the module may employ.  These functions,
+along with the hidden V-functions, are fully defined in the body of the
+module.  In these definitions, the defining abstractions are used.  Here, they
+compose the domain and range of the V-functions and O-functions and, further,
+through their associated functions, help specify the meaning of the
+V-functions and O-functions.
+.subsection "The Defining Abstractions"
+	As was discussed in Chapter 1, a Parnas module uses
+data abstractions that are distinct from the data abstraction defined by the module. 
+These abstractions are called the 2defining abstractions*.  They are assumed to be
+defined elsewhere.
+	In the remainder of this thesis,
+we shall use the integers and Booleans 
+as defining abstractions and associate the usual operations with them.
+Finally,
+the set {@}, where @ is the empty string, will be used as the domain of 
+nullary V-functions and O-functions.
+	ALMS can, of course, have other defining abstractions besides these two.  We
+will, however, leave the actual collection of defining abstractions unspecified and
+only assume that it at least contains the integers and Booleans.
+.subsection "The Interface Description"
+	In ALPS, the 2interface description* of a Parnas module provides
+a very brief description of the interface that the module presents
+to the outside environment.  It consists of the name of the data abstraction
+defined by the module and a list of the functions that users of the module
+may employ;
+		bounded_stack = 1Parnas_module is* push,pop,top,depth
+.br
+The list of functions contains the name of every non-derived V-function,
+derived V-function and O-function in the module.  The names of hidden
+V-functions may not appear in the interface description as they are not available
+outside the module.
+.subsection "V-functions"
+	This section specifies the syntax for the three types of V-functions
+of a Parnas module, the non-derived, hidden and derived V-functions.  In the next
+section, the syntax of O-functions is given.  Recall
+that non-derived V-functions are primitive aspects of the data abstraction defined
+by the module.  Hidden V-functions are used to represent aspects of the state that
+are not immediately observable and are inaccessible to users of the module.  However,
+limited access to them is provided by the derived V-functions, which are defined in
+terms of the non-derived and hidden V-functions.
+	Throughout this section and the next, it will be necessary to use 
+2expressions*.  An expression is formed through the composition of the non-derived
+and hidden V-functions of the module
+and the functions associated with the
+defining abstractions.  It may also contain elements of the defining abstractions and
+formal arguments.  The formal arguments serve as place holders in the expression.
+	 We now turn to the definition of an expression.  Our definitions will be
+written as though all expressions were written f(...) although we will use
+expressions like x+y with infixes such as + in examples.
+	Given a particular state machine SM
+we define an 2expression* recursively as follows:
+
+	1)  An element of a defining abstraction or a formal argument is an expression.
+
+	2)  If e1, ..., en are expressions and f is a non-derived V-function
+of SM, a hidden V-function of SM or
+a function associated with one of the defining abstractions requiring n arguments,
+then f(e1,...,en) is an expression.
+
+	We shall also refer to expressions by the type of value they return upon
+evaluation.  For example, a Boolean expression evaluates to either 1true* or
+1false*.
+Note that this definition excludes derived V-functions from appearing in an
+expression.  This restriction is made to simplify the semantic definition in Section
+3.2.  In principle, there is no difficulty in allowing derived V-functions to appear in
+expressions.
+.subsubsection "Non-derived V-functions"
+	A non-derived V-function has three sections in its definition, a mapping 
+description, an applicability section and an initial value section. The general
+schema for defining non-derived V-functions in ALPS is given below in Figure 2.
+.begin_figure "Syntax of a Non-derived V-function"
+
+
+	2name* = 1non-derived V-function*(x1:t1;...;xn:tn) 1returns* r
+		1Appl. Cond.:* 2Boolean expression*
+		1Initial Value:* init
+ 		1end* 2name*
+
+
+where r and ti are names of defining abstractions and init8*r  {undefined}
+
+.finish_figure
+
+33.1.3.1.1   The Mapping Description of Non-derived V-functions*
+
+	In ALPS, the 2mapping description* of a non-derived V-function specifies
+its name, domain and range, plus the fact that it is a non-derived
+V-function.  Its syntax is
+		<2name*> = 1non-derived V-function*( ) 1returns* r
+.br
+for nullary V-functions such as depth in Figure 1 and
+		<2name*> = 1non-derived V-function*(x1:t1;...;xn:tn) 1returns* r
+.br
+for n-ary non-derived V-functions.
+	Here, r, the name of one of the defining abstractions, is the equivalent of
+Rv of Section 2.1.1.
+It is sometimes referred to as the 2type* of the V-function.  The xi are
+the 2formal arguments* of the V-function.  They must be distinct.  
+Also, ti, again the name of a defining abstraction, is called
+the 2type* of the formal argument xi.
+	For a nullary non-derived V-function, Dv is {@}.
+For an n-ary non-derived V-function`v,
+			Dv = index(\x i=1 n) ti
+.br
+	For example, consider the mapping description of depth in Figure 1.
+		depth = 1non-derived V-function*( ) 1returns* integer
+.br
+Here, Ddepth = {@}  and  Rdepth = integer and, in any state, the function
+associated with depth is a member of [{@}  integer].
+
+33.1.3.1.2   The Applicability Condition of Non-derived V-functions*
+
+	The 2applicability condition* of a non-derived V-function contains
+a Boolean expression that determines the success of a call to the function.
+This expression must be 2type correct*.  This means that whenever an object is
+used in the expression, its type must be compatible with the type expected at that
+location.  Furthermore, this expression must only contain formal arguments that appear
+in the V-function's mapping description.
+	The abstract syntax of the applicability condition of a non-derived
+V-function v is
+		1Appl. Cond.:* Boolean expression
+
+33.1.3.1.3   The Initial Value Section of Non-derived V-functions*
+
+	In ALPS, the initial value section of a non-derived V-function specifies one
+element of the V-function's range or contains the special symbol
+undefined.  This restricts
+the mapping associated with the V-function in the initial state of the module to be
+either a constant, total function or a totally undefined function.  The latter case is
+specified by undefined.
+.subsubsection "Hidden V-functions"
+	Hidden V-functions are specified in an analogous manner to non-derived
+V-functions.  The only difference occurs in the syntax of the mapping description
+which contains the special symbol 2hidden*
+instead of non-derived.  A hidden V-function's syntax
+is illustrated below in Figure`3.
+.begin_figure "Syntax of a Hidden V-function"
+
+
+	2name* = 1hidden V-function*(x1:t1;...;xn:tn) 1returns* r
+		1Appl. Cond.:* 2Boolean expression*
+		1Initial Value:* init
+ 		1end* 2name*
+
+
+where r and ti are the names of defining abstractions and init8*r  {undefined}
+
+.finish_figure
+.subsubsection "Derived V-functions"
+	A derived V-function also 
+has three sections in its definition: a mapping description, applicability condition
+and a derivation section.  The 2mapping
+description* only differs from the mapping description of a non-derived or hidden
+V-function by use of the special symbol 2non-derived*.  The 2applicability
+condition* exactly 
+follows the syntax of the applicability condition of a non-derived or hidden V-function.
+The 2derivation section* is unique for this type of function.
+.begin_figure "Syntax of a Derived V-function"
+
+
+	2name* = 1derived V-function*(x1:t1;...;xn:tn) 1returns* r
+		1Appl. Cond.:* 2Boolean expression*
+		1Derivation:* defining clause
+ 		1end* 2name*
+
+
+where r and ti are names of defining abstractions.
+
+.finish_figure
+
+33.1.3.3.1   The Derivation Section of Derived V-functions*
+
+	The 2derivation section* of a derived V-function v contains a clause that
+defines v in terms of the other non-derived and hidden V-functions in the module.  Its
+syntax is described as follows.
+	If a derived V-function v has formal arguments x1,..., xn
+and type r,
+then the derivation section of v is of the form
+.keep
+		1Derivation:*  v(x1,...,xn) = e1
+	or
+		1Derivation:*  If 9b* then v(x1,...,xn) = e1 else v(x1,...,xn) = e2
+.end_keep
+.br
+	Here, 9b* is a boolean expression and e1 and e2 are expressions of type
+r.  Again, these expressions must be type correct and only use formal arguments of v.
+	For example, consider the derivation section of top in Figure 1.
+		1Derivation:* top = stack(depth)
+.subsection "O-functions"
+	An O-function also has three sections in its definition.  They are a mapping
+description, an applicability condition and an effects section.  The general method of
+specifying an O-function in ALPS is shown below in Figure 5.
+.begin_figure "Syntax of an O-function"
+
+
+	2name* = 1O-function*(x1:t1;...;xn:tn)
+		1Appl. Cond.:* 2Boolean expression*
+		1Effects:* equation1
+			.
+			.
+			.
+			equationm
+ 		1end* 2name*
+
+
+
+where ti is the name of a defining abstraction.
+
+.finish_figure
+.subsubsection "The Mapping Description of O-functions"
+	In ALPS, the mapping description specifies the domain of the O-function and
+identifies the particular function as an O-function.  Its syntax is
+		2name* = 1O-function*( )
+.br
+for nullary O-functions such as pop and
+		2name* = 1O-function*(x1:t1;...;xn:tn)
+.br
+where ti is the name of a defining abstraction, for n-ary O-functions such as push.
+	The xi are the 2formal arguments* of the O-function.  They must be
+distinct.
+Also, ti is the 2type* of the formal argument xi.
+	For a nullary O-function, Do is {@}.  For an n-ary O-function o,
+			Do = index(\x i=1 n ) ti
+	The range of the O-function is not specified by the mapping description since it
+is understood that the range of any O-function is the state set of the Parnas module.
+.subsubsection "The Applicability Condition of O-functions"
+	The 2applicability condition* of an O-function contains a Boolean
+expression.  Its syntax is
+		1Appl. Cond.:* Boolean expression
+.br
+Naturally, this Boolean expression must be type correct and only contain formal
+arguments form the O-function's mapping description.  For
+example, push's applicability condition in Figure 1 is
+		1Appl. Cond.:* depth<100
+.subsubsection "The Effects Section of O-functions"
+	In ALPS, the 2effects section* of an O-function o contains a group of 
+equations that redefine the mappings of the non-derived and hidden V-functions. 
+There are two types of equations; simple equations and conditional equations.  A
+2simple equation* in a Parnas module PM is defined as follows.
+
+	1)  Let v be a nullary non-derived or hidden V-function of PM having type
+t and let e be an expression of type t.  Then,
+			'v' = e
+.br
+is a 2simple equation*.
+
+	2)  Let v be a n-ary (n>0) non-derived V-function or hidden V-function of
+PM having type t with formal arguments xi of type ti.  Now let e be an
+expression of type t and ei be expressions of type ti.  Then,
+			'v'(e1,...,en) = e
+.br
+is a 2simple equation*.
+
+	The quotes are used to represent the result returned by the V-function
+after completion of the O-function call.
+	A conditional equation for o employs simple equations on its definition.
+	Let eq1 and eq2 be simple equations and let 9b* be a Boolean
+expression.  Then,
+			1if* 9b* 1then* eq1
+	and
+			1if* 9b* 1then* eq1 1else* eq2
+.br
+are 2conditional equations*.  Note that this definition prohibits nested
+conditional equations and blocks of equations following the 2then* or 2else*.
+These restrictions were made to simplify the semantic definition in Section 3.2.
+	Finally, effects section 
+of an O-function contains a listing of conditional and simple equations.
+.ls 1
+		1Effects*: eq1
+			.
+			.
+			.
+			eqm
+.ls 2
+.br
+The ordering is immaterial.  Of course, all expressions in the effects section must be
+type correct and contain only formal arguments of the O-function.
+	As an example, consider push's effects section which contains two simple
+equations.
+.br
+.ls 1
+		1Effects:*  'depth' = depth + 1
+			'stack'(depth + 1) = a
+.ls 2
+.section "The Semantics of ALPS"
+.subsection "The State Set"
+	As previously mentioned in Chapter 2, a state of a Parnas module is completely
+specified when the mapping associated with each non-derived and hidden V-function 
+of the module is given.  Hence, we view the state set, 6S*, of a Parnas module
+in the following manner:
+
+		6S*  [Dv1  Rv1] \x ... \x [Dvn  Rvn] = 9D*
+
+where {v1,...,vn} is the set of non-derived and hidden V-functions of PM.
+.foot
+Recall [A  B] = {f | f is a partial function from the set A to the set B}.
+.efoot
+Note that Dvi and Rvi are defined in Sections 3.1.3.1.1 and 
+3.1.3.2 on mapping descriptions.
+	Our purpose in this section is to define 6S*.  Here, we shall use the same
+approach outlined in Section 2.2.1, taking the transitive closure of the initial state
+Q under the state transition function.
+So, to define 6S*, it suffices to define the initial state of the module and
+then to describe the state change caused by an O-function 
+call.
+	The 2initial state* Q is the n-tuple
+(initv1,...,initvn)
+where {v1,...,vn} the set of non-derived and hidden V-functions of the machine
+and
+
+.ls 1
+.keep
+				4f*			if vi's initial value section
+							contains the word undefined
+
+		initvi =
+
+				{(a,b) | a8*Dvi}		if vi's initial value
+							contains b8*Rvi
+
+
+.end_keep
+.ls 2
+
+	To define the next state function of a Parnas module PM specifed 
+in ALPS, it is necessary to define, in general, how an
+O-function call maps one member of 9D* into another. We now turn to
+this topic.
+	The basic components of an O-function's effects section are the
+expressions which are used to build the simple equations and the
+conditional equations.  These expressions are formed by composing the functions
+associated with the defining abstractions and the non-derived and hidden V-functions 
+of the machine.  So, the first step in defining the next state mapping is to specify the
+meaning of these expressions.
+	Their meaning 
+is dependent on two items.  First, it depends
+on the particular O-function or V-function call since, in general,
+the expressions will contain formal arguments from the function's definition.  Actual
+values must be substituted for these formal arguments.  Second, the meaning of the
+expressions depends
+on the member R8*9D* since R gives an interpretation to the 
+non-derived and hidden V-functions.  Note that the functions 
+associated with the defining abstractions
+have a constant fixed interpretation and are independent of members of
+9D*.
+	So, let R8*9D* and let 4w* be an O-function or V-function with
+expression e appearing in 4w*'s definition.  Finally, let
+(a1,...,an)8*D4w*.  Then to find the meaning of e, we can
+proceed as follows.
+
+	1)  First, substitute ai for every occurrence of its corresponding
+formal argument in e, obtaining e*.  Note, if D4w* = {@}, this step is 
+unnecessary since 4w* has no formal arguments.
+
+.width |
+.nr vbarwidth width
+.de defchar
+|
+.nr hpos hpos-vbarwidth
+A=*
+.em
+	2)  Now, to evaluate e*, we shall view R as an interpretation or
+environment which specifies, for each symbol A, the value AR of A in R. 
+If A is an element of a defining abstraction
+or one of their associated functions, then AR
+is simply A.  If A is a non-derived or hidden V-function, then AR is the
+function associated with A in R.  The value of E* = A(E1,..,Ek) in R, following
+[Pratt 77], will be denoted by R defchar() E* and is defined by
+		R defchar() A(E1,...,Ek) = AR(R defchar() E1,...,R defchar() Ek)
+.br
+Since the non-derived and hidden V-functions may not be associated with total functions
+in R, it is possible that R defchar() E* is undefined.
+
+	Thus, as outlined above, we can define a semantic function 6p*(R,e,o(a))
+for R8*9D*, expressions e in 4w*'s definition and 
+a8*D4w* such that
+			6p*(R,e,o(a)) = R defchar() e*
+	This function is used to specify the meaning of the equations in an
+O-function's effects section and, later, in Section 3.3 to give the semantics of
+V-functions and O-functions.  These equations modify the mappings associated with
+the various non-derived and hidden V-functions of the module by changing the value
+associated with one element of their domain.
+	Let R8*9D* and consider the simple equation
+				v(4a*) = 4b*
+.br
+appearing in an O-function o's effects section.  Then any call o(a) of o, where
+a8*Do, would change vR to the function
+
+				6p*(R,4b*,o(a))	if x = 6p*(R,4a*,o(a))
+
+		vR*(x) =
+
+				vR(x)		if x =/ 6p*(R,4a*,o(a))
+
+	Here, a new value is returned for the argument 6p*(R,4a*,o(a))
+and, otherwise, the old value is returned.
+	To help indicate such a function, we shall use the notation 9b*x,y
+developed in Chapter 2.  Recall this notation has the value x if 9b* is 1true*
+and value y if 9b* is 1false*.  So, for vR* above, we have
+		vR* = @x.[(x=6p*(R,4a*,o(a)))6p*(R,4b*,o(a)),vR(x)]
+	Using this notation, we define in Figure 6 an effects function
+			E(R,o(a),Eq)
+.br
+mapping into 9D*,
+which specifies the change equation Eq causes on R during the call o(a).
+This function shows the effect of a single equation and not the entire
+effects section.  So, it can not be observed outside the machine.
+	For an
+example, consider R, o(a) and v(4a*) = 4b* above.  Here, E(R,o(a),v(4a*) = 4b*) = R'
+where vR' = vR* and the mappings associated with the other non-derived and
+hidden V-functions remain unchanged.
+.begin_figure "Effects Function E"
+.sp 1
+	Definition
+	Given a state machine specification SM, R8*9D*,
+	o be an O-function of SM with Eq appearing in o's effects section 
+and let a8*Do.
+	Finally, let v1, ..., vn be the non-derived and hidden V-functions of PM.
+	Then E(R,o(a),Eq) is defined as follows;
+
+	   i) If Eq is a simple equation of the form  2vi = e*  where vi is a parameter-less V-function,
+
+		E(R,o(a),Eq) =  (v1R,...,vi-1R,{(@,6p*(R,2e*,o(a)))},vi+1R,...,vnR)
+
+	   ii) If Eq is a simple equation of the form  2vi(w) = e*  then
+
+		E(R,o(a),Eq) =  (v1R,...,vi-1R,@x.[(x=6p*(R,2w*,o(a)))6p*(R,2e*,o(a)),viR(x)],vi+1R,...,vnR)
+
+                                  
+	   iii) If Eq is a conditional equation of the form  2if c then s*, then
+
+					R		if 6p*(R,2c*,o(a)) = 1false*
+                                 
+	            E(R,o(a),Eq) = 
+                                 
+                                 
+					E(R,o(a),2s*)	if 6p*(R,2c*,o(a)) = 1true*
+                               
+
+
+	   iv) If Eq is a conditional equation of the form  2if c then s1 else s2*, then
+
+
+					E(R,o(a),2s1*)		if 6p*(R,2c*,o(a)) = 1false*                                   
+
+                                   
+	           E(R,o(a),Eq) =  
+
+                                   
+                                   
+					E(R,o(a),2s2*)		if 6p*(R,2c*,o(a)) = 1true*
+                                   
+
+.finish_figure
+	To define the next state function, we need an extended version of E which
+takes into account the effect of a number of equations.
+
+.ls 1
+.keep
+	Definition
+	Let o be an O-function of PM with equations Eq1,...,Eqm in its
+effects section.
+	Let a8*dom`o.
+     Then
+           TE(R,o(a),Eq1,...,Eqm) = E(...E(E(R,o(a),Eq1),o(a),Eq2),...,Eqm)
+.end_keep
+.ls 2
+
+
+	 TE(R,o(a),Eq1,...,Eqm) corresponds to 9T*o(R,a) in Chapter 2.
+So, we can define the next state function as follows.
+
+.ls 1
+.keep
+	Definition
+	Let o be an O-function of with Boolean expression 9b* in its applicability
+condition
+	and equations Eq1,...,Eqm in its effects section.
+	Let a8*Do and R8*9D*.
+	Then,
+
+					TE(R,o(a),Eq1,...,Eqm)		if 6p*(R,9b*,o(a))=1true*
+
+		NEXT(R,o(a))  =
+
+					R				if 6p*(R,9b*,o(a))=1false*
+.end_keep
+.ls 2
+
+	So, the state set can be generated as in Chapter 2.
+
+.keep
+.ls 1
+		1)   Q8*6S*.
+
+		2)   If R8*6S* and o is an O-function, then if NEXT(R,o(a)) is
+defined,
+		NEXT(R,o(a))8*6S* where a8*Do.
+
+		3)   These are the only elements of 6S*. 
+.end_keep
+.ls 2
+
+
+	Again, we must consider the question of whether or not NEXT is well-defined.
+This is dependent on 6p* and TE.  Recall that 6p* is not necessarily a total function.  So, it is
+possible for some state S and x8*Do that 6p*(S,9b*,o(x)) is
+undefined.  Also, TE is not necessarily total so we can encounter a similar situation.
+These two cases correspond to the problem, discussed in Chapter 2, when 
+9A*o(S,x) and 9T*o(S,x) are undefined.
+	Besides the totality of TE, there
+is a further problem with TE(R,o(a),Eq1,...,Eqm) that we must
+consider.  We have defined the ordering of the equations Eq1,...,Eqm as
+immaterial.  However, it is possible for some state s and a8*Do that
+TE(R,o(a),Eq1,...,Eqm) =/ TE(R,o(a),Eq4p*(1),...,Eq4p*(m))
+where 4p* is a permutation from {1,...,m} onto {1,...,m}.  In this case, TE
+would be nondeterministic in the sense that its value depends on the choice of the
+order of the equations Eq1,...,Eqm.
+	To handle these situations, we must introduce the notion of a well-defined 
+Parnas module.  Due to the last case, the definition differs slightly from that of
+Chapter 2.
+
+.ls 1
+.keep
+	Definition
+	A state machine SM is 2well-defined* if for any S8*6S*, O-function o
+	and a8*Do
+	both	1)   NEXT(S,o(a)) is defined 
+	and	2)   TE(S,o(a),Eq1,...,Eqm) = TE(S,o(a),Eq4p*(1),...,Eq4p*(m))
+.br
+		where equations Eq1,...,Eqm appear in o's effects section
+		and 4p* is any permutation from {1,...,m} onto {1,..,m}.
+.end_keep
+.ls 2
+
+.section "The Semantics of V-functions and O-functions"
+	With this definition of the state set 6S* of a Parnas module
+specification, it is now possible to formally define the meaning of
+the O-functions and V-functions. As in Chapter`2, this will be done by defining
+mappings V-Eval for V-functions and O-Eval
+for O-functions such that
+.keep
+
+		V-Eval:[6S* \x NV]  [A  R]
+	and
+		O-Eval:[6S* \x NO]  [A  6S*]
+
+.end_keep
+where NV is the set of V-function names, A is the set of
+arguments, R is the set of results and NO is the set of
+O-function names. 
+	O-Eval will be defined first.  Now, given a state S and an O-function
+o of a Parnas module PM with Boolean expression 9b* in its applicability
+condition,
+O-Eval returns a function from Do into 6S* . {error}.
+So, using lambda notation,
+
+	O-Eval(S,o) = @a.[6p*(S,9b*,o(a))NEXT(S,o(a)),error]
+
+	Again O-Eval(S,o) is not necessarily total but in 
+a well-defined
+Parnas module, this is always the case.
+	For any V-function v and state S, V-EVAL will return a function from
+Dv into rng`v``{error}.
+First, for a non-derived or hidden V-function v and a state S, recall that vS
+denotes the function associated with v in state S.  Then for any non-derived or hidden
+V-function v with expression 9b* in its applicability condition,
+
+	V-Eval(S,v) = @a.[6p*(S,9b*,v(a))vS(a),error]
+
+	Finally, for a derived V-function v with expression 9b* in its
+applicability condition, there are two cases.
+
+	i) If v's derivation section contains 2v(x1,...,xn) = e*, then
+
+	V-Eval(S,v) = @a.[6p*(S,9b*,v(a))6p*(S,2e*,v(a)),error]
+
+	ii) If v's derivation section contains 2if c then v(x1,...,xn) = e1
+else v(x1,...,xn) = e2*, then
+
+	V-Eval(S,v) = @a.[6p*(S,9b*,v(a))[6p*(S,2c*,v(a))6p*(S,2e1*,v(a)),6p*(S,2e2*,v(a))],error]
+
+	As mentioned in Chapter 2, V-Eval(S,v) is not necessarily a total function
+from Dv into rng`v``{error}.  When
+this is not the case, we say the Parnas module is consistent.  The definition
+is the same as in Chapter 2.
+.section "An Example - To Be Completed"
+	In this section, we present a proof that a particular Parnas module is
+well-defined and consistent.  Our example specification is illustrated in Figure 7.
+This data abstraction is a queue with three
+operations;
+.ls 1
+
+	insert            adds an integer to the rear of the queue
+
+	delete            removes the integer at the front of the queue
+
+	first_element     returns the integer at the front of the queue
+
+.ls 2
+Note this queue can hold an arbitrary number of integers.
+.begin_figure "Queue"
+.sp 2
+		queue = 1Parnas_module is* insert,delete,first_element
+
+		     first_element = 1derived V-function*( ) 1returns* integer
+				1Appl. Cond.:* ~(front = back - 1)
+				1Derivation:* first_element = storage(front)
+				end first_element
+
+		     front = 1hidden V-function*( ) 1returns* integer
+				1Appl. Cond.: true*
+				1Initial Value:* -1
+				end front
+
+		     back = 1hidden V-function*( ) 1returns* integer
+				1Appl. Cond.: true*
+				1Initial Value:* 0
+				end back
+
+		     storage = 1hidden V-function*(i:integer) 1returns* integer
+				1Appl. Cond.: true*
+				1Initial Value:* undefined
+				end storage
+
+		     insert = 1O-function*(i:integer)
+				1Appl. Cond.: true*
+				1Effects:* 'storage'(back - 1) = i
+				'back' = back - 1
+				end insert
+
+		     delete = 1O-function*( )
+				1Appl. Cond.:* ~(front = back - 1)
+				1Effects:* 'front' = front - 1
+				end delete
+
+		end queue
+.finish_figure

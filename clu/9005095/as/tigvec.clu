@@ -1,0 +1,59 @@
+# extend
+# include "tidefs.clu"
+
+% An incomplete implementation of generalized (arbitrary-level)
+% vectors:
+
+MAXLEVEL = 4
+
+vector = cluster is create
+
+rep = page
+
+create = proc (size: word, e: any) returns (cvt) signals (badsize)
+	level: word := get_level (size)
+		except when badsize: signal badsize end
+	if level=0 then return (page$NILPAGE ()) end
+	p: page := alloctree (size, level, level, e)
+	p[0] := pack (1, size)
+	return (p)
+	end create
+
+get_level = proc (size: word) returns (word) signals (badsize)
+	if size<0 then signal badsize end
+	if size=0 then return (0) end
+	for n:word in word$from_to (1, MAXLEVEL) do
+		if size<=(BLOCKSIZE**(n-1))*(BLOCKSIZE-1) then
+			return (n) end
+		end
+	signal badsize
+	end get_level
+
+alloctree = proc (size, level, toplevel: word, e: any) returns (page)
+	evalue: any := e
+	offset: word := 0
+	if level=toplevel then offset := 1 end
+	if level>1 then evalue := page$NILPAGE () end
+	npages, tsize, lsize: word := countpages (size, level)
+	p: page := page$create (npages+offset, evalue)
+	if level>1 then
+	    for i:word in word$from_to (0, npages-2) do
+		p[i+offset] := alloctree (tsize, level-1, toplevel, e)
+		end
+	    p[npages-1+offset] := alloctree (lsize, level-1, toplevel, e)
+	    end
+	return (p)
+	end alloctree
+
+countpages = proc (size, level: word) returns (word, word, word)
+	if level=1 then return (size, 0, 0) end
+	tsize: word := BLOCKSIZE**(level-1)
+	npages: word := size/tsize
+	lsize: word := size//tsize
+	if lsize=0 then lsize := BLOCKSIZE
+		else npages := npages + 1
+		end
+	return (npages, tsize, lsize)
+	end countpages
+
+	end vector

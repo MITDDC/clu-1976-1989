@@ -1,0 +1,26 @@
+.sr le 5*
+ less-than-or-eq
+.sr ge 5*
+ greater-than-or-eq
+.sr ne 5*
+ different
+.sr eq 5*
+ equivalent
+.sr or 5*
+ logical or, vel
+.sr and 5*
+ logical and, upside down vel
+.sr not 5*
+ not
+.sr all 5*
+ for all
+.sr ex 5*
+ there exists
+.sr union 5*
+ union
+.sr intersect 5*
+ intersection
+.sr mem 5*
+ member
+.sr sub 5_*
+ subset

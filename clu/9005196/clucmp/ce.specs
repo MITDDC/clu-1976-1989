@@ -1,0 +1,101 @@
+CE = cluster is		create,			% -> CE
+			reset_entries,		% CE, bool ->
+			reset,			% CE ->
+			keep,			% CE ->
+			lookup,			% CE, str -> idnkind
+						%	  => non_existent, obscured
+			obscure,		% CE, str -> bool
+			add_entry,		% CE, idn => already_exists
+			get_unknown_type,	% CE -> typespec
+			get_null_type,		% CE -> typespec
+			get_bool_type,		% CE -> typespec
+			get_int_type,		% CE -> typespec
+			get_real_type,		% CE -> typespec
+			get_char_type,		% CE -> typespec
+			get_str_type,		% CE -> typespec
+			get_type_type,		% CE -> typespec
+			get_cvt_type,		% CE -> typespec
+			get_any_type,		% CE -> typespec
+			get_array_fake,		% CE -> DUfake
+			get_record_fake,	% CE -> DUfake
+			get_oneof_fake,		% CE -> DUfake
+			get_proc_fake,		% CE -> DUfake
+			get_iter_fake,		% CE -> DUfake
+			fix_type,		% CE, typespec -> bool
+			add_dufake;		% CE, DUfake -> DUfake
+
+rep = any;
+
+create = proc () returns (CE);
+	end create;
+
+reset_entries = proc (e: CE, lasting: bool);
+	end reset_entries;
+
+reset = proc (e: CE);
+	end reset;
+
+keep = proc (e: CE);
+	end keep;
+
+lookup = proc (e: CE, s: str) returns (idnkind) signals (non_existent, obscured);
+	end lookup;
+
+obscure = proc (e: CE, s: str) returns (bool);
+	end obscure;
+
+add_entry = proc (e: CE, i: idn) signals (already_exists);
+	end add_entry;
+
+get_unknown_type = proc (e: CE) returns (typespec);
+	end get_unknown_type;
+
+get_null_type = proc (e: CE) returns (typespec);
+	end get_null_type;
+
+get_bool_type = proc (e: CE) returns (typespec);
+	end get_bool_type;
+
+get_int_type = proc (e: CE) returns (typespec);
+	end get_int_type;
+
+get_real_type = proc (e: CE) returns (typespec);
+	end get_real_type;
+
+get_char_type = proc (e: CE) returns (typespec);
+	end get_char_type;
+
+get_str_type = proc (e: CE) returns (typespec);
+	end get_str_type;
+
+get_type_type = proc (e: CE) returns (typespec);
+	end get_type_type;
+
+get_cvt_type = proc (e: CE) returns (typespec);
+	end get_cvt_type;
+
+get_any_type = proc (e: CE) returns (typespec);
+	end get_any_type;
+
+get_array_fake = proc (e: CE) returns (DUfake);
+	end get_array_fake;
+
+get_record_fake = proc (e: CE) returns (DUfake);
+	end get_record_fake;
+
+get_oneof_fake = proc (e: CE) returns (DUfake);
+	end get_oneof_fake;
+
+get_proc_fake = proc (e: CE) returns (DUfake);
+	end get_proc_fake;
+
+get_iter_fake = proc (e: CE) returns (DUfake);
+	end get_iter_fake;
+
+fix_type = proc (e: CE, t: typespec) returns (bool);
+	end fix_type;
+
+add_dufake = proc (e: CE, mod: DUfake) returns (DUfake);
+	end add_dufake;
+
+end CE;

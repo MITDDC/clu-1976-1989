@@ -1,0 +1,104 @@
+%	ATOP1 CLU
+%
+%	CLUMAC assembler: top level
+
+_BIO = 7;
+
+start_up = proc ();
+	jcl: str := sys$jcl();
+	if jcl = ""
+	   then return; end;
+	assem(jcl);
+	quit_();
+	end start_up;
+
+assem = proc (s: str);
+	sec, msec, usec: int := runt();
+	e: env := value$id(".assem_env");
+	e.err := false;
+	ins, outs: str, erf: file := process_line(s);
+	e.output := erf;
+	do_lines(e, ins);
+	if ~e.err
+	   then	fs: filespec := filespec$resolve(outs);
+		c: chan := sys$open1(fs, _BIO);
+		env$dump(e, c);
+		chan$close(c);
+	   end;
+	   except when open_failed: file$puts(erf, "couldn't open binary file!\n"); end;
+	sec1, msec1, usec1: int := runt();
+	sec, msec, usec := longsub(sec1, msec1, usec1, sec, msec, usec);
+	file$puts(erf, "time = ");
+	file$puts(erf, time_format(sec, msec, usec));
+	file$putc(erf, '\n');
+	file$close(erf);
+	end assem;
+
+process_line = proc (s: str) returns (str, str, file);
+	line: ac := str$s2ac(s);
+	ins: str := peel_string(line);
+	outs: str;
+	if '_' = scan$deblank(line)
+	   then ac$reml(line);
+		outs := fix_filename(ins);
+		ins := fixup_filename(peel_string(line), "clumac");
+	   else ins := fixup_filename(ins, "clumac");
+		outs := make_output(ins, "bin");
+	   end;
+	erf: file;
+	if '(' = scan$deblank(line)
+	   then erf := file$open_write(make_output(ins, "err"));
+	   else erf := file$tyo();
+	   end;
+	   except when open_failed: erf := file$tyo(); end;
+	return(ins, outs, erf);
+	end process_line;
+
+peel_string = proc (line: ac) returns (str);
+	a: ac := ac$predict(1, ac$size(line));
+	scan$deblank(line);
+	while true do
+		c: char := ac$bottom(line);
+		if c = '_'  cor  c = '('
+		   then break;
+		elseif c = '\021'
+		   then ac$reml(line); end;
+		ac$addh(a, ac$reml(line));
+		end;
+		except when bounds: ; end;
+	return(str$ac2s(a));
+	end peel_string;
+
+fixup_filename = proc (fs: str, nm2: str) returns (str);
+	if str$indexc(':', fs) = 0
+	   then fs := "dsk:" || fs; end;
+	if str$indexc(';', fs) = 0
+	   then fs := str$append(sname(), ';') || fs; end;
+	fs := fix_filename(fs);
+	if str$indexc(' ', fs) = 0
+	   then	fs := str$append(fs, ' ');
+		ns: str := fs || nm2;
+		if file$exists(ns)
+		   then fs := ns;
+		   else fs := str$append(fs, '>');
+		   end;
+	   end;
+	return(fs);
+	end fixup_filename;
+
+make_output = proc (fs: str, nm2: str) returns (str);
+	if str$indexs("dsk:", fs) = 0
+	   then	i: int := str$indexc(';', fs);
+		j: int := str$indexc(':', fs) + 1;
+		if i < j
+		   then fs := str$substr(fs, 1, i) || "dsk:" || str$rest(fs, j);
+		   else fs := "dsk:" || str$rest(fs, j);
+		   end;
+	   end;
+	if nm2 = "" then return(fs); end;
+	i: int := str$indexc(' ', fs);
+	if i > 0
+	   then return(str$substr(fs, 1, i) || nm2);
+	   else return(fs || " " || nm2);
+	   end;
+	end make_output;

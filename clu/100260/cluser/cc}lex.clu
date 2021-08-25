@@ -1,0 +1,305 @@
+%	CC_LEX	CLU
+%
+%	CLU 3.1 compiler:  parser
+%
+%	Lexical analyzer (token and token_stream clusters)
+
+BEGIN
+
+tokenkind = oneof[null_:	null,		% NIL literal
+		  bool_:	bool,		% TRUE or FALSE literal
+		  int_:		int,		% Int literal
+		  char_:	char,		% Char literal
+		  str_:		str,		% Str literal
+		  ident:	str,		% Identifier or Name
+		  reserved:	str,		% Reserved word
+		  punct:	str,		% Punctuation, bracket, :=, unary and
+						% binary operators, etc.
+		  comment:	str,		% all chars from '%' to '\m'
+		  bad:		badtkn,		% Error
+		  eof:		null];		% EOF has occurred
+
+badtkn = oneof[illegal_char:	char,		% The string/char which caused the error
+	       str_:	oneof[eof,
+			      format,
+			      escape,
+			      esc_eof,
+			      esc_form:	str],
+	       char_:	oneof[eof,
+			      format,
+			      escape,
+			      endquote:	char]];
+
+reserved_words = " proc iter cluster returns signals yields where is end include has in rep bool int string char null cvt any type array record oneof proctype itertype while do for if then elseif else tagcase tag others return yield signal break begin except when cand cor nil true false force up down to "
+
+END
+
+%	STREAM
+
+stream = cluster is create,		% file -> stream
+		    empty,		% stream -> bool
+		    peek,		% stream, int -> token
+		    next;		% stream -> token
+
+
+ac = array[char];
+
+peeklist = array[token];
+
+rep = record[file:  file,
+	     line:  int,
+	     peek:  peeklist];
+
+
+create = oper(f: file) returns(cvt);
+	return({file: f, line: 1, peek: peeklist$new()});
+	end create;
+
+empty = oper(s: cvt) returns(bool);
+	if peeklist$size(s.peek)=0
+		then peeklist$extendh(s.peek, flush(s));
+	tagcase token$get_kind(s.peek[peeklist$low(s.peek)]) in
+		eof:   return(true);
+	end;
+	return(false);
+	end empty;
+
+% num=1 in peek corresponds to looking at the first token in the stream
+
+peek = oper(s: cvt, num: int) returns(token)
+	while peeklist$size(s.peek)<num do
+		peeklist$extendh(s.peek, flush(s));
+	return(s.peek[peeklist$low(s.peek)+num-1]);
+	end peek;
+
+next = oper(s: cvt) returns(token)
+	return(if peeklist$size(s.peek)>0
+		then peeklist$retractl(s.peek)
+		else flush(s));
+	end next;
+
+
+flush = proc(s: rep) returns(token);
+	while true do
+		begin t: token := scan(s);
+		      k: tokenkind := token$get_kind(t);
+		      tagcase k in
+			comment: ;
+			out:	 return(t);
+		      end;
+		end;
+	end flush;
+
+scan = proc(s: rep) returns(token);
+
+	% if eof then return such
+	% flush format effectors (spaces, newlines, etc)
+	% increment s.line for each newline
+	% if eof then return such
+
+	% scan next token and return it
+
+	format_flush(s);
+	if file$eof(s.file)
+		then return(token$create(token_kind$make_eof(nil), s.line));
+
+	if alpha(file$peek(s.file)) then return(ident_s(s));
+	if num(file$peek(s.file))   then return(int_s(s));
+	if file$peek(s.file)='%'
+		then begin s.line := s.line+1;
+		return(token$create(token_kind$make_comment(file$gets(s.file, '\n')),
+				    s.line-1));
+		end;
+	if file$peek(s.file)='"'    then return(str_s(s));
+	if file$peek(s.file)='\''   then return(char_s(s));
+	return(punct_s(s));
+
+	end scan;
+
+
+%
+% str_s, char_s
+%
+
+% alpha = "ABCDEF....XYZabcdef....xyz_?"
+
+alpha = proc(c: char) returns(bool);
+	i: int := char$c2i(c);
+	return((i>64 & i<91) | (i>96 & i<123) | i=63 | i=95);
+	end alpha;
+
+% num = "0123456789"
+
+num = proc(c: char) return(bool);
+	i: int := char$c2i(c);
+	return(i>=48 & i<=57);
+
+format = proc(c: char) returns(bool);
+	if char$c2i(c)<=32 then return(true);
+	return(false);
+	end format;
+
+legal = proc(c: char) returns(bool);
+	% legal chars are covered by alpha, num, format, and ones
+	% found in punct_s
+	end legal;
+
+lower = proc(c: char) returns(char);
+	i: int := char$c2i(c);
+	if i>64 & i<91 then i := i+32;
+	return(char$i2c(i));
+	end lower;
+
+format_flush = proc(s: rep);
+	if file$eof(s.file) then return;
+	while format(file$peek(s.file)) do
+		begin if file$getc(s.file)='\n'
+			   then s.line := s.line+1;
+		      if file$eof(s.file) then return;
+		end;		
+	end format_flush;
+
+
+ident_s = proc(s: rep) returns(token);
+	t: ac := ac$new();
+	c: char := file$peek(s.file); 	
+	while (alpha(c) | num(c)) & ~file$eof(s.file) do
+		begin ac$extendh(t, lower(file$getc(s.file)));
+		      if ~file$eof(s.file) then c:= file$peek(s.file);
+		end;
+	word: str := str$ac2s(t);
+	if str$index(reserved_words, " " || word || " ")>0
+		then if word="true" | word="false"
+			then return(token$create(token_kind$make_bool_(word="true"),
+						 s.line));
+			else if word="nil"
+				then return(token$create(token_kind$make_null_(nil),
+							 s.line));
+				else return(token$create(token_kind$make_reserved(word),
+							 s.line));
+	return(token$create(token_kind$make_ident(word), s.line));
+	end ident_s;
+
+int_s = proc(s: rep) returns(token);
+	t: int := 0;
+	c: char := file$peek(s.file);
+	while num(c) & ~file$eof(s.file) do
+		begin t := t*10+char$c2i(c)-48;
+		      if ~file$eof(s.file) then c := file$peek(s.file);
+		end;
+	return(token$create(token_kind$make_int_(t),s.line));
+	end int_s;
+
+
+punct_s = proc(s: rep) returns(token);
+	c: char := file$getc(s.file);
+	if ~legal(c) then return(         )	% some kind of badtkn
+	if  c='+' | c='-' | c='&'
+	  | c='#' | c='[' | c=']'
+	  | c='(' | c=')' | c='{'
+	  | c='}' | c='=' | c=';'
+	  | c='$' | c='.' | c=","
+	  | c="!" | file$eof(s.file)
+		then return(token$create(token_kind$make_punct(str$c2s(c)), s.line));
+	t: ac := ac$new();
+	ac$extendh(t, c);
+	if c=':'
+		then if file$peek(s.file)='='
+			then ac$extendh(t, file$getc(s.file));
+			else;
+	else if c='|' | c='*' | c='/'
+		then if file$peek(s.file)=c
+			then ac$extendh(t, file$getc(s.file));
+			else;
+	else if c='~'
+		then if  file$peek(s.file)='>'
+		       | file$peek(s.file)='<'
+		       | file$peek(s.file)='='
+			then ac$extendh(t, file$getc(s.file));
+			else;
+	else if c='>' | c='<'
+		then if file$peek(s.file)='='
+			then ac$extendh(t, file$getc(s.file));
+			else;
+	return(token$create(token_kind$make_punct(str$ac2s(t)), s.line));
+	end punct_s;
+
+
+str_s = proc(s: rep) returns(token);
+	t: ac := ac$new();
+	file$getc(s.file);		% flush beginning quote
+
+	if file$eof(s.file)
+		then			% badtkn - terminated by eof
+	c: char := file$peek(s.file);
+	err: bool := false;
+
+	while c~='\"' do
+		begin if format(c) & c~=' '
+			   then		% badtkn - terminated by format char
+					% check err for previous bad escape seq.
+		      if c='\\'
+			   then	% grab escape sequence, extendh(t,  )
+				% if eof or format in middle of sequence
+				% then return a badtkn
+				% may cause error - if so err := true;
+			   else ac$extendh(t, file$getc(s.file));
+		      if file$eof(s.file)
+			   then		% badtkn - terminated by eof
+					% check err for previous bad escape seq.
+		      c := file$peek(s.file);
+		end;
+	file$getc(s.file);
+	if err then			% badtkn - bad escape sequence
+	return(token$create(token_kind$make_str_(str$ac2s(t)), s.line));
+	end str_s;
+
+
+char_s = proc(s: rep) returns(token);
+	file$getc(s.file);		% flush beginning quote
+	if file$eof(s.file)
+		then			% badtkn - terminated by eof
+
+	c: char := file$peek(s.file);
+	if format(c) & c~=' '
+		then			% badtkn - terminated by format char
+	if c='\\'
+		then % grab escape sequence, put in c
+		else file$getc(s.file);
+	if file$eof(s.file)
+		then			% badtkn - terminated by eof
+	if file$peek(s.file)~='\''
+		then			% badtkn - no closing quote on char
+	file$getc(s.file);
+	return(token$create(token_kind$make_char_(c), s.line));
+	end char_s;
+
+
+end stream;
+
+
+%	TOKEN
+
+token = cluster is create,		% tokenkind, int -> token
+		   get_kind,		% token -> tokenkind
+		   get_line;		% token -> int
+		% other creates ???? (give it an integer, get an int token, etc)
+
+
+rep = record[kind:  tokenkind,
+	     line:  int];
+
+
+create = oper(k: tokenkind, l: int) returns(cvt);
+	return({kind: k, line: l});
+	end create;
+
+get_kind = oper(t: cvt) returns(tokenkind);
+	return(t.kind);
+	end get_kind;
+
+get_line = oper(t: cvt) returns(int);
+	return(t.line);
+	end get_line;
+
+end token;

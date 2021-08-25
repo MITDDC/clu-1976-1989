@@ -1,0 +1,167 @@
+str = string;
+as = array[str];
+ac = array[char];
+
+rify = proc (s: str);
+	line: ac := str$s2ac(s);
+	dir: str := get_option(line);
+	f: file := get_outfile(line);
+	a: as := as$predict(1, 100);
+	first: bool := true;
+	for s in all_filestrings(line) do
+		inf: file := get_infile(dir, s);
+		   except when open_failed: continue; end;
+		file$puts(f, ".sr _name ");
+		file$puts(f, s);
+		file$puts(f, "\n.nr _page 0");
+		if first
+		   then first := false;
+		   else file$puts(f, "\n.bp");
+		   end;
+		s := "";
+		while true do
+			while s = "" do
+				file$putc(f, '\n');
+				s := file$gets(inf, '\n');
+				end;
+			while s = ""  cor  s[1] = '%'  cor  s[1] = ';' do
+				as$addh(a, s);
+				s := file$gets(inf, '\n');
+				end;
+			while s ~= "" do
+				as$addh(a, s);
+				s := file$gets(inf, '\n');
+				end;
+			output(f, a);
+			end;
+		   except when eof: output(f, a); end;
+		file$close(inf);
+		end;
+	file$close(f);
+	end rify;
+
+get_outfile = proc (line: ac) returns (file);
+	while ac$size(line) > 0  cand  ac$top(line) <= ' ' do
+		ac$remh(line);
+		end;
+	h: int := ac$high(line);
+	l: int := ac$low(line);
+	for i: int in int$from_to_by(h - 1, l, -1) do
+		c: char := line[i];
+		if c = ','
+		   then break;
+		elseif line[i] = '>'
+		   then	fs: ac := ac$predict(1, h - i);
+			for n: int in int$from_to_by(i + 1, h, 1) do
+				ac$addh(fs, line[n]);
+				end;
+			ac$trim(line, l, i - l);
+			scan$deblank(fs);
+			fss: str := str$ac2s(fs);
+			return(get_output_file(fss));
+			   except when open_failed: break; end;
+		   end;
+		end;
+	i: int := 1;
+	while file$exists("text" || int$unparse(i) || " >") do
+		i := i + 1;
+		end;
+	return(get_output_file("text" || int$unparse(i) || " r"));
+	end get_outfile;
+
+get_output_file = proc (fs: str) returns (file) signals (open_failed);
+	f: file := file$open_write(fs);
+	   except when open_failed: tyo: file := file$tyo();
+				    file$puts(tyo, "Can't open ");
+				    file$puts(tyo, fs);
+				    file$putc(tyo, '\n');
+				    signal open_failed;
+		  end;
+	file$puts(f, ".dv xgp\n.fo 0 20fg\n.de hd\n.ev header\n.rs\n.nf\n");
+	file$puts(f, ".nr _page \\\016+_page\n.vp 0.5i\n");
+	file$puts(f, "\003- \\\016_page -\022\\\023_name\n");
+	file$puts(f, ".ev\n'vp 1i\n'sp\n.ns\n.em\n");
+	file$puts(f, ".de ft\n'bp\n.em\n");
+	file$puts(f, ".st hd 0\n.st ft 10.5i\n.eo .75i\n.oo .75i\n.ll 7.25i\n");
+	file$puts(f, "'nf\n");
+	return(f);
+	end get_output_file;
+
+output = proc (f: file, a: as);
+	n: int := as$size(a);
+	if n <= 70
+	   then file$puts(f, ".ne ");
+		file$puti(f, n);
+		file$putc(f, '\n');
+	   end;
+	for s: str in as$elements(a) do
+		if s ~= ""  cand  s[1] = '.'
+		   then file$putc(f, '\021'); end;
+		while str$indexc('\\', s) > 0 do
+			n := str$indexc('\\', s);
+			file$puts(f, str$substr(s, 1, n - 1));
+			file$puts(f, "\021\\");
+			s := str$rest(s, n + 1);
+			end;
+		file$puts(f, s);
+		file$putc(f, '\n');
+		end;
+	as$trim(a, 1, 0);
+	end output;
+
+all_filestrings = iter (line: ac) yields (str);
+	a: ac := ac$predict(1, 10);
+	while true do
+		if ' ' = scan$deblank(line)
+		   then return; end;
+		while ac$bottom(line) ~= ',' do
+			c: char := ac$reml(line);
+			if c >= 'a'  cand  c <= 'z'
+			   then c := char$i2c(char$c2i(c) - 32); end;
+			ac$addh(a, c);
+			end;
+		   except when bounds: yield(str$ac2s(a));
+				       return;
+			  end;
+		ac$reml(line);
+		yield(str$ac2s(a));
+		ac$trim(a, 1, 0);
+		end;
+	end all_filestrings;
+
+get_infile = proc (dir, s: str) returns (file) signals (open_failed);
+	if str$indexc(';', s) = 0  cand  str$indexc(':', s) = 0
+	   then s := dir || s; end;
+	fs: str;
+	if str$indexc(' ', s) = 0
+	   then fs := s || " clu";
+	   else fs := s;
+	   end;
+	return(file$open_read(fs));
+	   except when open_failed: ; end;
+	if str$indexc(' ', s) = 0
+	   then return(file$open_read(s));
+	   end; except when open_failed: ; end;
+	file$puts(file$tyo(), "Couldn't open " || s || "\n");
+	signal open_failed;
+	end get_infile;
+
+get_option = proc (line: ac) returns (str);
+	if '-' ~= scan$deblank(line)
+	   then return(""); end;
+	ac$reml(line);
+	a: ac := ac$predict(1, 10);
+	while ac$bottom(line) ~= ' ' do
+		ac$addh(a, ac$reml(line));
+		end;
+	   except when bounds: ; end;
+	s: str := str$ac2s(a);
+	z: int := str$size(s);
+	si: int := str$indexc(';', s);
+	ci: int := str$indexc(':', s);
+	if si = 0  cand  ci < z
+	   then return(str$append(s, ';'));
+	elseif ci = 0  cand  si < z
+	   then return(str$append(s, ':'));
+	else return(s); end;
+	end get_option;

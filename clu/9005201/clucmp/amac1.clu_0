@@ -1,0 +1,396 @@
+%	AMAC1 CLU
+%
+%	CLUMAC assembler: macro definitions
+
+m_comment = proc (e: env);
+	get_literal(e);
+	end m_comment;
+
+m_insrt = proc (e: env);
+	get_literal(e);
+	end m_insrt;
+
+m_cluster = proc (e: env);
+	env$begin_cluster(e);
+	env$add_link(e, string_lit(e, get_symbol(e)));
+	atype: wrd := get_wrd(e);
+	env$add_mlink(e, atype);
+	rtype: wrd := get_wrd(e);
+	if get_flag(atype) = _tdc_cp
+	   then env$add_clink(e, atype);
+		env$add_clink(e, rtype);
+	   else env$add_link(e, atype);
+		env$add_link(e, rtype);
+	   end;
+	for parm: wrd in get_wrds(e) do
+		env$add_clink(e, parm);
+		end;
+	end m_cluster;
+
+m_retsulc = proc (e: env);
+	get_symbol(e);
+	env$end_cluster(e);
+	end m_retsulc;
+
+m_oduse = proc (e: env);
+	env$use_owndata(e);
+	end m_oduse;
+
+m_proc = proc (e: env);
+	env$begin_proc(e);
+	name: str := get_symbol(e);
+	args: as := as$predict(1, 3);
+	for arg: str in get_symbols(e) do
+		as$addh(args, arg);
+		end;
+	e.arg_count := as$size(args);
+	as$set_low(args, - 1 - e.arg_count);
+	for i: int in as$indexes(args) do
+		env$define(e, args[i], wrd$create(0, i));
+		end;
+	vars: as := as$predict(1, 3);
+	for var: str in get_symbols(e) do
+		as$addh(vars, var);
+		end;
+	vz: int := as$size(vars);
+	iz: int := 0;
+	for init: wrd in get_wrds(e) do
+		iz := iz + 1;
+		if iz <= vz
+		   then disp: int := env$add_vinit(e, init);
+			env$define(e, vars[iz], wrd$create(0, disp));
+		   end;
+		end;
+	if iz ~= vz
+	   then env$err(e, "variable initialization of wrong length");
+		zero: wrd := wrd$create(0, 0);
+		for iz in int$from_to(iz + 1, vz) do
+			disp: int := env$add_vinit(e, zero);
+			env$define(e, vars[iz], wrd$create(0, disp));
+			end;
+		end;
+	ptype: wrd := get_wrd(e);
+	e.proc_type := ptype;
+	for parm: wrd in get_wrds(e) do
+		env$add_plink(e, parm);
+		end;
+	env$add_option(e, get_flag(ptype));
+	end m_proc;
+
+m_iter = proc (e: env);
+	m_proc(e);
+	env$add_option(e, _prc_it);
+	end m_iter;
+
+m_corp = proc (e: env);
+	env$add_wrd(e, wrd$xinst(JRST, 0, 0, _frog));
+	env$add_eblock(e);
+	env$add_wrd(e, string_lit(e, get_symbol(e)));
+	cnt: int := 0;
+	for arg: str in get_symbols(e) do
+		env$add_wrd(e, string_lit(e, arg));
+		cnt := cnt + 1;
+		end;
+	if cnt ~= e.arg_count
+	   then env$err(e, "number of arguments in proc/iter and corp/reti disagree");
+	   end;
+	env$end_proc(e);
+	end m_corp;
+
+m_reti = m_corp;
+
+m_rtnc = proc (e: env);
+	loc: wrd := wrd$iadd(get_wrd(e), 1);
+	env$add_wrd(e, wrd$inst(JRST, 0, 0, loc));
+	end m_rtnc;
+
+m_odlink = proc (e: env);
+	disp: str := get_symbol(e);
+	env$define(e, disp, wrd$create(0, env$add_odlink(e, get_wrd(e))));
+	end m_odlink;
+
+m_odget = proc (e: env);
+	env$add_wrd(e, wrd$xinst(MOVE, R0, MR, _en_odv));
+	reg: int := get_number(e);
+	disp: wrd := get_wrd(e);
+	env$add_wrd(e, wrd$inst(MOVE, reg, R0, disp));
+	end m_odget;
+
+m_odset = proc (e: env);
+	env$add_wrd(e, wrd$xinst(MOVE, R0, MR, _en_odv));
+	reg: int := get_number(e);
+	disp: wrd := get_wrd(e);
+	env$add_wrd(e, wrd$inst(MOVEM, reg, R0, disp));
+	end m_odset;
+
+m_massn = proc (e: env);
+	addrs: aw := aw$predict(1, 2);
+	for addr: wrd in get_wrds(e) do
+		aw$addh(addrs, addr);
+		end;
+	mcheck(e, aw$size(addrs));
+	for addr: wrd in aw$elements(addrs) do
+		env$add_wrd(e, wrd$inst(POP, SP, 0, addr));
+		end;
+	end m_massn;
+
+m_mcheck = proc (e: env);
+	mcheck(e, get_number(e));
+	end m_mcheck;
+
+mcheck = proc (e: env, n: int);
+	disp: int := env$add_link(e, wrd$create(_tmrtn, n));
+	env$add_wrd(e, wrd$xinst(CAME, RR, LR, disp));
+	env$add_wrd(e, wrd$xinst(JSP, XR, 0, _badrtn));
+	end mcheck;
+
+m_assn = proc (e: env);
+	dst: wrd := get_wrd(e);
+	src: wrd := get_wrd(e);
+	if ~wrd$iequal(dst, RR)
+	   then env$add_wrd(e, wrd$inst(MOVE, RR, 0, dst)); end;
+	if ~wrd$iequal(src, RR)
+	   then env$add_wrd(e, wrd$inst(MOVEM, RR, 0, src)); end;
+	end m_assn;
+
+m_pops = proc (e: env);
+	for addr: wrd in get_wrds(e) do
+		env$add_wrd(e, wrd$inst(POP, SP, 0, addr));
+		end;
+	end m_pops;
+
+m_mflush = proc (e: env);
+	env$add_wrd(e, wrd$xinst(HRLZ, N1, 0, RR));
+	env$add_wrd(e, wrd$xinst(CAIN, N1, 0, _tmrtn));
+	env$add_wrd(e, wrd$xinst(SUBI, SP, RR, 0));
+	end m_mflush;
+
+m_loop = env$begin_loop;
+
+m_pool = proc (e: env);
+	env$add_wrd(e, wrd$inst(JRST, 0, PR, e.loop_disp));
+	env$end_loop(e);
+	end m_pool;
+
+m_for = proc (e: env);
+	lbl: wrd := get_wrd(e);
+	addrs: aw := aw$new();
+	for addr: wrd in get_wrds(e) do
+		aw$addh(addrs, addr);
+		end;
+	do_line(e);
+	env$add_wrd(e, wrd$inst(JRST, 0, PR, lbl));
+	n: int := aw$size(addrs);
+	if n > 1
+	   then mcheck(e, n);
+		for addr: wrd in aw$elements(addrs) do
+			env$add_wrd(e, wrd$inst(POP, SP, 0, addr));
+			end;
+	elseif n = 1
+	   then addr: wrd := aw$bottom(addrs);
+		if ~wrd$iequal(addr, RR)
+		   then env$add_wrd(e, wrd$inst(MOVEM, RR, 0, addr)); end;
+	end;
+	end m_for;
+
+m_rof = proc (e: env);
+	env$add_wrd(e, wrd$xinst(JRST, 0, 0, _resume));
+	env$label(e, get_symbol(e));
+	end m_rof;
+
+m_label = proc (e: env);
+	env$label(e, get_symbol(e));
+	end m_label;
+
+m_anyize = proc (e: env);
+	addr: wrd := get_wrd(e);
+	env$add_wrd(e, wrd$inst(PUSH, SP, 0, addr));
+	end m_anyize;
+
+m_go = proc (e: env);
+	env$add_wrd(e, wrd$inst(JRST, 0, PR, get_wrd(e)));
+	end m_go;
+
+m_if = proc (e: env);
+	env$begin_if(e);
+	do_line(e);
+	end m_if;
+
+m_iff = proc (e: env);
+	env$begin_if(e);
+	do_line(e);
+	env$add_wrd(e, wrd$xinst(CAME, RR, 0, _dfalse));
+	end m_iff;
+
+m_ift = proc (e: env);
+	env$begin_if(e);
+	do_line(e);
+	env$add_wrd(e, wrd$xinst(CAME, RR, 0, _dtrue));
+	end m_ift;
+
+m_test = proc (e: env);
+	do_line(e);
+	env$add_wrd(e, wrd$xinst(CAME, RR, 0, _dtrue));
+	end m_test;
+
+m_testf = proc (e: env);
+	do_line(e);
+	env$add_wrd(e, wrd$xinst(CAME, RR, 0, _dfalse));
+	end m_testf;
+
+m_else = proc (e: env);
+	env$add_wrd(e, wrd$inst(JRST, 0, PR, e.fi_disp));
+	env$begin_else(e);
+	do_line(e);
+	end m_else;
+
+m_elf = m_else;
+
+m_then = proc (e: env);
+	env$add_wrd(e, wrd$inst(JRST, 0, PR, e.else_disp));
+	do_line(e);
+	end m_then;
+
+m_fi = env$end_if;
+
+m_tagcase = proc (e: env);
+	var: wrd := get_wrd(e);
+	refchk(e, RR, var);
+	repchk(e, RR, _torep);
+	env$add_wrd(e, wrd$xinst(HRRZ, N1, RR, 0));
+	env$add_wrd(e, wrd$xinst(MOVE, RR, RR, 1));
+	if ~wrd$iequal(var, RR)
+	   then env$add_wrd(e, wrd$inst(MOVEM, RR, 0, var)); end;
+	env$begin_tagcase(e);
+	end m_tagcase;
+
+m_tag = proc (e: env);
+	if e.tags_exist
+	   then env$add_wrd(e, wrd$inst(JRST,0, PR, e.fi_disp));
+		env$begin_else(e);
+	   end;
+	cnt: int := 0;
+	for sel: int in get_numbers(e) do
+		env$add_wrd(e, wrd$xinst(CAIN, N1, 0, sel));
+		env$add_wrd(e, wrd$xinst(SKIPA, 0, 0, 0));
+		cnt := cnt + 1;
+		end;
+	if cnt > 0
+	   then env$add_wrd(e, wrd$inst(JRST, 0, PR, e.else_disp));
+		e.tags_exist := true;
+	   end;
+	end m_tag;
+
+m_etagcase = env$end_tagcase;
+
+m_rtn = proc (e: env);
+	addr: wrd := get_wrd(e);
+	if ~wrd$iequal(addr, RR)
+	   then env$add_wrd(e, wrd$inst(MOVE, RR, 0, addr)); end;
+	env$add_wrd(e, wrd$xinst(JRST, 0, 0, _exiter));
+	end m_rtn;
+
+m_mrtn = proc (e: env);
+	left, right: int := wrd$w2i(get_wrd(e));
+	m_args(e);
+	if left > 0
+	   then env$add_wrd(e, wrd$xinst(MOVEI, RR, left, right));
+		env$add_wrd(e, wrd$xinst(HRLI, RR, 0, _tmrtn));
+		env$add_wrd(e, wrd$xinst(HRRZ, R0, 0, SP));
+		env$add_wrd(e, wrd$xinst(SUBI, R0, RR, -1));
+		env$add_wrd(e, wrd$xinst(MOVEI, BR, ER, - 1 - e.arg_count));
+		env$add_wrd(e, wrd$xinst(HRL, BR, 0, R0));
+	   else w: wrd := wrd$create(_tmrtn, right);
+		disp: int := env$add_link(e, w);
+		env$add_wrd(e, wrd$xinst(MOVE, RR, LR, disp));
+		env$add_wrd(e, wrd$xinst(MOVEI, BR, ER, - 1 - e.arg_count));
+		env$add_wrd(e, wrd$xinst(HRLI, BR, SP, 1 - right));
+	   end;
+	env$add_wrd(e, wrd$xinst(JRST, 0, 0, _mexit));
+	end m_mrtn;
+
+m_yield = proc (e: env);
+	addr: wrd := get_wrd(e);
+	if ~wrd$iequal(addr, RR)
+	   then env$add_wrd(e, wrd$inst(MOVE, RR, 0, addr)); end;
+	env$add_wrd(e, wrd$xinst(JSP, 0, 0, _yield));
+	end m_yield;
+
+m_myield = proc (e: env);
+	n: int := get_number(e);
+	w: wrd := wrd$create(_tmrtn, n);
+	disp: int := env$add_link(e, w);
+	env$add_wrd(e, wrd$xinst(MOVE, RR, LR, disp));
+	env$add_wrd(e, wrd$xinst(JRST, 0, 0, _myield));
+	end m_myield;
+
+m_fakef = proc (e: env);
+	env$add_wrd(e, wrd$xinst(PUSH, SP, 0, _dnone));
+	env$add_wrd(e, wrd$xinst(PUSH, SP, 0, _dnone));
+	end m_fakef;
+
+m_signal = proc (e: env);
+	name: wrd := get_wrd(e);
+	num: int := get_number(e);
+	m_args(e);
+	env$add_wrd(e, wrd$xinst(MOVEI, RR, 0, num));
+	env$add_wrd(e, wrd$xinst(PUSH, SP, 0, RR));
+	reg, disp: int := tdlink(e, name);
+	env$add_wrd(e, wrd$xinst(PUSH, SP, reg, disp));
+	env$add_wrd(e, wrd$xinst(JSP, XR, 0, _siggy));
+	end m_signal;
+
+m_itpop = proc (e: env);
+	env$add_wrd(e, wrd$xinst(JSP, XR, 0, _itpop));
+	end m_itpop;
+
+m_cont = proc (e: env);
+	env$add_wrd(e, wrd$inst(JRST, 0, PR, e.loop_disp));
+	end m_cont;
+
+m_resume = proc (e: env);
+	env$add_wrd(e, wrd$xinst(JRST, 0, 0, _resume));
+	end m_resume;
+
+m_catch = proc (e: env);
+	env$begin_catch(e);
+	env$add_wrd(e, wrd$inst(HRROM, SP, 0, get_wrd(e)));
+	end m_catch;
+
+m_uncatch = proc (e: env);
+	env$end_catch(e);
+	env$add_wrd(e, wrd$inst(HRR, SP, 0, get_wrd(e)));
+	end m_uncatch;
+
+m_except = proc (e: env);
+	env$add_wrd(e, wrd$inst(JRST, 0, PR, e.uncatch_disp));
+	var: wrd := get_wrd(e);
+	names: aw := aw$create(1);
+	for name: wrd in get_wrds(e) do
+		aw$addh(names, name);
+		end;
+	env$begin_except(e, var, names);
+	vars: aw := aw$new();
+	for v: wrd in get_wrds(e) do
+		aw$addh(vars, v);
+		end;
+	for lbl: str in get_symbols(e) do
+		env$label(e, lbl);
+		end;
+	for v: wrd in aw$elements(vars) do
+		env$add_wrd(e, wrd$inst(POP, SP, 0, v));
+		end;
+	env$add_wrd(e, wrd$inst(HRR, SP, 0, var));
+	end m_except;
+
+m_link = proc (e: env);
+	name: str := get_symbol(e);
+	disp: int := env$add_link(e, get_wrd(e));
+	env$define(e, name, wrd$create(0, disp));
+	end m_link;
+
+m_args = proc (e: env);
+	for addr: wrd in get_wrds(e) do
+		env$add_wrd(e, wrd$inst(PUSH, SP, 0, addr));
+		end;
+	end m_args;

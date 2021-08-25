@@ -1,0 +1,344 @@
+.chapter "An Implementation Language for State Machines"
+	The previous three chapters have focused on formalizing the semantics
+of state machine specifications.  This allows one to write precise and unambiguous
+specifications of data abstractions using state machines.
+But these abstractions, when only specified by
+a state machine, can not be used in any programming language.  Thus, an important
+aspect in any formalization is to be able to describe formally when a data abstraction,
+specified by a state machine, is properly implemented in some programming language.
+Developing this definition involves a number of problems.
+	First, a programming language for implementing state machines must be
+described that allows one to construct the concrete representation of a data
+abstraction and the implementations of the V-functions and O-functions.
+This is the topic of this chapter.  Then, a method of proving the
+correctness of an implementation must be fixed.  This problem is discussed in the next
+chapter.
+	In this chapter, a programming language for implementing state
+machine specifications, called ALMI (A Language for Machine
+Implementations), is described.
+The intent here is not to provide a new programming language that supports the
+implementation of state machines but rather to develop a simple and sufficiently
+powerful language that can be used in Chapter 6 where the problem of proving
+the correctness of an implementation is discussed.
+	 This language uses PASCAL-like notation.  Furthermore, all
+data types in this language are specified as state machines.  The
+operations on these types are the V-functions and O-functions of the machine.
+The implementation language described here primarily provides control constructs
+to group together O-function and V-function calls.
+.section "An Example"
+	An example of a state machine specification and its corresponding
+implementation is given in Figures 1 and 2, respectively.
+.begin_figure "Specification of Finite Integer Set"
+.ls 1
+.sp 2
+		finite_integer_set = 1Parnas_module is* cardinality, has, remove, insert
+
+			cardinality = 1non-derived V-function*( ) 1returns* integer
+				1Appl. Cond.: true*
+				1Initial Value*: 0
+				1end* cardinality
+
+			has = 1derived V-function*(i:integer) 1returns* Boolean
+				1Appl. Cond.: true*
+				1Initial Value: false*
+				1end* has
+
+			insert = 1O-function*(i:integer)
+				1Appl. Cond.*: cardinality<100
+				1Effects*: if has(i) then 'has'(i) = 1true*
+				if has(i) then 'cardinality' = cardinality + 1
+				1end* insert
+
+			remove = 1O-function*(a:integer)
+				1Appl. Cond.: true*
+				1Effects*: if has(i) then 'has'(i) = 1false*
+				if has(i) then 'cardinality' = cardinality + 1
+				1end* remove
+
+		1end* finite_integer_stack
+
+
+.finish_figure
+	The data abstraction specifed in Figure 1 is a finite integer set.  2Insert*
+and 2remove* are O-functions that insert and remove, respectively, integers from the
+set.  2Cardinality* is a V-function that returns the number of integers in the set.
+2Has(i)* is another V-function that determines whether or not the integer i is in
+the set.
+	Figure 2 contains an implementation of finite_integer_set.  The set is stored
+as an ordered sequence of integers in the array A.  2INSERT, REMOVE, CARDINALITY*
+and
+2HAS* are the corresponding implementations of insert, remove, cardinality and has.
+.foot
+Throughout this thesis, lower case letters will be used in the names of V-functions
+and O-functions of a state machine specification.  Capital letters will represent
+their corresponding implementation.
+.efoot
+.begin_figure "Implementation of finite integer set"
+.sp  3
+FINITE_INTEGER_SET = 1implementation is* INSERT, REMOVE, HAS, CARDINALITY
+
+
+A: array of integers initially undefined
+.br
+COUNT: integer variable initially 0
+.br
+TEMP: integer variable initially undefined
+
+
+SEARCH = 1procedure*(a,f,k:integer) 1returns* integer
+	1if* f=k
+		1then return* k
+		1else if* a<A.read(|_f+k_|/2)
+			1then return* SEARCH(a,f,|_f+k_|/2)
+			1else return* SEARCH(a,|_f+k_|/2,k)
+	1end* SEARCH
+
+
+CARDINALITY = 1procedure( ) returns* integer
+	1return* COUNT.read
+	1end* CARDINALITY
+
+
+INSERT = 1procedure*(i:integer)
+	1if* COUNT.read=0
+		1then begin*
+		A.change(0,i);
+		COUNT.change(1)
+		1end*
+		1else* 1if* COUNT.read<100
+			1then begin* 
+			TEMP.change(SEARCH(i,0,COUNT.read+1))
+			1if* A.read(TEMP.read)=i
+				1then return*
+				1else* 1begin*
+				1for* j := COUNT.read 1step* -1 1until* A.read(TEMP.read) 1do*
+					A.change(j,A.read(j+1));
+			COUNT.change(COUNT.read+1);
+			A.change(TEMP.read,i);
+			1end end*
+			1else signal* error
+	1end* INSERT
+
+.sp 10
+REMOVE = 1procedure*(i:integer)
+	 1if* COUNT.read=0
+		1then return
+		else begin*
+		TEMP.change(SEARCH(i,0,COUNT.read+1));
+		1if* TEMP.read=i
+			1then begin
+			for* j := TEMP.read 1until* COUNT.read 1do*
+				A.change(j,A.read(j+1));
+			COUNT.change(COUNT.read-1)
+			1end end
+			else return
+	end* REMOVE
+
+
+HAS  = 1procedure*(i:integer) 1returns* Boolean
+	1if* COUNT.read=0
+		1then return false*
+		1else if* A.read(SEARCH(i,0,COUNT.read+1))=i
+			1then return true
+			else return false
+	end* HAS
+
+
+end FINITE_INTEGER_SET
+.finish_figure
+Each of these operations use SEARCH, which performs a binary search an the
+array A.  SEARCH returns the index where the binary search stops.
+	An implementation in ALMI consists of three parts: an interface description,
+an object description and operation definitions.
+	The 2interface description* of an implementation provides a very brief
+description of the interface that the module presents to the outside environment.  It
+consists of the name of the data abstraction being implemented and a list of the
+operations that users of the implementation may employ.
+.br
+   FINITE_INTEGER_SET = 1implementation is* INSERT, REMOVE, HAS, CARDINALITY
+.br
+Operations such as SEARCH whose names do not appear in the interface description
+may not be accessed by users of the implementation.
+	The 2object description* consists of the declaration of data abstractions
+that are used to represent the object being implemented or to temporarily store
+information during the execution of the operations.  Each of these data
+abstractions must be specified as a state machine.  Here, ALMS will be used to specify
+state machines although any specification language could be used.  The operations of
+these data abstractions may not be used outside the implementation.
+	In the example, the object description consists of
+		A: array of integers initially undefined
+.ls 1
+		COUNT: integer variable initially 0
+		TEMP: integer variable initially undefined
+.ls 2
+.br
+These phrases are syntactic sugar for the state machine specifications of a
+variable and an array given in Figures 3 and 4, respectively.  COUNT and the array A are
+used to reperesent the data abstraction.  TEMP is used as temporary storage so that
+repeated invocations of SEARCH are unnecessary.
+.begin_figure "Variable"
+
+2	X: type_t variable initially a0 is equivalent to
+
+
+		X.variable = 1state machine is* X.read, X.change
+
+			X.read = 1non-derived V-function( ) returns* type_t
+				1Appl. Cond.: true
+				Initial Value:* a
+				1end* X.read
+
+			X.change = 1O-function*(i:type_t)
+				1Appl. Cond.: true
+				Effects:* 'X.read' = i
+				1end* X.change
+
+			1end* X.variable
+
+where type_t is the name of a defining abstraction of ALMS and a is an element of type_t
+or undefined.
+
+.finish_figure
+.begin_figure "Array"
+
+2	X: type_t array initially a0 is equivalent to
+
+
+		X.array = 1state machine is *X.read, X.change
+
+			X.read = 1non-derived V-function*(i:integer) 1returns* type_t
+				1Appl. Cond.: true
+				Initial Value:* a
+				1end* X.read
+
+			X.change = 1O-function*(j:integer,i:type_t)
+				1Appl. Cond.: true
+				 Effects:* 'X.read'(j) = i
+				1end* X.change
+
+			1end* X.array
+
+where type_t is the name of a defining abstraction of ALMS and a is an element of type_t
+or undefined.
+
+.finish_figure
+	The body of the implementation consists of operation definitions.  These
+definitions provide implementations of the permissable operations on the data
+abstraction.  An operation definition must be given for every operation that appears
+in the interface description.  Operation definitions are like ordinary procedure
+definitions.  Outside of the calls to V-functions and O-functions, they contains the
+usual control constructs that would be found in, say, ALGOL or PASCAL.
+.section " A Language for Machine Implementations  -  ALMI"
+	ALMI is unlike any conventional programming language in that it allows the use
+of any type of arithmetic expression as long as its meaning is clear and it describes a
+computable function.  Similarly, the language does not have a fixed set of types.  Any
+data abstraction and associated operation that can be specifed in ALMS is allowed.  The
+specification of a data abstraction is given at the beginning of each ALMI
+implementation.  These data abstractions are global to the implementation.
+	ALMI uses traditional mathematical and programming constructs such as
+expressions, conditions, statements and procedures.  Informal descriptions of some of
+these constructs are given below.  No attempt is made to give a precise definition as
+that would be beyond the scope of this thesis.  A formalization of constructs similar to
+those used in ALMI can be found in [Hoare 71].
+	As was previously discussed, an ALMI implementation consists of an interface
+description, an 
+object description and operation definitions.  Its general syntax is given
+below in Figure 5.
+.begin_figure "ALMI Implementation"
+
+	2name0 = 1implementation is* 2list of operations*
+		     ALMS' specifications
+		     operation definitions
+		     end 2name*
+
+.finish_figure
+	An operation definition has the syntax outlined below.
+		2name* = 1procedure*(2list of parameters and their type*) 1returns* value
+.ls 1
+			2statement*
+			end 2name*
+.ls 2
+.br
+The 2returns value* is optional.  Only defining abstractions of ALMS are allowed as
+the types of parameters.  All parameters are passed by value.   In 2call by value*, the
+formal parameters of a procedure are treated as local variables that are initialized to
+the values of the actual parameters.  A statement is one of the following constructs.
+
+.ls 1
+	1.  1if* condition 1then* statement 1else* statement
+.foot
+"else statement" is optional.  This statement type leads to the usual dangling else
+ambiguity.  We take the traditional way out and assume 2else* to be matched with the
+closest 2then*.
+.efoot
+	2 a.  1while* condition 1do* statement
+	  b.  1repeat* statement 1until* condition
+	3.  1for* variable := initial value 1step* step_size 1until* final value 1do* statement
+.foot
+"step step_size" is optional if step_size is 1.
+.efoot
+	4.  1begin*
+		statement;
+		statement;
+		     .
+		     .
+		     .
+		statement;
+		statement;
+	     1end*
+	5 a.  1signal* error
+	  b.  1return* expression
+.foot
+"expression" is optional.
+.efoot
+	6.  V-function(2arguments*)
+	7.  O-function(2arguments*)
+.ls 2
+
+A brief synopsis of each of these statement types is given below.
+
+1.  In the 1if* statement
+	1if* condition 1then* statement 1else* statement
+.br
+the condition following the 1if* is a Boolean expression.  If the expression has the
+value 1true*, the statement following 1then* is to be executed.  Otherwise, the
+statement following 1else* (if present) is to be executed.
+
+2.  The purpose of the 1while* statement
+		1while* condition 1do* statement
+.br
+and the 1repeat* statement
+		1repeat* statement 1until* condition
+.br
+is to create a loop.  In the 1while* statement the condition following 1while*
+is evaluated.  If the condition is 1true*, the statement after 1do* is executed.
+This process is repeated until the condition becomes 1false*.  If the condition is
+originally 1true*, then eventually an execution of the statement must cause the
+condition to become 1false* if the execution of the 1while* statement is to
+terminate.
+	The 1repeat* statement is similar except that the statement following
+1repeat* is executed before the condition is evaluated.
+
+3.  In the 1for* statement
+	1for* variable := initial value 1step* step_size 1until* final value 1do* statement
+.br
+initial value, step_size and final value are all integer expressions.  These expressions
+are evaluated only once at the beginning of the execution of the 1for* statement.
+In the case where
+step_size is positive, the variable is set equal to the value of the initial value
+expression.  If this value exceeds the final value, then execution terminates.
+Otherwise, the statement following 1do* is executed, the value of the variable is
+incremented by step_size and compared with the final value.  The process is repeated
+until the value of the variable exceeds the final value.  The case where the step_size
+is negative is similar but termination occurs when the value of the variable is less
+than the final value.
+
+4.  This is a 2block* of statements.  It can be used wherever a statement can be used.
+
+5.  The 1return* statement causes the expression (if present) following the keyword
+1return* to be evaluated and returned and execution of the operation to
+terminate.  The 1signal* statement also causes an operation to stop executing.
+Further, it causes an error condition to be signalled.
+
+6. and 7.  These are calls to the V-functions and O-functions that are defined in the
+state machine specifications given at the beginning of the implementation.

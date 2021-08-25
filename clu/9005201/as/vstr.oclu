@@ -1,0 +1,62 @@
+bigint = word
+
+vstream = cluster is create, addnum, output
+
+	ai = array[int]
+	rep = record [
+		name: string,
+		sum: bigint,
+		vals: ai
+		]
+
+create = proc (s: string) returns (cvt)
+	return (rep${
+		name: s,
+		sum: int2big (0),
+		vals: ai$create (0)})
+	end create
+
+addnum = proc (s: cvt, v: int)
+	ai$addh (s.vals, v)
+	s.sum := s.sum + int2big (v)
+	end addnum
+
+output = proc (x: cvt, s: stream)
+	stream$puts ("Statistics on ", s)
+	stream$putl (x.name, s)
+	stream$puts ("  Count = ", s)
+	stream$putl (int$unparse (ai$size(x.vals)), s)
+	stream$puts ("  Average = ", s)
+	stream$putl (bigint$unparse (x.sum/int2big(ai$size(x.vals))), s)
+	sort (x.vals)
+	stream$puts ("  Low Value = ", s)
+	stream$putl (int$unparse (ai$bottom (x.vals)), s)
+	stream$puts ("  High Value = ", s)
+	stream$putl (int$unparse (ai$top (x.vals)), s)
+	stream$puts ("  Median = ", s)
+	stream$putl (int$unparse (x.vals[ai$size(x.vals)/2]), s)
+	stream$putl ("")
+	end output
+
+sort = proc (x: ai)
+	lo: int := ai$low (x)
+	hi: int := ai$high (x)
+	for i: int in int$from_to (lo, hi-1) do
+		for j: int in int$from_to (i+1, hi) do
+			if x[j]<x[i] then
+				t: int := x[j]
+				x[j] := x[i]
+				x[i] := t
+			end
+		end
+	end
+	end sort
+
+int2big = proc (i: int) returns (bigint)
+	if i>=0
+		then return (bigint$create (0, i))
+		else return (bigint$create (-1, i))
+		end
+	end int2big
+
+end vstream

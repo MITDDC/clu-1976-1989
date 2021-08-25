@@ -1,0 +1,104 @@
+;	page = cluster is	create		% -> page
+;				store		% page, int, int, int => bounds
+;				fetch		% page, int -> int, int => bounds
+;				dump		% page, int, int, int, chan ->
+
+.insrt clusys;alpha >
+
+edesc	e$bnd,bounds
+edesc	e$dfa,dump_failed
+ti==	ttype(tint)
+tc==	ttype(tchan)
+tdesc	tp,page
+ptdesc	t$cre,[],[tp],[]
+ptdesc	t$sto,[tp,ti,ti,ti],[],[e$bnd]
+ptdesc	t$fet,[tp,ti],[ti,ti],[e$bnd]
+ptdesc	t$dmp,[tp,ti,ti,ti,tc],[],[e$dfa]
+
+cluster page
+
+proc	p.cre,[],[],[],t$cre
+	hrri	n1,pgsize+1		; a whole page plus a header word
+	hrli	n1,(twvec)
+	alloc	pgsize+1,n1
+	$rtn	rr
+	corp page$create
+
+proc	p.sto,[p,i,l,r],[],[],t$sto
+	rsbchk	rr,i(er)		; get the index
+	hrrz	n1,rr
+	$if	caige	n1,0		; check 0 <= index < pgsize
+		skipa
+		cail	n1,pgsize
+	$then	refchk	r0,p(er)	; get page
+		add	r0,n1		; compute address
+		rsbchk	n1,l(er)	; get the word
+		rsbchk	n2,r(er)
+		hrl	n2,n1
+		movem	n2,1(r0)	; store it
+	$else	signal	e$bnd
+	$fi
+	$rtnc $none
+	corp page$store,[p,i,l,r]
+
+proc	p.fet,[p,i],[],[],t$fet
+	rsbchk	rr,i(er)		; get index
+	hrrz	n1,rr
+	$if	caige	n1,0		; check 0 <= index < pgsize
+		skipa
+		cail	n1,pgsize
+	$then	refchk	r0,p(er)	; get page
+		add	r0,n1		; compute address
+		move	n2,1(r0)	; get word
+		hlr	n1,n2
+		hrli	n1,(tint)
+		push	sp,n1
+		hrli	n2,(tint)
+		push	sp,n2
+		$mrtn	2.
+	$else	signal	e$bnd
+	$fi
+	corp page$fetch,[p,i]
+
+proc p.dmp,[p,adr,low,len,c],[],[],t$dmp
+	movn	n3,len(er)
+	hrl	n3,n3
+	hrr	n3,adr(er)
+	hrrz	n1,c(er)
+	hrroi	n2,n3
+	.call	c.wt1(pr)
+	$go	fex
+	hrrz	n2,low(er)
+	hrr	r1,p(er)
+	addi	r1,1(n2)
+	hll	r1,n3
+	move	r0,r1
+	.call	c.wtv(pr)
+	$go	fex
+.here	c.lp
+	rot	n3,1
+	add	n2,(r0)
+	aobjn	r0,c.lp(pr)
+	hrroi	n2,n3
+	.call	c.wt1(pr)
+	$go	fex
+	$rtnc	$none
+$label	fex
+	signal	e$dfa
+.here	c.wt1
+	setz
+	sixbit	|iot|
+	move	n1
+	move	n2
+	setzb	rr
+.here	c.wtv
+	setz
+	sixbit	|iot|
+	move	n1
+	move	r1
+	setzb	rr
+	corp page$dump,[p,addr,low,len,c]
+
+retsulc page
+
+.insrt clusys;omega >

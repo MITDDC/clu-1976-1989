@@ -1,0 +1,283 @@
+;CLU Compiler Version 3.73
+
+.symtab 8000.,4095.
+.insrt clusys;alpha >
+;							23
+cpdesc p$3,ttype,1.
+tdesc t$1,heap,[p$3]
+tdesc t$2,array,[p$3]
+string s$1,a
+ptdesc t$3,[p$3,p$3],[ttype(tbool)],[]
+string s$2,p
+sdesc t$4,record,[s$1,t$2,s$2,t$3]
+;							heap
+cluster heap,t$1,t$4,[]
+;							35
+ptdesc t$5,[t$3],[t$1],[]
+;							create
+proc f$1,[v$1],[],[],t$5,[]
+;							36
+args [$one]
+pcdesc f$7,[t$2,create],1.
+pcall f$7
+args [rr]
+args [v$1(er)]
+recgen [2.,1.]
+cvtup rr
+$rtn rr
+corp heap$create,[p]
+;							39
+string s$3,empty
+edesc t$6,s$3,[]
+ptdesc t$7,[t$1],[p$3],[t$6]
+;							top
+proc f$2,[v$2],[],[],t$7,[]
+;							41
+vargen x$1,tbad
+$catch x$1(er)
+args [v$2(er)]
+pcdesc f$8,[t$4,get_a],1.
+pcall f$8
+args [rr]
+pcdesc f$9,[t$2,bottom],1.
+pcall f$9
+$rtn rr
+string s$4,bounds
+$except x$1(er),[s$4],[],[]
+edesc t$8,s$3,[]
+signal t$8,0.
+$uncatch x$1(er)
+corp heap$top,[x]
+;							44
+ptdesc t$9,[t$1],[ttype(tint)],[]
+;							size
+proc f$3,[v$3],[],[],t$9,[]
+;							45
+args [v$3(er)]
+pcall f$8
+args [rr]
+pcdesc f$10,[t$2,size],1.
+pcall f$10
+$rtn rr
+corp heap$size,[x]
+;							48
+ptdesc t$10,[t$1],[ttype(tbool)],[]
+;							empty
+proc f$4,[v$4],[],[],t$10,[]
+;							49
+args [v$4(er)]
+pcall f$8
+args [rr]
+pcall f$10
+args [rr]
+args [$zero]
+pcdesc f$11,int$equal,2.
+pcall f$11
+$rtn rr
+corp heap$empty,[x]
+;							52
+ptdesc t$11,[t$1,p$3],[],[]
+;							insert
+proc f$5,[v$5,v$6],[v$7,v$8,v$9,v$10],[tbad,tbad,tbad,tbad],t$11,[]
+;							53
+args [v$5(er)]
+pcall f$8
+assn v$7(er),rr
+;							54
+args [v$5(er)]
+pcdesc f$12,[t$4,get_p],1.
+pcall f$12
+assn v$8(er),rr
+;							55
+args [v$7(er)]
+args [v$6(er)]
+pcdesc f$13,[t$2,addh],2.
+pcall f$13
+;							56
+args [v$7(er)]
+pcdesc f$14,[t$2,high],1.
+pcall f$14
+assn v$9(er),rr
+;							57
+args [v$9(er)]
+args [$two]
+pcdesc f$15,int$div,2.
+pcall f$15
+assn v$10(er),rr
+;							58
+$loop
+args [v$10(er)]
+args [$zero]
+pcdesc f$16,int$gt,2.
+pcall f$16
+$ift
+$then
+vargen x$2,tbad
+assn x$2(er),v$8(er)
+args [v$6(er)]
+args [v$7(er)]
+args [v$10(er)]
+pcdesc f$17,[t$2,fetch],2.
+pcall f$17
+args [rr]
+xcall x$2(er),2.
+$fi
+$iff
+$then $go l1
+$fi
+;							59
+args [v$7(er)]
+args [v$9(er)]
+args [v$7(er)]
+args [v$10(er)]
+pcall f$17
+args [rr]
+pcdesc f$18,[t$2,store],3.
+pcall f$18
+;							60
+args [v$10(er)]
+args [v$10(er)]
+args [$two]
+pcall f$15
+args [rr]
+pops [v$10(er),v$9(er)]
+$pool
+$label l1
+;							62
+args [v$7(er)]
+args [v$9(er)]
+args [v$6(er)]
+pcall f$18
+$rtnc $none
+corp heap$insert,[x,v]
+;							65
+;							remove
+proc f$6,[v$11],[v$12,v$13,v$14,v$15,v$16,v$17,v$18,v$19,v$20,v$21],[tbad,tbad,tbad,tbad,tbad,tbad,tbad,tbad,tbad,tbad],t$7,[]
+;							66
+args [v$11(er)]
+pcall f$8
+assn v$12(er),rr
+;							67
+args [v$11(er)]
+pcall f$12
+assn v$13(er),rr
+;							69
+vargen x$3,tbad
+$catch x$3(er)
+args [v$12(er)]
+pcall f$9
+assn v$14(er),rr
+$except x$3(er),[s$4],[],[]
+edesc t$12,s$3,[]
+signal t$12,0.
+$uncatch x$3(er)
+;							70
+args [v$12(er)]
+pcdesc f$19,[t$2,remh],1.
+pcall f$19
+assn v$15(er),rr
+;							71
+args [v$12(er)]
+pcall f$10
+assn v$16(er),rr
+;							72
+$if
+args [v$16(er)]
+args [$zero]
+pcall f$11
+$test
+$then
+assn rr,v$14(er)
+$rtn rr
+$fi
+;							73
+args [v$16(er)]
+args [$two]
+pcall f$15
+assn v$17(er),rr
+;							74
+assn v$18(er),$one
+;							75
+$loop
+args [v$18(er)]
+args [v$17(er)]
+pcdesc f$20,int$le,2.
+pcall f$20
+$iff
+$then $go l2
+$fi
+;							76
+args [v$18(er)]
+args [$two]
+pcdesc f$21,int$mul,2.
+pcall f$21
+assn v$19(er),rr
+;							77
+args [v$12(er)]
+args [v$19(er)]
+pcall f$17
+assn v$20(er),rr
+;							78
+$if
+args [v$19(er)]
+args [v$16(er)]
+pcdesc f$22,int$lt,2.
+pcall f$22
+$test
+$then
+;							80
+args [v$12(er)]
+args [v$19(er)]
+args [$one]
+pcdesc f$23,int$add,2.
+pcall f$23
+args [rr]
+pcall f$17
+assn v$21(er),rr
+;							81
+$if
+assn x$3(er),v$13(er)
+args [v$21(er)]
+args [v$20(er)]
+xcall x$3(er),2.
+$test
+$then
+args [v$19(er)]
+args [$one]
+pcall f$23
+args [rr]
+args [v$21(er)]
+pops [v$20(er),v$19(er)]
+$fi
+$fi
+;							83
+$if
+assn x$3(er),v$13(er)
+args [v$15(er)]
+args [v$20(er)]
+xcall x$3(er),2.
+$test
+$then
+$go l2
+$fi
+;							84
+args [v$12(er)]
+args [v$18(er)]
+args [v$20(er)]
+pcall f$18
+;							85
+assn v$18(er),v$19(er)
+$pool
+$label l2
+;							87
+args [v$12(er)]
+args [v$18(er)]
+args [v$15(er)]
+pcall f$18
+;							88
+assn rr,v$14(er)
+$rtn rr
+corp heap$remove,[x]
+retsulc heap
+
+.insrt clusys;omega >

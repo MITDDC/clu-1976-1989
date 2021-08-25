@@ -1,0 +1,330 @@
+; non-gc'd scratch regs (contents unchanged by reloc or gc)
+n0=: 0		; scratch 1 (may not contain an address!)
+n1=: 1		; scratch 2
+n2=: 2		; scratch 3 
+n3=: 3		; scratch 4
+
+; relocatable registers (rh relocatable but not gc'd)
+r0=: 4		; reloc register 1
+r1=: 5		; reloc register 2
+
+; gc'd scratch regs (lh should have type code, rh should have reference)
+g0=: 6		; gc scratch 1
+g1=: 7		; gc scratch 2
+
+; return object reg (a single gc'd ref)
+rr=: 10		; must be a ref
+
+; activation registers	(all non-gc'd)
+br=: 11	; blt register (both halves reloc)
+xr=: 12	; x-fer register (rh reloc)
+er=: 13	; environment register (rh reloc)
+lr=: 14	; linkage register (rh reloc)
+pr=: 15	; procedure register (rh reloc)
+mr=: 16  ; module register (rh reloc)
+
+; stack pointer (stack frames are a basis of gc)
+sp=: 17	; (rh reloc)
+
+; Opcodes not supported by MIDAS
+jov=jfcl+(400)	; jump on fixed overflow
+jfov=jfcl+(040)	; jump on floating overflow
+
+; interesting  constants
+myvers==:1(1)	; current version number (format,,features)
+
+typgen==:0	; gt means generate type codes
+tcflag==:typgen	; type checking flag for macros
+
+ttyicn==:1	; tty input channel #
+ttyocn==:2	; tty output channel #
+
+pgsize==:1024.	; size of memory page in words
+pglog2==:10.	; log2 of page size
+
+; true xor false must equal true+false !!!
+true==: 777777
+false==: 0
+
+; Interesting constant addresses in memory
+comadr==:100		; common vectors address
+nulls$==:600		; null string location
+syslo==:6*pgsize	; lowest system address (leave space for GC)
+userlo==:32.*pgsize	; lowest user address
+memlen==:2*pgsize	; initial space for the gc-able memory
+hipage==:254.		; start of funny pages (254 & 255 are funny)
+gchi==:hipage*pgsize-1	; highest possible gc-address (ever)
+gclo==:gchi-memlen+1	; lowest possible gc-address (intially)
+work$==:hipage*pgsize	; loader working area address (for 1 page)
+mover==:work$+pgsize	; moving area
+ones==:777777		; halfword of ones (highest address)
+
+; string stuff
+bpword==: 5		; number of bytes per word
+chsize==: 7		; bits per character
+bsize==: (chsize*100)	; mask for byte ptr for strings
+wsize==: (004400)	; mask for full-word byte ptr
+hichar==: 177		; the highest char (must be 177, 377, or 777 !)
+
+;;;;	TYPES	;;;;
+
+typlo=:400
+refbit=:400000
+relbit=:200000
+repbit=:200000
+gcbit=: 100000
+typmsk=:(07777)
+
+;	offsets for blocks used in the CLU support system.
+
+;	arep,array_rep
+ar.cod==: 0	; tarep+low_bound
+ar.rel==: 1	; [rsb,,rel] -size,,rel to usable stuff in vector
+ar.vec==: 2	; [rsb,,ref] predict,,ref to real vector
+
+;	crep,call_block_rep
+pc.cod==: 0	; tcrep+size (in words)
+pc.set==: 1	; [rsb] the setup for the procedure (pc.set=en.set !!)
+pc.num==: 2	; [rsb] the number of arguments given in the call
+pc.str==: 3	; [ref] the external name (or operation name)
+pc.typ==: 4	; [ref] the cluster type (if an operation)
+pc.par==: 5	; [ref] parms given for the procedure
+pc.dat==: 6	; any more words are refs
+
+;	drep,descriptor_rep
+td.cod==: 0	; [rsb] code for type desc & length
+td.fix==: 1	; [ref] the fixed up value for the descriptor (init 0)
+td.opt==: 2	; [rsb] the variety of type desc
+td.nam==: 3	; [ref] string ref for external name (or 0)
+td.arg==: 4	; [ref] to parms or arguments (td,sd,pt,it,ed,zd)
+		; [ref] to cluster desc (rt,xr)
+		; [0,,rsb] position of parm (pa)
+td.rtn==: 5	; [ref] to return types (for pt,it)
+		; [ref] to proc parms (rt,xr)
+td.sig==: 6	; [ref] to signal types (for pt,it)
+
+;	option codes in td.opt (must be single bits)
+tdc.td==:1	; simple type desc
+tdc.sd==:2	; selected type desc
+tdc.pa==:4	; cluster/proc parm
+tdc.rt==:10	; return type desc
+tdc.pt==:20	; proc type desc
+tdc.it==:40	; iterator type desc
+tdc.ed==:100	; exception desc
+tdc.xr==:200	; external proc desc
+tdc.pp==:400	; proc parm dependent
+tdc.cp==:1000	; cluster parm dependent
+tdc.zd==:2000	; zdesc (for records/oneofs)
+
+;	erep,entry_rep
+en.cod==: 0	; terep+size (in words)
+en.set==: 1	; [rsb,,rel] the setup instruction to XCT (en.set=pc.set !!)
+en.lpr==: 2	; [ref,,ref] the (lr,,pr) pair
+en.vi==: 3	; [ref+1,,rsb] the variable init pair (ref+1,,len)
+en.par==: 4	; [ref,,ref] the (proc parm,,cluster parm) pair
+en.tr==: 5	; [rsb,,ref] the trace info (if any)
+en.typ==: 6	; [ref] the type (or type desc) for this entry
+en.nxt==: 7	; [ref] the chain of entry blocks (for parameters)
+en.dat==: 8.	; any more words are refs
+en.odv==: 8.	; [ref] optional vector to own data
+
+;	prep,pure_part_rep
+pr.cod==: 0	; tprep+size (in words)
+pr.err==: 1	; [rsb,,rsb] LH has prc codes, RH has disp to error info
+pr.cut==: 2	; [rsb] stack cutback on exit
+pr.nam==: 3	; [rsb] disp to names in pr block
+pr.go==:  4	; [rsb] first word of code here
+		; further words are [rsb], except that
+		; [ref]'s start where pr.err is an offset to
+
+; prc codes
+prc.ni==: 1	; no interrupts while this proc is current
+prc.cp==: 2	; this proc is dependent on cluster parms
+prc.na==: 4	; no array chopping while in this procedure
+prc.pp==: 10	; this proc is dependent on proc parms
+prc.it==: 20	; this proc is really an iterator
+prc.ma==: 40	; this proc is multi-argument (top one gives #)
+
+;	orep,oneof_rep
+on.cod==: 0	; torep+tag
+on.ref==: 1	; [ref] info part
+
+;	srep,string_rep
+st.cod==: 0	; tsrep+number_of_chars
+st.dat==: 1	; [rsb] characters immediately follow
+
+;	vec,vector
+ve.cod==: 0	; tvec+size (in words)
+ve.dat==: 1	; [ref] references follow
+
+;	wvec,word_vector
+wv.cod==: 0	; twvec+size (in words)
+wv.dat==: 1	; [rsb] words of raw seething bits follow
+
+;	xvec,ref_vector
+xv.cod==: 0	; txvec+size (in words)
+xv.dat==: 1	; [rsb,,ref] words in remainder
+
+fb.cod==0
+fb.dev==1
+fb.nm1==2
+fb.nm2==3
+fb.usr==4
+fb..==5
+
+;	Fake a vector for the type codes.
+loc	typlo
+;	The most basic type codes to occur as LH of references
+typbit==refbit
+deft	ref,ref
+deft	xref,?ref
+typbit==refbit+relbit
+deft	rel,rel
+deft	xrel,?rel
+typrep==:.
+typbit==repbit
+;	The most basic type codes to appear as LH of 1st words
+deft	arep,arep
+deft	crep,crep
+deft	drep,drep
+deft	erep,erep
+deft	prep,prep
+deft	orep,orep
+deft	srep,srep
+deft	vec,vec
+deft	wvec,wvec
+deft	xrep,xvec
+typbit==0
+typrsb==:.
+deft	int,int
+deft	bool,bool
+deft	char,char
+deft	type,type
+deft	mrtn,mrtn
+deft	chan,chan
+typref==:.
+deft	str,str
+deft	real,real
+typbit==refbit
+deft	pcb,pcb		; procedure call block
+deft	td,tdesc	; normal-type descriptor
+deft	ppd,ppdesc	; proc parm desc
+deft	cpd,cpdesc	; cluster parm desc
+typbit==0
+deft	null,null
+deft	none,none	; type of return obj from procs that don't have any
+deft	any,any		; type any
+typusr==:.	; User-defined types from here on
+%str=:refbit(tstr)
+
+;;; COMMON ;;;
+
+loc	comadr
+nullp==777700
+gcon	$true,tbool+true	; boolean true
+gcon	$false,tbool+false	; boolean false
+gcon	$none,tnone+(refbit)+none$	; the null return
+gcon	$null,tnull+(refbit)+null$	; the null object
+$nil=$null
+gcon	$nulls,tstr+(refbit)+nulls$	; the null string
+gcon	$nullv,tref+nullv$	; the unusable vector
+gcon	$neg1,tint+777777	; -1
+gcon	$zero,tint+0		; 0
+gcon	$one,tint+1		; 1
+gcon	$two,tint+2		; 2
+gcon	$tyo,tchan+ttyocn	; default tty output
+gcon	$tyi,tchan+ttyicn	; default tty input
+gcon	$work,trel+work$	; a page to work with
+gcon	$ents,tref+ents$	; the system entries
+comadx==.
+; Can't $rtnc following stuff
+gconv	$memhi,tref+gchi	; current high bound on free mem
+gconv	$memlo,tref+gclo	; current low bound on free mem
+gconv	$stkhi,tref+stktop	; upper bound on stack
+gconv	$pure,tref+gchi+1	; current pure stuff
+gconv	$purtop,tref+gchi
+gconv	$types,tref+types$	; the types vector
+gconv	$sigpr,0	; signal printing flag
+gconv	$mtab,0		; the module table
+gconv	$intlock,0	; this locks up the world
+gconv	intchk,skip	; this gets hit when we want to interrupt
+.i.==440000(bsize)
+.c==chsize*10000
+gconv	$bptab,[(.i.-.c),(.i.-2*.c),(.i.-3*.c),(.i.-4*.c),(.i.-5*.c)]
+gconv	$r.get,r.get	; get record component (get_*)
+gconv	$r.put,r.put	; put record component (put_*)
+gconv	$r.acc,r.acc	; general access entry
+gconv	$o.new,o.new	; make a new oneof (make_*)
+gconv	$typbp,[(221600+sp)]
+gconv	$vtab,0		; the vector table (for desc canon)
+gconv	$o.is,o.is	; test for taggedness of oneof
+gconv	$o.get,o.get	; force a get of a oneof component
+gconv	$trace,0	; the trace flag
+gconv	$trxct,0
+gconv	$trsav,0	; trace request
+gconv	$lflag,0	; listen loop recovery flag
+gconv	$bad,txrep+1	; Bad thing
+tbad==tref+$bad
+;	jumps to internal routines
+jumplo==:.
+jumper	setup
+jumper	exiter
+jumper	qsetup
+jumper	yield
+jumper	resume
+jumper	exitc
+jumper	qexit
+jumper	notref
+jumper	notrsb
+jumper	badrep
+jumper	frog
+jumper	linker
+jumper	buggy
+jumper	mexit
+jumper	badrtn
+jumper	memout
+jumper	framer
+jumper	itpop
+jumper	siggy
+jumper	causer
+jumper	notype
+jumper	mxrout	; qproc return
+jumper	vcopy	; copy a vector
+jumper	rcopy	; copy a range
+jumper	yldout
+jumper	agnew
+jumper	nixon
+jumper	i.ofl	; overflow signal
+jumper	myield
+jumper	amake	; make an array
+jumper	badtyp	; bad type code from force
+jumper	safex	; jumper to safe exit
+jumper	chkout	; check interrupts and jrst (xr)
+jumphi==.-1	; highest jumper
+
+loc	nulls$
+gconv	nulls%,[tsrep+0,0]
+gconv	none$,[tvec+1,0]
+gconv	null$,[tvec+1,0]
+gconv	nullv$,[tvec+1,0]
+gconv	$sname,clusys
+gconv	$bvec,tref+basvec	; vector of basic areas
+gconv	$stack,trel+stack	; start of stack
+gconv	$gcsav,tint		; # of words saved by last gc
+gconv	$gcreq,0		; # of GC requests
+gconv	$ahack,0		; # of hacked array arguments
+gconv	$.greq,0	; ^G request
+gconv	$.sreq,0	; ^S request
+gconv	$ihand,0	; inferior interrupt handler (procedure object)
+gconv	$infer,0	; 0,,lh of .ifpir user variable
+gconv	$inreq,0	; inferior interrupt requests
+gconv	$safex,0	; safex hacking flag
+gconv	$indef,0	; any interrupt request increments this
+gconv	$otty,0		; non-zero if tty is open
+gconv	$start,start	; starting address
+gconv	$cflag,0	; arg checking flag (1 -> no check)
+gconv	$snap,0		; # of things snapped
+gconv	$gcopt,0	; GC options word
+gconv	$fhand,0	; 1 -> propagate failure
+gconv	$hheap,0	; hi heap marker
+gconv	$styx,0		; statistics-keeping flag

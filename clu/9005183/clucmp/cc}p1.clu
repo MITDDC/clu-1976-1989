@@ -1,0 +1,460 @@
+%	CC_P1	CLU
+%
+%	CLU 3 compiler:  parsing routines for modules
+
+BEGIN
+
+# include "clucmp/cc_syn.equate"
+# include "clucmp/cc_p.equate"
+
+END
+
+parse = proc (e: env) returns (definition) signals (eof);
+	k: token := e.peek_token;
+	tagcase k in
+	   sharp: begin
+		  env$next_token(e);
+		  return(p_directive(e));
+		  end;
+	   out:   return(p_definition(e));
+	   end;
+	   except eof: signal eof; end;
+	end parse;
+
+p_definition = proc (e: env) returns (definition) signals (eof);
+	not_oper = false;
+	if bool$not(p_find_a_defn(e, not_oper))
+	   then signal eof;
+	def: definition;
+	k: token := env$peek(e, 3);
+	tagcase k in
+	   defnkey: %(k: defnkey):
+		begin
+		id: idn := p_idn(e);
+		env$next_token(e);
+		env$next_token(e);
+		env$new_level(e);
+		tagcase k in
+		   proc_:    def := definition$make_proc_(p_proc(e, id));
+		   iter_:    def := definition$make_iter_(p_iter(e, id));
+		   cluster_: def := definition$make_clu(p_cluster(e, id));
+		   end;
+		env$pop_level(e);
+		p_semi(e);
+		return(def);
+		end;
+	   out: def := definition$make_equates(p_equatelist(e));
+	   end;
+	return(def);
+	end p_definition;
+
+p_directive = proc (e: env) returns (definition) signals (eof);
+	ok: bool := false;
+	k: token := e.peek_token;
+	tagcase k in
+	   ident: %(k: ident):
+		begin
+		env$next_token(e);
+		if "include" = k.str
+		   then ok := true;
+			else env$err(e, "unrecognized directive", serious);
+		end;
+	   out: env$err(e, "missing directive after #", serious);
+	   end;
+	k := e.peek_token;
+	tagcase k in
+	   str: %(k: strid):
+		begin
+		env$next_token(e);
+		fs: str := strid$get_str(k);
+		if cand(ok, file$exists(fs))
+		   then begin
+			inf: file := file$open_read(fs);
+			e1: env := env$new_env(e, inf);
+			def: definition := definition$make_equates(p_equatelist(e1));
+			tk: token := e1.peek_token;
+			tagcase tk in
+			   eof: ;
+			   out: env$err(e1, "more than equates in include file", minor);
+			   end;
+			file$close(inf);
+			e.err := e1.err;
+			return(def);
+			end;
+		if ok
+		   then env$err(e, "cannot open include file", serious);
+		end;
+	   out: env$err(e, "missing file name string after # include", serious);
+	   end;
+	return(p_definition(e));
+	   except eof: signal eof; end;
+	end p_directive;
+
+p_proc = proc (e: env, id: idn) returns (applyspec);
+	parms: decllist := p_parms(e);
+	args: decllist := p_args(e);
+	vals: typelist := p_returns(e);
+	sigs: exceptionlist := p_signals(e);
+	wher: restrictlist := p_where(e);
+	bod: body := p_body(e, misc_body);
+	p_defn_end(e, id, "PROC...END idn");
+	return({idn:    id,
+		parms:  parms,
+		args:   args,
+		vals:   vals,
+		sigs:   sigs,
+		where_: wher,
+		body:   bod});
+	end p_proc;
+
+p_iter = proc (e: env, id: idn) returns (applyspec);
+	parms: decllist := p_parms(e);
+	args: decllist := p_args(e);
+	vals: typelist := p_yields(e);
+	sigs: exceptionlist := p_signals(e);
+	wher: restrictlist := p_where(e);
+	bod: body := p_body(e, misc_body);
+	p_defn_end(e, id, "ITER...END idn");
+	return({idn:    id,
+		parms:  parms,
+		args:   args,
+		vals:   vals,
+		sigs:   sigs,
+		where_: wher,
+		body:   bod});
+	end p_iter;
+
+p_cluster = proc (e: env, id: idn) returns (cluspec);
+	parms: decllist := p_parms(e);
+	ops: idnlist;
+	k: token := e.peek_token;
+	tagcase k in
+	   is_: begin
+		env$next_token(e);
+		ops := p_idnlist(e);
+		end;
+	   out: begin
+		env$assume(e, "IS idnlist in CLUSTER...END");
+		ops := idnlist$create(1);
+		end;
+	   end;
+	wher: restrictlist := p_where(e);
+	p_semi(e);
+	equates: equatelist := p_equatelist(e);
+	bod: operdefnlist := p_operdefnlist(e);
+	p_defn_end(e, id, "CLUSTER...END idn");
+	return({idn:     id,
+		parms:   parms,
+		ops:     ops,
+		where_:  wher,
+		equates: equates,
+		body:    bod});
+	end p_cluster;
+
+p_equatelist = proc (e: env) returns (equatelist);
+	equates: equatelist := equatelist$create(1);
+	while true do begin
+		id: idn;
+		line: int := e.lineno;
+		k: token := e.peek_token;
+		tagcase k in
+		   ident: %(k: ident):
+			id := env$get_idn(e, k);
+		   typekey: %(k: typekey):
+			tagcase k in
+			   rep_: id := env$new_idn(e, "REP");
+			   out:  return(equates);
+			   end;
+		   out: return(equates);
+		   end;
+		k := env$peek(e, 2);
+		tagcase k in
+		   op: %(k: infixop):
+			tagcase k in
+			   eq:  ;
+			   out: return(equates);
+			   end;
+		   out: return(equates);
+		   end;
+		k := env$peek(e, 3);
+		tagcase k in
+		   defnkey: return(equates);
+		   out:     ;
+		   end;
+		env$next_token(e);
+		env$next_token(e);
+		val: equateval;
+		tagcase k in
+		   l_bkt:   begin
+			    env$next_token(e);
+			    val := equateval$make_rename(p_renamelist(e));
+			    end;
+		   l_curly: begin
+			    env$next_token(e);
+			    val := equateval$make_typeset(p_typeset(e));
+			    end;
+		   out:     val := equateval$make_const(p_const(e));
+		   end;
+		equatelist$addh(equates, equate$create(id, val, line));
+		p_semi(e);
+		end;
+	end p_equatelist;
+
+p_operdefnlist = proc (e: env) returns (operdefnlist);
+	want_oper = true;
+	opers: operdefnlist := operdefnlist$create(1);
+	while p_find_a_defn(e, want_oper) do begin
+		k: token := env$peek(e, 3);
+		tagcase k in
+		   defnkey: %(k: defnkey):
+			begin
+			tagcase k in
+			   cluster_: return(opers);
+			   out:      ;
+			   end;
+			op: operdefn;
+			id: idn := p_idn(e);
+			env$next_token(e);
+			env$next_token(e);
+			env$new_level(e);
+			tagcase k in
+			   proc_: op := operdefn$make_proc_(p_proc(e, id));
+			   iter_: op := operdefn$make_iter_(p_iter(e, id));
+			   end;
+			env$pop_level(e);
+			p_semi(e);
+			operdefnlist$addh(opers, op);
+			end;
+		   out: begin
+			env$err(e, "equates as operdefns - parsing anyway", serious);
+			p_equatelist(e);
+			end;
+		   end;
+		end;
+	return(opers);
+	end p_operdefnlist;
+
+p_parms = proc (e: env) returns (decllist);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_bkt: env$next_token(e);
+	   out:   return(decllist$create(1));
+	   end;
+	parms: decllist := p_decllist(e);
+	k := e.peek_token;
+	tagcase k in
+	   r_bkt: env$next_token(e);
+	   out:   env$assume(e, "] in [parmlist]");
+	   end;
+	return(parms);
+	end p_parms;
+
+p_args = proc (e: env) returns (decllist);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_paren: env$next_token(e);
+	   out:     return(decllist$create(1));
+	   end;
+	k := e.peek_token;
+	tagcase k in
+	   r_paren: begin
+		    env$next_token(e);
+		    return(decllist$create(1));
+		    end;
+	   out:     ;
+	   end;
+	args: decllist := p_decllist(e);
+	k := e.peek_token;
+	tagcase k in
+	   r_paren: env$next_token(e);
+	   out:     env$assume(e, ") in (arglist)");
+	   end;
+	return(args);
+	end p_args;
+
+p_where = proc (e: env) returns (restrictlist);
+	wher: restrictlist := restrictlist$create(1);
+	k: token := e.peek_token;
+	tagcase k in
+	   where_: env$next_token(e);
+	   out:    return(wher);
+	   end;
+	while true do begin
+		id: idn := p_idn(e);
+		kind: restrictkind := p_restrictkind(e);
+		restrictlist$addh(wher, {idn:  id,
+				         kind: kind});
+		k := e.peek_token;
+		tagcase k in
+		   comma: env$next_token(e);
+		   out:   return(wher);
+		   end;
+		end;
+	end p_where;
+
+p_restrictkind = proc (e: env) returns (restrictkind);
+	k: token := e.peek_token;
+	tagcase k in
+	   in_:  begin
+		 env$next_token(e);
+		 tk: token := e.peek_token;
+		 tagcase tk in
+		    ident: %(tk: ident):
+			     begin
+			     env$next_token(e);
+			     return(restrictkind$make_idn(env$get_idn(e, tk)));
+			     end;
+		    l_curly: begin
+			     env$next_token(e);
+			     return(restrictkind$make_set(p_typeset(e)));
+			     end;
+		    out:     begin
+			     env$assume(e, "typeset in IN typeset");
+			     return(restrictkind$make_idn(env$new_idn(e, "?typeset?")));
+			     end;
+		    end;
+		 end;
+	   has_: begin
+		 env$next_token(e);
+		 return(restrictkind$make_has_(p_operdecllist(e)));
+		 end;
+	   out:  begin
+		 env$assume(e, "IN typeset or HAS operdecllist in restrict");
+		 return(restrictkind$make_has_(operdecllist$create(1)));
+		 end;
+	   end;
+	end p_restrictkind;
+
+p_typeset = proc (e: env) returns (typeset);
+	env$new_level(e);
+	id: idn := p_idn(e);
+	id2: idn;
+	k: token := e.peek_token;
+	tagcase k in
+	   op: %(k: infixop):
+		tagcase k in
+		   or:  begin
+			env$next_token(e);
+			id2 := p_idn(e);
+			end;
+		   out: begin
+			env$assume(e, "| idn in {idn | idn ...}");
+			id2 := id;
+			end;
+		   end;
+	   out: begin
+		env$assume(e, "| in {idn | ...}");
+		id2 := id;
+		end;
+	   end;
+	if ~str$equal(id.str, id2.str)
+	   then env$assume(e, "idns do not match in {idn | idn ...}");
+	ops: operdecllist;
+	k := e.peek_token;
+	tagcase k in
+	   has_: begin
+		 env$next_token(e);
+		 ops := p_operdecllist(e);
+		 end;
+	   out:  begin
+		 env$assume(e, "HAS operdecllist in typeset");
+		 ops := operdecllist$create(1);
+		 end;
+	   end;
+	equates: equatelist := p_equatelist(e);
+	set: typeset := {idn:     id,
+			 ops:     ops,
+			 equates: equates};
+	k := e.peek_token;
+	tagcase k in
+	   r_curly: env$next_token(e);
+	   out:     env$assume(e, "} in {idn | ...}");
+	   end;
+	env$pop_level(e);
+	return(set);
+	end p_typeset;
+
+p_semi = proc (e: env);
+	i: int := 0;
+	while token$is_semi(e.peek_token) do begin
+		env$next_token(e);
+		i := i + 1;
+		end;
+	if i > 1
+	   then env$err(e, "more than one ; in a row", minor);
+	end p_semi;
+
+p_defn_end = proc (e: env, id: idn, mod: str);
+	k: token := e.peek_token;
+	tagcase k in
+	   end_: env$next_token(e);
+	   out:  begin
+		 env$assume(e, "END idn in " || mod);
+		 return;
+		 end;
+	   end;
+	k := e.peek_token;
+	tagcase k in
+	   ident: %(k: ident):
+		if str$equal(k.str, id.str)
+		   then begin
+			env$next_token(e);
+			return;
+			end;
+	   out: begin
+		env$assume(e, "idn in " || mod);
+		return;
+		end;
+	   end;
+	tagcase k in
+	   semi,
+	   ident: begin
+		  env$next_token(e);
+		  env$err(e, "idns do not match in idn = " || mod, minor);
+		  end;
+	   out:   env$assume(e, "idn in " || mod);
+	   end;
+	end p_defn_end;
+
+p_find_a_defn = proc (e: env, want_oper: bool) returns (bool);
+	flushed: bool := false;
+	b: bool := true;
+	found: bool := false;
+	while b do begin
+		k: token := e.peek_token;
+		tagcase k in
+		   ident: begin
+			  tk: token := env$peek(e, 2);
+			  tagcase tk in
+			     op: %(tk: infixop):
+				  tagcase tk in
+				     eq:  begin
+					  found := true;
+					  b := false;
+					  end;
+				     out: ;
+				     end;
+			     out: ;
+			     end;
+			  end;
+		   end_:  if want_oper
+			     then b := false;
+		   eof:   b := false;
+		   out:   ;
+		   end;
+		if b
+		   then begin
+			if ~flushed
+			   then begin
+				if want_oper
+				   then env$err(e, "looking for an operdefn", serious);
+				   else env$err(e, "looking for a definition", serious);
+				flushed := true;
+				end;
+			env$next_token(e);
+			end;
+		end;
+	if flushed
+	   then env$err(e, "resuming parse at this point", none);
+	return(found);
+	end p_find_a_defn;

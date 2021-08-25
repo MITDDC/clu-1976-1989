@@ -1,0 +1,276 @@
+%	CC_P3	CLU
+%
+%	CLU 3 compiler:  parsing routines for constants and types
+
+BEGIN
+
+# include "clucmp/cc_syn.equate"
+# include "clucmp/cc_p.equate"
+
+END
+
+p_const = proc (e: env) returns (const);
+	abs: constabs;
+	k: token := e.peek_token;
+	tagcase k in
+	   typekey: begin
+		    t: typespec := p_type(e);
+		    tk: token := e.peek_token;
+		    tagcase tk in
+		       dollar: begin
+			       x: expr := p_more_primary(e, p_cons_or_op(e, t));
+			       abs := constabs$make_unknown(
+							p_more_expr(e, x, min_prec));
+			       end;
+		       out:    abs := constabs$make_type_(t);
+		       end;
+		    end;
+	   out:     abs := constabs$make_unknown(p_expr(e, min_prec));
+	   end;
+	return(const$create(abs));
+	end p_const;
+
+p_constlist = proc (e: env) returns (constlist);
+	consts: constlist := constlist$create(1);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_bkt: env$next_token(e);
+	   out:   return(consts);
+	   end;
+	while true do begin
+		constlist$addh(consts, p_const(e));
+		k := e.peek_token;
+		tagcase k in
+		   comma: env$next_token(e);
+		   r_bkt: begin
+			  env$next_token(e);
+			  return(consts);
+			  end;
+		   out:   begin
+			  env$assume(e, "] in [constlist]");
+			  return(consts);
+			  end;
+		   end;
+		end;
+	end p_constlist;
+
+p_type = proc (e: env) returns (typespec);
+	abs: typeabs;
+	k: token := e.peek_token;
+	tagcase k in
+	   typekey: %(k: typekey):
+		begin
+		env$next_token(e);
+		tagcase k in
+		   record_:   abs := typeabs$make_record_(p_fieldspeclist(e));
+		   oneof_:    abs := typeabs$make_oneof_(p_fieldspeclist(e));
+		   proctype_: begin
+			      args: typelist := p_typelist(e, true);
+			      vals: typelist := p_returns(e);
+			      sigs: exceptionlist := p_signals(e);
+			      abs := typeabs$make_proc_({args: args,
+							 vals: vals,
+							 sigs: sigs});
+			      end;
+		   itertype_: begin
+			      args: typelist := p_typelist(e, true);
+			      vals: typelist := p_yields(e);
+			      sigs: exceptionlist := p_signals(e);
+			      abs := typeabs$make_iter_({args: args,
+							 vals: vals,
+							 sigs: sigs});
+			      end;
+		   array_:    abs := typeabs$make_array_(p_arraytype(e));
+		   bool_:     abs := typeabs$make_bool_(nil);
+		   int_:      abs := typeabs$make_int_(nil);
+		   string_:   abs := typeabs$make_str(nil);
+		   char_:     abs := typeabs$make_char_(nil);
+		   rep_:      abs := typeabs$make_rep_(nil);
+		   null_:     abs := typeabs$make_null_(nil);
+		   cvt_:      abs := typeabs$make_cvt_(nil);
+		   any_:      abs := typeabs$make_any_(nil);
+		   type_:     abs := typeabs$make_type_(nil);
+		   end;
+		end;
+	   ident: %(k: ident):
+		begin
+		env$next_token(e);
+		parms: constlist := p_constlist(e);
+		abs := typeabs$make_abstract({idn:   env$get_idn(e, k),
+					      parms: parms});
+		end;
+	   out:	begin
+		env$assume(e, "type");
+		abs := typeabs$make_unknown(nil);
+		end;
+	   end;
+	return(env$get_type(e, abs));
+	end p_type;
+
+p_fieldspeclist = proc (e: env) returns (fieldspeclist);
+	specs: fieldspeclist := fieldspeclist$create(1);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_bkt: env$next_token(e);
+	   out:   begin
+		  env$assume(e, "[fieldspeclist] in RECORD or ONEOF");
+		  return(specs);
+		  end;
+	   end;
+	while true do begin
+		sels: namelist := p_namelist(e);
+		t: typespec;
+		k := e.peek_token;
+		tagcase k in
+		   colon: begin
+			  env$next_token(e);
+			  t := p_type(e);
+			  end;
+		   out:   begin
+			  env$assume(e, ": type in fieldspec");
+			  t := e.unknown_type;
+			  end;
+		   end;
+		for i: int := namelist$low(sels) to namelist$high(sels) do begin
+			fieldspeclist$addh(specs, {sel:   sels[i],
+						   type_: t});
+				end;
+		k := e.peek_token;
+		tagcase k in
+		   comma: env$next_token(e);
+		   r_bkt: begin
+			  env$next_token(e);
+			  return(specs);
+			  end;
+		   out:   begin
+			  env$assume(e, "] in [fieldspeclist]");
+			  return(specs);
+			  end;
+		   end;
+		end;
+	end p_fieldspeclist;
+
+p_returns = proc (e: env) returns (typelist);
+	nonempty = false;
+	k: token := e.peek_token;
+	tagcase k in
+	   returns_: begin
+		     env$next_token(e);
+		     return(p_typelist(e, nonempty));
+		     end;
+	   out:      return(typelist$create(1));
+	   end;
+	end p_returns;
+
+p_yields = proc (e: env) returns (typelist);
+	nonempty = false;
+	k: token := e.peek_token;
+	tagcase k in
+	   yields_: begin
+		    env$next_token(e);
+		    return(p_typelist(e, nonempty));
+		    end;
+	   out:     return(typelist$create(1));
+	   end;
+	end p_yields;
+
+p_signals = proc (e: env) returns (exceptionlist);
+	k: token := e.peek_token;
+	tagcase k in
+	   signals_: begin
+		     env$next_token(e);
+		     return(p_exceptionlist(e));
+		     end;
+	   out:      return(exceptionlist$create(1));
+	   end;
+	end p_signals;
+
+p_arraytype = proc (e: env) returns (typespec);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_bkt: env$next_token(e);
+	   out:   begin
+		  env$assume(e, "[type] in ARRAY[type]");
+		  return(e.unknown_type);
+		  end;
+	   end;
+	t: typespec := p_type(e);
+	k := e.peek_token;
+	tagcase k in
+	   r_bkt: env$next_token(e);
+	   out:   env$assume(e, "] in ARRAY[type]");
+	   end;
+	return(t);
+	end p_arraytype;
+
+p_typelist = proc (e: env, emptyok: bool) returns (typelist);
+	types: typelist := typelist$create(1);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_paren: env$next_token(e);
+	   out:     begin
+		    env$assume(e, "(typelist)");
+		    return(types);
+		    end;
+	   end;
+	k := e.peek_token;
+	tagcase k in
+	   r_paren: if emptyok
+		       then begin
+			    env$next_token(e);
+			    return(types);
+			    end;
+	   out:     ;
+	   end;
+	while true do begin
+		typelist$addh(types, p_type(e));
+		k := e.peek_token;
+		tagcase k in
+		   comma:   env$next_token(e);
+		   r_paren: begin
+			    env$next_token(e);
+			    return(types);
+			    end;
+		   out:     begin
+			    env$assume(e, ") in (typelist)");
+			    return(types);
+			    end;
+		   end;
+		end;
+	end p_typelist;
+
+p_exceptionlist = proc (e: env) returns (exceptionlist);
+	nonempty = false;
+	list: exceptionlist := exceptionlist$create(1);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_paren: env$next_token(e);
+	   out:     begin
+		    env$assume(e, "(exceptionlist)");
+		    return(list);
+		    end;
+	   end;
+	while true do begin
+		n: name := p_name(e);
+		types: typelist;
+		k := e.peek_token;
+		tagcase k in
+		   l_paren:  types := p_typelist(e, nonempty);
+		   out:      types := typelist$create(1);
+		   end;
+		exceptionlist$addh(list, {name:  n,
+					  types: types});
+		k := e.peek_token;
+		tagcase k in
+		   comma:   env$next_token(e);
+		   r_paren: begin
+			    env$next_token(e);
+			    return(list);
+			    end;
+		   out:     begin
+			    env$assume(e, ") in (exceptionlist)"); 
+			    return(list);
+			    end;
+		   end;
+		end;
+	end p_exceptionlist;

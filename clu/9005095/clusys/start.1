@@ -1,0 +1,1007 @@
+loc	40
+uuoa:	0
+	jsp	xr,uuoh
+loc	syslo
+skippy:	twvec+skplen		; This causes GC to skip the next words
+
+uuon1:	0
+uuobp:	331100,,uuoa	; byte ptr to grab uuo code with
+
+uuott:	; translation table for jrsts
+	u.exit	exiter
+	u.mexi	mexit
+	u.yld	yield
+	u.myld	myield
+	u.res	resume
+	u.qex	qexit
+	0
+;****
+uuott		; word before handler is trans table address
+;****
+uuoh:	movem	n1,uuon1	; save n1
+	ldb	n1,uuobp	; get the instruction code
+	cail	n1,40
+	croak	Bad UUO!
+	jrst	uuoht(n1)	; go to proper uuo routine
+
+uuoht:	; uuo handler jump table
+; 0-7	; for conditional jumps
+	jrst	buggy
+	jrst	uh.jum
+	jrst	uh.jum
+	jrst	uh.jum
+	jrst	uh.jum
+	jrst	uh.jum
+	jrst	uh.jum
+	jrst	uh.jum
+; 10-17	; for jrsts to support routines (exit, yield, resume)
+	jrst	uh.rtn
+	jrst	uh.rtn
+	jrst	uh.yld
+	jrst	uh.yld
+	jrst	uh.res
+	jrst	uh.con
+	jrst	uh.qex
+	jrst	buggy
+; 20-27	; for xct & setup calls (they behave the same)
+	jrst	uh.xct
+	jrst	uh.xct
+	jrst	uh.xct
+	jrst	uh.sty		; statistics keeper
+	jrst	buggy
+	jrst	buggy
+	jrst	buggy
+	jrst	buggy
+; 30-37	; spare
+	jrst	buggy
+	jrst	buggy
+	jrst	buggy
+	jrst	buggy
+	jrst	buggy
+	jrst	buggy
+	jrst	buggy
+	jrst	buggy
+
+s$enter==1
+s$exit==2
+s$yield==4
+s$resume==10
+
+uh.xct:	; handle xct 1(r) case here
+	skipn	$trace
+	 jrst	uh.xout
+	isrep	mr,terep	; we can only trace entries
+	 jrst	uh.xout
+	hrl	xr,mr
+	push	sp,xr
+	hrrz	er,er
+	push	sp,er
+	hrrz	er,sp		; fake a frame
+	move	br,en.vi(mr)	; setup blt register
+	trnn	br,ones
+	 jrst	uh.xcq
+	addi	sp,(br)		; adjust the stack	
+	hrri	br,1(er)	; br now has (src,,dst)
+	blt	br,(sp)		; init the stack
+
+uh.xcq:	; join quick setup (no var init)
+	movei	r0,s$enter
+	jsp	n2,ut.tr	; call trace routine
+	hrr	sp,er		; cut back the stack
+	pop	sp,er		; undo the frame
+	pop	sp,xr
+	hlrz	mr,xr
+uh.xout:; xct and setup common leaving point
+	hlrz	n1,1(mr)
+	cain	n1,(jsp xr,)
+	 jrst	ut.jsp
+	cain	n1,(pushj sp,)
+	 jrst	ut.push
+	cain	n1,(u.jset)
+	 jrst	ut.jsp
+	cain	n1,(u.pset)
+	 jrst	ut.push
+	croak	Illegal setup call!
+
+ut.push: push	sp,xr		; push return address
+ut.jsp:	hrrz	n1,1(mr)	; get address to go to
+	jrst	(n1)		; and go there (xr has rtn address)
+
+uh.rtn:	; handle simple returns (and exits with constants)
+	hrrz	n2,uuoa		; the effective address of the uuo
+	skipn	$trace
+	 jrst	(n2)
+	movei	r0,s$exit
+	jrst	ut.tr
+
+uh.yld:	; handle yield from iterator (jsp xr, ...)
+	hrro	n2,uuoa
+	skipn	$trace
+	 jrst	(n2)
+	movei	r0,s$yield
+	hrro	xr,xr
+	push	sp,xr		; save rtn address in xr
+	push	sp,n2
+	jsp	n2,ut.tr	; call the trace package
+	pop	sp,n2		; restore yield addr
+	pop	sp,xr		; and rtn addr
+	jrst	(n2)		; go to appropriate yield
+
+uh.res:	; handle resuming an iterator
+	hrrz	n2,uuoa		; the effective address of the uuo
+	skipn	$trace
+	 jrst	(n2)
+	movei	r0,s$resume
+	jrst	ut.tr
+	
+uh.con: ; handle returning a constant
+	hrrz	n2,uuoa		; the effective address of the uuo
+	skipn	$trace
+	 jrst	(n2)
+	move	rr,-1(n2)
+	movei	r0,s$exit
+	jrst	ut.tr
+
+uh.qex:	; handle quick exit calls
+	hrro	xr,uuoa		; get address of return ( assume u.qex (xr) )
+	skipn	$trace
+	 jrst	qexit		; if not tracing, quick exit
+	movei	r0,s$exit
+	hrl	xr,mr		; build a frame for the trace call
+	push	sp,xr
+	hrrz	er,er
+	push	sp,er
+	hrrz	er,sp
+	hrrz	n3,n3
+	push	sp,n3		; save amount to cut back
+	jsp	n2,ut.tr	; call trace routine
+	pop	sp,n3		; get back amount to cut
+	pop	sp,er		; and old frame ptr
+	pop	sp,xr		; and old mr
+	hlrz	mr,xr		; and old xr
+	jrst	qexit		; actually do the quick exit
+
+uh.jum:	; handle conditional jumps to exit routines
+	hrlzi	n1,(jump)
+	ior	n1,uuoa
+	hrri	n1,uh.j1
+	exch	n1,uuon1
+	xct	uuon1		; test the jump
+	jrst	(xr)		; failed to jump
+
+uh.j1:	movei	r0,s$exit
+	hrrz	n2,uuoa		; the effective address of the uuo
+	caige	n2,comadr
+	 jrst	ut.tr
+	cail	n2,comadx
+	 jrst	ut.tr
+	move	rr,-1(n2)	; if returning to a constant, grab rr
+
+ut.tr:	; we need to call the trace routine
+	; r0 has the reason
+	; n2 has the jump address when we return from call
+	hrrzm	r0,$trsav	; save trace reason
+	setzm	$trace		; turn tracing off
+	hrro	g0,sp		; save current stack address
+	hrrz	n2,n2		; no garbage in left half, please
+	push	sp,n2		; save rtn address
+	hrro	r1,br
+	hlro	br,br
+	push	sp,r1		; save both halves of br relocatably
+	push	sp,br
+	hrro	mr,mr
+	push	sp,mr		; save current mr
+	push	sp,rr		; and rr
+;  trace$basic(reason, cur_frame, old_frame, return_val, stack_ptr)
+	push	sp,r0		; reason (exit, enter, yield, resume)
+	hrro	r1,er		; current frame
+	push	sp,r1
+	hrro	r1,(er)		; old frame
+	push	sp,r1
+	push	sp,rr		; return value in rr
+	push	sp,g0		; sp at trace call
+	move	mr,$trxct
+	xct	en.set(mr)	; call the trace routine
+	move	n0,$trsav
+	movem	n0,$trace	; turn tracing on again (maybe)
+; restore rr, mr, lr, pr, br
+	pop	sp,rr
+	pop	sp,mr		; restore old mr,lr,pr
+	move	pr,en.lpr(mr)
+	movs	lr,pr
+	pop	sp,r0
+	pop	sp,br
+	hrl	br,r0		; restore both halves of br
+	popj	sp,		; go to appropriate caller
+	
+uh.sty:	; the statistics keeper bumps the trace count
+	skipn	$trace		; test for keeping statistics
+	 jrst	uh.xout
+	isrep	mr,terep	; we can only keep them for entries
+	 jrst	uh.xout
+	aos	en.tr(mr)	; bump the trace count
+	jrst	uh.xout		; and exit
+
+;	Here is the data used to initially clear some memory
+brinit:	gclo,,gclo+1		; when this is clear, all is clear
+; Block used to alloc new pages
+memget:	setz
+	sixbit	|corblk|
+	movei	%cbndw+%cbndr	; get read & write access
+	movei	-1		; self is src
+	move	n1		; -len,,page# in n1
+	setzi	%jsnew		; new page
+
+skplen==.-skippy
+
+cluster	%start,0,0
+
+proc	.base,[]
+	$go	doit
+start:	movei	sp,stack+1
+	move	er,sp				; and the pseudo-frame at bottom
+	setzm	(er)
+	movei	mr,.base
+	hrlzm	mr,-1(er)
+	move	pr,en.lpr(mr)
+	movs	lr,pr
+	setzm	$inreq	; no inferior requests
+	setzm	$infer
+	setzm	$trace	; no trace requests
+	setzm	$trsav
+	setzm	$.greq	; no ^G requests
+	setzm	$.sreq	; or ^S requests
+	setzm	$gcreq	; no GC requests
+	setzm	$otty	; no TTY needed just yet
+	setzm	$safex	; no safex hacking
+	setzm	$indef	; no interrupt requests at all
+	setzm	$intlock; but we are safe to interrupt
+
+	movei	r0,int.sp
+	hrli	r0,-40
+	movem	r0,int.sp	; reset interrupt stack
+
+	$if	skipn	br,brinit			; ensure clear gc-mem
+	$then	movei	n1,gclo/pgsize
+		hrli	n1,-memlen/pgsize
+		.call	memget		; ask system for initial memory
+		 jrst	.-1
+		setzm	gclo		; clear the first word
+		blt	br,gchi		; and all others
+		setzm	brinit		; DON'T do it again!
+	$fi
+
+;	Here we setup the MPV handler.
+	movei	r0,int.tb
+	hrli	r0,-int.sz
+	movem	r0,42		; set the interrupt vector
+	hrrz	r1,pr
+	hrroi	r0,1+[twvec+3 ? .rsname,,n1 ? .roption,,n2]
+	hrli	r0,-2
+	.suset	r0
+	movem	n1,$sname	; get the sname for the job
+	tlo	n2,optopc+optint; new-style interrupts
+	movei	r0,mpv.su
+	hrli	r0,-mpv.sx
+	.suset	r0		; set the options
+	jrst	ready		; make us ready to go
+
+;****	Entrance to MPV handler   ****
+; the ONLY instructions allowed to MPV are the following:
+;	push	sp,xxx		; new stack page needed
+;	pushj	sp,xxx		; new stack page needed
+;	blt	br,xxx		; variable init
+;	movem	xx,(rr)		; header word fill, mem alloc
+
+mpv.in:	move	r1,int.pc	; get interrupt pc
+	hlrz	n1,(r1)		; get the offending left half word
+	cain	n1,(xct (mr))	; xct of a call (pushj)
+	 jrst	mh.sp
+	trz	n1,37		; clear out index register
+	cain	n1,(push sp,0)
+	 jrst	mh.sp		; push to stack
+	cain	n1,(pushj sp,0)
+	 jrst	mh.sp		; pushj to routine
+	cain	n1,(blt	br,0)
+	 jrst	mh.sp		; variable init
+
+; at this point we believe this to be an allocation fault,
+; which means that we are interrupting from a movem xx,(rr)
+; and that $memhi is less than $memlo!
+
+	movs	n1,(r1)		; get the instruction (swapped)
+	trz	n1,340		; clear out AC field of instruction
+	caie	n1,(movem 00,(rr))	; note that addr field must be zero!
+	 jrst	mpvout		; this is a REAL MPV (or something)
+	hrrz	r0,$memhi	; r0 is highest free addr + 1
+	hrrz	r1,$memlo	; r1 is lowest free addr
+	caml	r0,r1		; if highest < lowest
+	 jrst	mpvout		; a REAL MPV (or something)
+;	We get here when we know that an alloc failed to get mem.
+; New pages are required, otherwise we can't continue.
+	andi	r0,-pgsize
+	subi	r0,2*pgsize	; alloc 2 more pages than we need
+	caige	r0,pgsize(sp)
+	 jrst	mh.nm		; can't get more memory
+	move	g0,r0		; g0 now has future $memlo
+	sub	r0,r1
+	idivi	r0,pgsize
+	hrl	n1,r0		; length (in pages) to get
+	hrrz	r0,g0
+	idivi	r0,pgsize
+	hrr	n1,r0		; start page to alloc
+	.call	memget		; get new pages
+	 jrst	.-1		; keep trying on failure
+	hrrz	r0,g0
+	setzm	(g0)		; clear out first word
+	movei	br,1(g0)	; we blt on top of ourselves
+	hrl	br,g0
+	move	r1,$memlo	; the top of the new area + 1
+	blt	br,-1(r1)	; clear the memory
+	hrrm	g0,$memlo	; and give the new limit
+int.ex:	.call	int.di		; dismiss the interrupt & retry the alloc
+	croak	Dismiss failed!
+
+mh.nm:	; now that we are here we know that there is no memory,
+	; so we must call the GC routine through memout!
+	; Note that if we tried to call it from here we would
+	; probably croak at some time, so it is best to
+	; call it by proxy.
+; **** Note that we can only go through this due to alloc!! ****
+	hrro	xr,int.pc
+	movem	xr,int.re+rr	; new rr will be to caller
+	movei	xr,mh.nm1
+	movem	xr,int.pc	; when we dismiss it will be to memout
+	jrst	int.ex		; exit and fake memout call
+
+mh.nm1:	; rr has caller's address for memout
+	push	sp,rr		; fake a pushj to memout (huzzah!)
+	jrst	memout
+
+mh.sp:	; we come here when we need another stack page
+	hrrz	r0,$stkhi
+	caile	r0,(sp)		; is stack still in a reasonable bound?
+	 jsp	xr,mpvout	; not an alloc or stack error
+	hrrz	r1,$memlo
+	aos	r0
+	idivi	r0,pgsize	; page to allocate
+	hrro	n1,r0		; allocate one page (-1 in LH)
+	.call	memget		; call to allocate that page
+	 jrst	.-1		; keep trying
+	move	r0,$stkhi
+	aos	r0
+	setzm	(r0)		; clear the first word
+	movei	br,1(r0)
+	hrl	br,r0
+	blt	br,pgsize-1(r0)	; clear the stack page
+	movei	n1,pgsize
+	addb	n1,$stkhi	; show the new limit
+	addi	n1,pgsize
+	hrli	sp,600000	; ensure that no PDLOV's occur
+	movem	sp,int.re+sp	; set the new stack reg
+	camge	n1,$memlo	; if we have not collided yet
+	 jrst	int.ex		; then go back to user
+
+; Stack collision!!!! (although we  just allocated a page)  An
+; instruction  in  low   memory  gets   continued,  while   an
+; instruction in  high memory  gets aborted.  This allows  the
+; support routines  to be  atomic as  far as  GC is  concerned
+; (except for use of alloc) and  still use the stack. It  also
+; allows us to interrupt out of any procedure's code while the
+; procedure is  "safe". Note  that all  of this  implies  that
+; pushes onto the stack  from routines in  low memory MUST  BE
+; LIMITED to somewhat less than a page.
+	hrrz	n1,int.pc
+	caig	n1,stack
+	 jrst	mh.sp1
+; ANYTHING executing in high mem aborts
+	push	sp,n1		; save rtn address
+	movei	n1,safex	; new pc is safe exit
+	movem	n1,int.pc	; so set it up
+
+; Here we handle stack collision with $memlo by fixing it to
+; continue and break when we are safe to do so.
+mh.sp1:	; Come here to continue instruction
+	aos	$gcreq		; request a GC for the crowd
+ih.def:	;****	Come here to defer an interrupt and exit   ****
+	aos	$indef		; Show that we have a deferred int to process
+	skipe	$safex		; If we are in deferred handler now
+	 jrst	int.ex		; then don't hack anything
+	hrrz	n1,chkout	; Don't hack the exits if they are already done!
+	cain	n1,safex
+	 jrst	int.ex
+; Fixup the exit table to gou through safex, the deferred interrupt handler.
+	movei	n1,fixtab
+	movei	n2,safex
+	hrli	n2,(pushj sp,)
+	move	n3,(n1)
+ih.df1:	movem	n2,(n3)		; clobber word with pushj to handler
+	addi	n1,1
+	skipe	n3,(n1)
+	 jrst	ih.df1
+	jrst	int.ex		; exit and hope for the best
+
+mpv.pu:	; pure page write means that we copy the page
+	movei	n2,hipage
+	hrli	n2,ones
+	move	n1,n2
+	.call	memget		; alloc mover page
+	 jrst	.-2
+	movei	n2,0
+	.suset	mpv.pa
+	skip
+	andi	n2,-pgsize
+; copy page
+	movei	br,hipage*pgsize; 1st word of hipage
+	hrli	br,(n2)		; 1st word of src page
+	hrrz	g0,n2		; save for later
+	blt	br,<hipage*pgsize>+pgsize-1	; copy page to hipage
+	idivi	n2,pgsize	; get page # in n2
+	hrli	n2,ones		; put ones in left half
+	move	n1,n2
+	.call	memget		; alloc new page
+	 jrst	.-2		; if fail then keep trying
+	move	br,g0		; dst is new page
+	hrli	br,hipage*pgsize; src is hipage
+	blt	br,pgsize-1(g0)	; copy info to new page
+	jrst	int.ex		; dismiss interrupt & retry access
+
+mpv.pa:	-1,,.+1
+	.rmpva,,n2	; get offending address in n2
+
+mpv.pd:	; pdl overflow means that we adjust sp & retry
+	hrli	sp,600000
+	movem	sp,int.re+sp
+	jrst	int.ex
+
+int.ti:	; Interrupt type-in has the following cases:
+	; ^G	; request for new listen loop
+	; ^S	; silence type-out until enabled again
+; In both cases we flush input & output for the terminal,
+; increment the proper interrupt request, and setup the
+; deferred interrupt mechanism.
+	.call	1+[twvec+5 ? setz ? sixbit |ityic| ? movei ttyicn ? setzm n1]
+	skip
+	cain	n1,^G	; a ^G ?
+	 aos	$.greq
+	cain	n1,^S	; a ^S ?
+	 aos	$.sreq
+	.call	1+[twvec+4 ? setz ? sixbit |reset| ? setzi ttyocn]
+	skip
+	.call	1+[twvec+4 ? setz ? sixbit |reset| ? setzi ttyicn]
+	skip
+; When we get to ih.sav we want to fake a pushj to safex PROVIDED that
+; we are not already processing another interrupt.  If we are doing that,
+; then we need not do anything, since the interrupt handler will check
+; the entire list later.
+ih.sav:	move	n1,int.pc
+	move	n1,(n1)
+	came	n1,ih.add	; Is this an addb rr,$memhi?
+	 jrst	ih.sv1
+	sos	int.pc		; Yes, so re-do previous instruction
+	setzm	int.re+rr	; and make sure that rr is no trouble
+	jrst	ih.sv5
+
+ih.sv1:	move	rr,int.re+rr	; Are we trying to alloc right now?
+	came	rr,$memhi
+	 jrst	ih.sv5		; No, so don't worry about it
+	camge	rr,$memlo	; Will we fault anyway?
+	 jrst	int.ex		; Yes, so go away now
+	skipn	(rr)		; Have we filled the word yet?
+	 jrst	ih.def		; No, so we must simply defer now
+
+ih.sv5:	skipe	$safex		; If the deferred int handler has been entered
+	 jrst	int.ex		; then don't hack anything (it will get done)
+	skipe	$indef		; If we have already requested an interrupt
+	 jrst	int.ex		; then don't request another
+	move	rr,int.pc	; get the user's pc
+	hrrom	rr,ih.opc	; save it safely
+	movei	rr,ih.npc	; get our fake rtn addr
+	movem	rr,int.pc	; and it will be the new one
+	jrst	ih.def		; go setup the deferred interrupt
+
+ih.add:	addb	rr,$memhi	; For comparing against current instruction
+; This handles interrupts from inferiors.
+ih.inf:	hlrz	n1,ist.m2	; get inferior interrupt bits
+	iorm	n1,$infer	; save them away
+	aos	$inreq		; bump the count of inf int requests
+	jrst	ih.sav		; treat like char interrupt exit	
+
+; We get here when we need to fake a pushj from some arbitrary
+; code, and have no registers to play with.  We must do it this
+; way to allow us to get a MPV due to the stack push!
+ih.opc:	0	; a place to store the intermediate pc
+ih.npc:	push	sp,ih.opc	; fake a pushj
+	jrst	safex		; and force the exit
+
+; Some data blocks follow for the use of the interrupt handlers
+int.di:	setz
+	sixbit	/dismis/
+	movsi	20
+	setz	int.sp
+
+; System option settings
+mpv.su:	.soption,,n2	; New style interrupts
+	.smask,,int.en	; Interrupt enable mask words
+	.smsk2,,int.en+1
+	.spirq,,mpv.ze	; Forget pending interrupts
+	.sifpir,,mpv.ze
+	.sdf1,,mpv.ze	; Clear the defer words (no ints deferred)
+	.sdf2,,mpv.ze
+mpv.sx==.-mpv.su
+
+mpv.ze:	0		; This word is always ZERO!!
+
+; These two words give the enabled interrupts in this system
+int.en:	%pimpv+%piwro+%pipdl	; mpv, pure write, pdl oflow
+	377,,1_ttyicn		; All inferior & TTY input interrupts
+
+int.tb:	20,,int.sp
+	%pimpv		; MPV & pure write enable only
+	0
+	-1		; defer everything
+	-1
+	mpv.in		; the handler
+	%piwro		; pure page write
+	0
+	-1		; defer everything
+	-1
+	mpv.pu		; pure page write handler
+	%pipdl		; pdl overflow
+	0
+	-1
+	-1
+	mpv.pd		; sp handler
+	0		; type-in interrupt
+	1_ttyicn
+	-1		; defer everything
+	-1
+	int.ti		; type-in handler
+	0
+	377,,0		; inferior job interrupts
+	-1
+	-1
+	ih.inf		; inferior handler
+int.sz==.-int.tb
+
+int.sp:	-40,,.
+ist.m1:	0		; Int req word 1
+ist.m2:	0		; Int req word 2
+ist.d1:	0		; Int def word 1
+ist.d2:	0		; Int def word 2
+int.pc:	0		; interrupt pc
+int.re:	block	40	; space for regs
+
+mpvout:	croak	A real MPV! (regs at int.re, pc at int.pc)
+	jrst	start	; if continued, restart
+
+
+; When the world has been setup to handle interrupts
+; with all of the nice options we wanted, we get here
+; in an initial system to ask for a go-ahead confirmation.
+
+ready:	croak	What do you run on, Rocket Morton? (Say Beans)
+	hrlzi	n1,(skip)
+	movem	n1,ready
+
+; Next we go around and around the entry blocks in our
+; initial system, entering the  entry blocks into  the
+; module table (in $mtab). We only do this if there is
+; no current module table.
+
+	$if	skipe	$mtab
+	$then	movei	n1,911.
+		mcall	tb.cr,[n1]
+		movem	rr,$mtab
+		$for	all,rr,mcall	loopv,[$ents]
+			$if	skipge	rr,(rr)
+			$then	; nothing
+			$elf	isrep	rr,terep
+			$then	; enter an entry
+				push	sp,rr
+				mcall	pname,[rr]
+				pop	sp,r0
+				hrli	r0,(tref)
+				push	sp,r0
+				mcall	tb.en,[$mtab,rr,r0]
+				move	r0,(sp)
+				hrro	r0,en.lpr(r0)
+				add	r0,pr.nam(r0)
+				hrrom	r0,(sp)
+				mcall	tb.ca,[$mtab,(r0)]
+				pop	sp,r0
+				movem	rr,(r0)
+			$fi
+		$rof	all
+
+		slink	lnk,clusys;dsk:clusys init
+		call	xload,1,[lnk(lr)]
+	$fi
+
+; Things are pretty much setup to run now, but first we check
+; to see if there is a start_up procedure to run or an execute
+; file to execute.  Note that the existance of the start_up procedure
+; overrides the existance of an execute file.
+
+; If there is no start_up to run, we take the job name prefixed by
+; "_xfile" and look it up first in the user's directory, then in the
+; clusys directory.  If such a file exists we use it as a source for
+; commands to be executed by our listen loop.
+
+	$label	doit
+	.here	%base0
+	$if	slink	l,start_up
+		call	%table$value,2,[$mtab,l(lr)]
+		came	rr,$none
+	$then	mcall	ch.al		; alloc chan for rr
+		movei	r0,%base2(pr)
+		hrli	r0,-2
+		.suset	r0	; n1 = sname, n2 = xjname
+		movei	r0,%base3(pr)	; user block
+		movei	r1,%base4(pr)	; default block
+		movem	n1,fb.usr(r0)
+		movem	n2,fb.nm2(r0)
+		movem	n2,fb.nm2(r1)
+		link	chsave,0
+		movem	rr,chsave(lr)	; save channel #
+		movei	n1,(rr)
+		movei	n2,0
+		$if	.call	%base1(pr)
+		$then	; we can use the stuff given
+		$else	movei	n2,0	; chan 0 swallows all typeout
+			move	r0,r1
+			$if	.call	%base1(pr)
+			$then	; use the system default instead
+			$else	$go	xcloz
+			$fi
+		$fi
+		movei	n2,0
+		link	spvar,0
+		$catch	spvar(lr)
+			call	listen,2,[chsave(lr),n2]
+		string	s$eof,eof
+		$except	spvar(lr),s$eof
+		$uncat	spvar(lr)
+		$label	xcloz
+		mcall	ch.cl,[chsave(lr)]	; close the channel at completion
+	$fi
+	$label	really
+	slink	l,start_up
+	call	%table$value,2,[$mtab,l(lr)]
+	$if	isref	rr,rr
+	$then	$if	isrep	rr,terep
+		$then	mcall	(rr)
+		$fi
+	$fi
+	$loop
+		call	listen,2,[$tyi,$tyo]
+	$pool
+	$rtnc	$none
+.here	%base1
+	setz
+	sixbit	|open|
+	5000,,0		;
+	3000,,n2	; error code goes to n2
+	n1		; ctrl & chan are in n1
+	fb.dev(r0)	; next words have file name
+	fb.nm1(r0)
+	fb.nm2(r0)
+	setz	fb.usr(r0)
+.here	%base2	; the uset options
+	.rsname,,n1
+	.rxjname,,n2
+
+.here	%base3	; the user's file block
+	twvec+5
+	sixbit	|dsk|
+	sixbit	|_xfile|
+	sixbit	|clusys|
+	sixbit	|clusys|
+.here	%base4	; the default file block
+	twvec+5
+	sixbit	|dsk|
+	sixbit	|_xfile|
+	sixbit	|clusys|
+	sixbit	|clusys|
+
+corp	%base%,[]
+
+iter	loopv,[ptr],[p,c],[trel,0]
+	move	r0,ptr(er)
+	repchk	r0,tvec
+	hrrz	n1,(r0)
+	movem	n1,c(er)
+	hrroi	r0,1(r0)
+	$loop
+		$if	sosle	c(er)
+		$then	$rtnc	$none
+		$fi
+		movem	r0,p(er)
+		$yield	r0
+		aos	r0,p(er)
+	$pool
+reti	loopv,[ptr],[p,c]
+
+proc	xfind,[s]
+	mcall	tb.va,[$mtab,s(er)]
+	$rtn	rr
+corp	xfind,[s]
+
+proc	pfind,[s]
+	mcall	tb.va,[$mtab,s(er)]
+	$if	came	rr,$none
+	$then	$rtn	rr
+	$fi
+	hrrz	r0,en.lpr(rr)		; get the pure part
+	$if	skipe	r0
+	$then	$rtnc	$none
+	$fi
+	repchk	r0,tprep
+	$rtn	rr
+corp	pfind,[s]
+
+proc	crlf,[chan]
+	link	cr,tchar+12
+	mcall	ch.wc,[chan(er),cr(lr)]
+	$rtnc	$none
+corp	crlf,[chan]
+
+qproc	%siggy,[info,name,rtnpc,srce,dstf]
+	move	pr,en.lpr(mr)
+	movs	lr,pr
+	call	%egregious,5
+	croak	Can't return to %siggy!
+	$rtnc	$none
+corp	%siggy,[info,name,rtn_pc,src_entry,dst_frame]
+
+proc	pname,[p]
+	$if	isref	r1,p(er)
+	$then	repchk	r1,terep
+		hrrz	r0,en.lpr(r1)	; get the procedure in it
+		$if	skipe	r0
+		$then	hlrz	r0,en.lpr(r1)	; not a procedure, get the linkage sect
+			aos	r0		; name is first string in linkage sect
+		$else	add	r0,pr.nam(r0)	; point at the proc name
+		$fi
+		$if	isref	rr,(r0)
+		$then	repchk	rr,tsrep
+		$fi
+	$else
+		slink	lnk,?proc?
+		move	rr,lnk(lr)
+	$fi
+	$rtn	rr		; return the name
+corp	pname,[p]
+
+proc	print,[chan,x]
+	$label	reprint
+	move	g1,x(er)
+	hlrz	n1,g1
+	hrrz	n2,n1
+	andi	n2,refbit-1
+	$if	caie	n2,(tstr&typmsk)
+	$then	link	lnk,tstr&typmsk+""
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		mcall	ch.ws,[chan(er),x(er)]
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		$rtnc	$none
+	$elf	came	g1,$none
+	$then	$rtnc	$none
+	$elf	caie	n1,(tchar)
+	$then	slink	lnk,'
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		mcall	ch.wc,[chan(er),x(er)]
+		mcall	ch.ws,[chan(er),lnk(lr)]
+	$elf	came	g1,$nil
+	$then	slink	lnk,nil
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		$rtnc	$none
+	$elf	caie	n1,(tint)
+	$then	call	int$i2s,1,[x(er)]
+		mcall	ch.ws,[chan(er),rr]
+		$rtnc	$none
+	$elf	caie	n1,(tbool)
+	$then	hrrz	n1,x(er)
+		slink	lnk,true
+		move	rr,lnk(lr)
+		caie	n1,true
+		slink	lnk,false
+		move	rr,lnk(lr)
+		mcall	ch.ws,[chan(er),rr]
+	$elf	caie	n1,(tpcb)
+	$then	slink	lnk,pcb#
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		mcall	octal,[x(er)]
+		mcall	ch.ws,[chan(er),rr]
+		slink	lnk, : 
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		move	r0,x(er)
+		mcall	ch.ws,[chan(er),pc.str(r0)]
+		slink	lnk,,
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		move	r0,x(er)
+		move	n1,pc.num(r0)
+		hrli	n1,(tint)
+		mcall	print,[chan(er),n1]
+		$rtnc	$none
+	$else	$if	movei	rr,0
+			hrrz	n3,n1
+			andi	n1,(typmsk)
+			move	r1,$types
+			hrrz	n2,1(r1)
+			cail	n1,typlo
+			caile	n1,(n2)
+		$then	move	r1,$types
+			addi	r1,2-typlo(n1)
+			move	rr,(r1)
+			$if	isrep	rr,tdrep
+			$then	move	rr,td.nam(rr)
+			$fi
+			mcall	ch.ws,[chan(er),rr]
+		$else
+			mcall	octal,[n3]
+			mcall	ch.ws,[chan(er),rr]
+		$fi
+		slink	lnk,#
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		mcall	octal,[x(er)]
+		mcall	ch.ws,[chan(er),rr]
+	$fi
+	$rtnc	$none
+corp	print,[chan,x]
+
+proc	octal,[x]
+	hrlz	n3,x(er)
+	$if	tlne	n3,777770
+	$then	hlrz	rr,n3
+		addi	rr,"0
+		stypix	rr,tstr	; single char case
+		$rtn	rr	; is special
+	$fi
+	movei	n1,6
+	movei	n2,0
+	.here	octal1		; get rid of leading zeros
+		lshc	n2,3
+		skipn	n2
+		soja	n1,octal1(pr)
+	movei	g0,bpword+bpword-1(n1)
+	idivi	g0,bpword	; calc # of words to alloc in g0
+	hrli	n1,(tsrep)
+	alloc	(g0),n1		; rr has string
+	hrli	rr,%str		; give it string type code
+	movei	r1,(rr)		; make r1 a byte ptr to the string
+	hrli	r1,(bsize)
+	movei	n1,(n1)		; get length back in n1
+	.here	octal2
+		addi	n2,"0	; make n2 a char
+		idpb	n2,r1	; put it into the string
+		movei	n2,0
+		lshc	n2,3	; shift to get next char
+		sojg	n1,octal2(pr)	; and repeat 'til end of word
+	$rtn	rr		; return the string
+corp	octal,[x]
+
+proc	restrt
+	jrst	start
+	$rtnc	$none
+corp	restart
+
+;	the following routine displays a stack frame,
+; giving name of procedure and arguments.
+
+proc	framp,[tyo,frm],[p,n,lonam,loarg],[trel,0,trel,trel]
+
+	mcall	crlf,[tyo(er)]
+	refchk	g0,frm(er)
+	hlrz	r0,-1(g0)
+	hrrm	r0,p(er)	; r0 has ptr to procedure entry
+	mcall	pname,[p(er)]	; call to get proc name & check validity
+	mcall	ch.ws,[tyo(er),rr]
+	slink	lnk,	has a frame at 
+	mcall	ch.ws,[tyo(er),lnk(lr)]
+	mcall	octal,[frm(er)]
+	mcall	ch.ws,[tyo(er),rr]	; print frame address
+	mcall	crlf,[tyo(er)]
+	move	g0,p(er)	; entry block for procedure
+	$if	trnn	g0,-pgsize
+	$then
+		hrrz	r0,en.lpr(g0)	; pure part of procedure (the pr)
+		hrre	n0,pr.cut(r0)	; number of arguments in n0
+		subi	n0,2		; must be adjusted by 2
+		movem	n0,n(er)
+		add	r0,pr.nam(r0)	; ptr to one less than argument names
+		hrrm	r0,lonam(er)	; gets saved
+		hrrz	r1,frm(er)	; get the frame back again
+		subi	r1,2		; point at the arguments
+		sub	r1,n0		; ptr to one less than lowest arg
+		hrrm	r1,loarg(er)	; & save that ptr
+	
+		$loop
+			$if	sosl	n(er)
+			$then	$rtnc	$none
+			$fi
+			link	lnk,tchar+11
+			mcall	ch.wc,[tyo(er),lnk(lr)]	; print a tab
+			aos	r0,lonam(er)		; advance the name ptr
+			mcall	ch.ws,[tyo(er),(r0)]	; print a name
+			slink	lnk,:	
+			mcall	ch.ws,[tyo(er),lnk(lr)]	; print ":\11"
+			aos	r0,loarg(er)		; advance the arg ptr
+			mcall	print,[tyo(er),(r0)]	; print the argument
+			mcall	crlf,[tyo(er)]		; end-of-the-line
+		$pool
+	$fi
+	$rtnc	$none
+corp	%framp,[tyo,frm],[p,n,lonam,loarg]
+
+proc	frall,[tyo],[frm],[trel]
+	hrrm	er,frm(er)
+	$loop
+		hrrz	r0,frm(er)
+		hrrz	r0,(r0)
+		$if	trne	r0,-lolim
+		$then	$rtnc	$none
+		$fi
+		hrrm	r0,frm(er)
+		mcall	framp,[tyo(er),frm(er)]
+	$pool
+corp	%frall,[tyo],[frm]
+
+;	This is a fake entry for the linker
+proc	%linkf
+	croak	How the hell did you get to %linkf ?
+	$rtnc	$none
+corp	%linker
+
+proc	%quit
+	mcall	crlf,[$tyo]
+	slink	bell,Quitting to new command level.
+	mcall	ch.ws,[$tyo,bell(lr)]
+	mcall	crlf,[$tyo]
+	call	listen,2,[$tyi,$tyo]
+	$rtn	rr
+corp	%quit
+
+; When we want to show that some snapping failed,
+; we come here to complain to the terminal.
+proc	%dfail,[thing]
+	$loop
+		mcall	crlf,[$tyo]
+		slink	l,Error: Could not snap descriptor for: 
+		mcall	ch.ws,[$tyo,l(lr)]
+		refchk	rr,thing(er)
+		$if	isrep	rr,tcrep
+		$then	move	r0,pc.typ(rr)	; type
+			move	g1,pc.str(rr)	; and name
+		$else	repchk	rr,tdrep
+			hrrz	n1,td.opt(rr)
+			trnn	n1,tdc.xr
+			move	r0,td.arg(rr)	; type
+			move	g1,td.nam(rr)	; and name
+		$fi		
+		$if	hlrz	n1,r0		; if the type is a type code
+			caie	n1,(ttype)
+		$then	addi	n1,2-typlo(r0)	; then get the descriptor
+			add	r0,$types
+			move	r0,(r0)		; into r0
+		$fi
+		$if	isrep	r0,tdrep	; if the type code is a desc
+		$then	move	g0,td.nam(r0)	; then try to get the name
+			$if	isrep	g0,tsrep; which must be a string to be printed
+			$then	push	sp,g1	; save op name
+				mcall	ch.ws,[$tyo,g0]	; print cluster name
+				movei	g0,"$
+				mcall	ch.wc,[$tyo,g0]
+				pop	sp,g1
+			$fi
+		$fi
+		$if	isrep	g1,tsrep	; print op or proc name
+		$then	mcall	ch.ws,[$tyo,g1]
+		$fi
+		call	listen,2,[$tyi,$tyo]	; call on listen loop
+	$pool
+	$rtnc	$none
+corp	%dfail,[thing]
+
+retsulc	start
+

@@ -1,0 +1,22 @@
+
+		CLU COMPILER VERSION 3 FILE LIST
+
+	       These files are in the CLUCMP directory
+	       CLU files are to be compiled with NCLU.
+
+		      #procs
+CC	LIST			this file
+CC_CV	CLU			constant evaluator routines of type checker
+CC_MAR  MUD		 4	margin control for print routines
+CC_P	EQUATE			parser equates
+CC_P1   CLU		15	parser routines: modules
+CC_P2	CLU		23	parser routines: statements
+CC_P3   CLU		10	parser routines: constants and types
+CC_P4   CLU		17	parser routines: expressions
+CC_PE	CLU		41	parser environment and support
+CC_PT   CLU		94	print routines for abstract syntax
+CC_SYN  CLU		90	abstract syntax clusters
+CC_SYN  EQUATE			abstract syntax equates
+CC_TAB  CLU		43	table clusters for abstract syntax
+CC_TC	CLU			type checker routines
+CC_TCE	CLU			type checker environment

@@ -1,0 +1,68 @@
+.insrt clusys;alpha >
+cluster
+
+st.cod==0	; tvec+5
+st.eq==1	; equal hash chain
+st.lt==2	; lesser hash tree
+st.gt==3	; greater hash tree
+st.ha==4	; hash code
+st..==5
+
+se.cod==0	; tvec+4
+se.nxt==1	; next equal hash item (se.nxt==st.eq)
+se.nam==2	; string
+se.val==3	; value
+se..==4
+
+proc	tst,[],[cnt,disp],[tint,0]
+	$for	all,rr,call	%table$entries,1,[$mtab]
+		skipe	1(rr)
+		aos	cnt(er)
+	$rof	all
+	$rtn	cnt(er)
+corp	collisions
+proc	max
+	call	dive,1,[$mtab]
+	$rtn	rr
+corp	max_depth
+proc	dive,[table]
+	move	r0,table(er)
+	$crtnc	r0,e,$zero
+	call	dive,1,[st.lt(r0)]
+	push	sp,rr
+	move	r0,table(er)
+	call	dive,1,[st.gt(r0)]
+	pop	sp,r0
+	camle	r0,rr
+	exch	r0,rr
+	aos	rr
+	$rtn	rr
+corp	dive,[table]
+proc	items
+	call	count_items,1,[$mtab]
+	$rtn	rr
+corp	items
+
+proc	cntit,[table]
+	move	r0,table(er)
+	$crtnc	r0,e,$zero
+	call	count_items,1,[st.lt(r0)]
+	push	sp,rr
+	move	r0,table(er)
+	call	count_items,1,[st.gt(r0)]
+	pop	sp,r0
+	hrrz	r0,r0
+	add	rr,r0
+	move	r0,table(er)
+	$loop
+		skipn	r0,st.eq(r0)
+		$rtn	rr
+		aos	rr
+	$pool
+	$rtn	rr
+corp	count_items,[table]
+
+
+retsulc
+.insrt clusys;omega >
+

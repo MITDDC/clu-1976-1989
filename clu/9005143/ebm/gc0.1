@@ -1,0 +1,110 @@
+;;
+;; Clu garbage collector step 0 - setup and test for debugging and construction
+;;
+;;	At present this just gets some core, sets up the registers, and
+;;	jumps to the start of step 1.
+;;
+.blow==	10*pgsize		;; start of basic&types area
+.bhigh==13*pgsize-1		;; end of basic&types area
+.slow==	14*pgsize		;; start of stack
+.glow==	20*pgsize+(pgsize/2)	;; start of GC area
+.ghigh==30*pgsize-1		;; end of GC area
+.ulow==	10			;; number of lowest page to use
+.uhigh==34			;; number of highest page to use
+.mlow==	0			;; number of lowest page to map out
+.mhigh==34			;; number of highest page to map out
+;;
+;; Start assembling at 100 octal
+;;
+	loc	100
+;;
+;; First, get core (fill out up to mapped out area)
+;;
+begin:	hrrei	r0,.mlow	;; start with lowest mapped out page
+loop01:	caile	r0,.mhigh
+	 jrst	reglod		;; see if done
+	movem	r0,pgsrc
+	.call	pgexst		;; see if page r0 exists
+	 $die	Couldn't see if page existed
+	skipe	pgdest		;; pgdest = 0 if page does not exist
+	 aoja	r0,loop01
+	move	r2,r0		;; save # of first nonexistent page in a group
+	hrrei	r3,-1		;; start keeping count of # of nonexistent pages
+	hrrei	r4,0		;; clear done flag
+loop02:	aoj	r0,		;; bump to next one
+	caile	r0,.mhigh	;; see if at end
+	 aoja	r4,getem	;; say we are done, go get pages
+	movem	r0,pgsrc
+	.call	pgexst		;; see if page exists
+	 $die	Couldn't see if page exists
+	skipn	pgdest
+	 soja	r3,loop02
+getem:	hrl	r2,r3		;; make aobjn ptr
+	movem	r2,pgdest
+	.call	getpgs		;; get pages
+	 $die	Couldn't get pages
+	jumpn	r4,.+2		;; skip if we are done
+	 aoja	r0,loop01
+;;
+;; Load up registers with arguments
+;;
+reglod:	move	bas,[.bhigh,,.blow]
+	move	stk,[.shigh,,.slow]
+	move	gca,[.ghigh,,.glow]
+	movei	frm,.frame
+	move	use,[.uhigh,,.ulow]
+	move	map,[.mhigh,,.mlow]
+	jrst	cont1		;; jump to next phase
+;;
+;; Insert constants to keep locality
+;;
+	consta
+;;
+;; Continue here
+;;
+cont1:
+;;
+;; Fake stack frames for debugging
+;;
+;;	First, macro to make frames
+;;
+.mr.==	1		;; used in macro to make fake mr's
+.ra.==	-1		;; used in macro to make fake ra's
+;; macro for making frames
+define	$frame	name,oer,ier
+	.mr.,,.ra.
+	.mr.==.mr.+1
+	.ra.==.ra.-1
+name:	ier,,oer
+	termin
+;; Now save current loc and go make some frames!
+dsave==	.
+.==	.slow
+;;
+;; Diagram of call structure:
+;;
+;;	p1  ->	i1  ->	i2
+;;		    ->	i3  ->	i4
+;;	    ->	i5
+;;	    ->	p2  ->	i6  ->	p3
+;;
+	$frame	p1,0,f5
+	$frame	i1,p1,f3
+	$frame	i2,i1,0
+	$frame	f2,i2,0
+	$frame	i3,i1,f4
+	$frame	i4,i3,0
+	$frame	f4,i4,0
+	$frame	f3,i3,f2
+	$frame	f1,i1,0
+	$frame	i5,p1,0
+	$frame	f5,i5,f1
+	$frame	p2,p1,0
+	$frame	i6,p2,0
+	$frame	p3,i6,0
+;;
+;; Set stuff to be loaded as args
+;;
+.frame==p3
+.shigh==.
+.==	dsave

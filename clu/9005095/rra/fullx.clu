@@ -1,0 +1,109 @@
+üÝvl¿ýúóË = proc(ins,outs: string)
+	at÷¸yrÃy[int]
+	ast = array[string]
+	aat = array[at]
+	sfill=string$fill
+	inf: file := file$open_read(ins)
+	outf: file := file$open_write(outs)
+	s: string := file$gets(inf,'\n')
+	possible, weights: at := get_basis()	% possible scores & weights
+	names: ast := ast$new()		% all names of students
+	numbers: at := at$new()
+	for numbx: int in at$indexes(weights) do
+		at$addh(numbers,numbx)
+		end
+	all_scores: aat := aat$new()	% all scores by students
+	totals: at := at$new()		% all total scores
+	averages: at := at$fill(1,at$size(possible),0)	% averages
+	nzpeople: at := at$copy1(averages)		% non- zero people
+	persons: int := 0		% number of real students
+	name_end: int := 0		% end of names
+	while string$indexs("****", s) = 0 do
+		s := file$gets(inf,'\n')
+		end
+	s := file$gets(inf,'\n')
+	while string$indexs("****", s) = 0 do
+		ap: int := alpha_pos(s,1)	% start of name
+		name: string := s		% student name
+		scores: at := num_array(s,ap)	% scores for student
+		total: int := 0			% total for student
+		if at$size(scores) > 0 then
+			np: int := num_pos(s,ap)-1	% start of scores
+			if np > name_end then name_end := np end
+			name := string$substr(s,1,np)	% get name part
+			persons := persons + 1		% bump # of students
+			for index: int in at$indexes(scores) do
+				weight: int := weights[index]
+					except when bounds: weight := 0 end
+				score: int := scores[index] * weight
+				scores[index] := score
+				averages[index] := averages[index] + score
+					except when bounds: at$addh(averages,score) end
+				if index > at$high(nzpeople) then at$addh(nzpeople,0) end
+				if score > 0 then
+					nzpeople[index] := nzpeople[index] + 1
+					end
+				total := total + score
+				end
+			if total > 0 then
+				at$addh(totals,total)	% keep track of totals
+				aat$addh(all_scores,scores)
+				ast$addh(names,name)
+				end
+			end
+		s := file$gets(inf,'\n')
+		end
+	for index: int in at$indexes(possible) do
+		weight: int := weights[index]
+			except when bounds: weight := 0 end
+		score: int := possible[index] * weight
+		possible[index] := score
+		end
+	hack: int := persons / 2
+	nzaverages: at := at$copy1(averages)	
+	if persons > 0 then
+		for index: int in at$indexes(averages) do
+			averages[index] := (averages[index] + hack) / persons
+			nzp: int := nzpeople[index]
+			if nzp > 0 then
+				nzaverages[index] := (nzaverages[index] + hack) / nzp
+				end
+			end
+		end
+	file$puti(outf,persons)
+	file$puts(outf," people.\n\n")
+	format_line(outf,"Problem #", name_end, numbers)
+	format_line(outf,"weights",name_end,weights)
+	format_total(outf,"possible",name_end,possible)
+	format_total(outf,"averages",name_end,averages)
+	format_line(outf,"non-zero scores", name_end, nzpeople)
+	format_total(outf,"non-zero averages", name_end, nzaverages)
+	file$puts(outf,"\n****")
+% sort according to totals (exchange sort)
+	for i: int in int$from_to_by(at$low(totals),at$high(totals)-1,1) do
+		for j: int in int$from_to_by(i+1,at$high(totals),1) do
+			tempi: int := totals[i]
+			tempj: int := totals[j]
+			if tempi < tempj then	% swap all over
+				totals[i] := tempj
+				totals[j] := tempi
+				temps: string := names[i]
+				names[i] := names[j]
+				names[j] := temps
+				tempat: at := all_scores[i]
+				all_scores[i] := all_scores[j]
+				all_scores[j] := tempat
+				end
+			end
+		end
+% print student info
+	while ast$size(names) > 0 do
+		name: string := ast$reml(names)
+		temp_scores: at := aat$reml(all_scores)
+		format_total(outf,name,name_end,temp_scores)
+		end
+	file$puts(outf,"\n****\n")
+	file$close(inf)
+	file$close(outf)
+	end full_house
+

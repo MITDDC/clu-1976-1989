@@ -1,0 +1,296 @@
+%	CLU CLU
+%
+% These are the top level procedures of the CLU compiler.
+
+BEGIN
+
+# include "clusys/absyn3.clu"
+
+END
+
+% CLU takes an uppercase string which is the name of the input file to compile.
+% There are standard defaults when only the first name is given.
+
+clu = proc (fs: string) returns (string);
+	clu_time: string := nice_date() || " " || nice_time();
+	timer: realval := time();
+	head: string := "***** CLU COMPILER " || clu_version() ||
+			" ***** " || clu_time || " *****\n";
+	curfile: file;
+	non_empty: bool;
+	fname, name1, dir, pstart, errors: string;
+	globs: globals;
+	puts(head);
+	curfile := file$open_read(get_filename(fs))
+		except open_fail: return ("Source open failed!"); end;
+	fname := file$name(curfile);
+	name1 := file$name1(curfile);
+	dir := file$dir(curfile) || ";";
+	pstart := dir || name1 || " ";
+	errors := pstart || "ERRORS";
+	file$close(curfile);
+	puts("\tCompiling "); puts(fname); puts("\n\n\tPass 1\n");
+
+   % Run the parser
+
+	globs := parse(fname, errors);
+
+
+   % Print the ERRORS file, and abort if non-empty.
+
+	curfile := file$open_read(errors);
+		except open_fail: return ("ERRORS file not found!"); end;
+	non_empty := true;
+	while non_empty do
+		if file$eof(curfile)
+		   then non_empty := false
+		   else if char$c2i(file$getc(curfile)) > 31
+			   then begin
+				   file$print(curfile);
+				   putc('\n');
+				   return ("Compilation aborted.");
+				end;
+
+   % Run pass 2
+
+	pass2(dir, name1, head, globs)
+		except pass2_fail(why: string): return (why); end;
+
+	file$delete(errors);
+
+   % Save statistics
+
+	curfile := file$open_append(stat_file())
+		except open_fail: return ("No CLU STAT file!"); end;
+	file$puts(curfile, clu_version());  file$putc(curfile, '\t');
+	file$puts(curfile, xuname()); file$putc(curfile, '\t');
+	file$puts(curfile, clu_time); file$putc(curfile, '\t');
+	file$puts(curfile, realstring(time() - timer));
+	file$putc(curfile, '\t');
+	file$puts(curfile, fname); file$putc(curfile, '\n');
+	file$close(curfile);
+
+	return ("Compilation complete.");
+	end clu;
+
+% Pass 2 reads sets up the state of the world
+
+pass2 = proc(dir, name1, head: string, globs: globals) signals (pass2_fail(string));
+	pstart: string := dir || name1 || " ";
+	envn: env;
+	z: zen;
+	cmac: string := dir || "_CMAC_ " || name1;
+	out_file: file := file$open_write(cmac)
+		except open_fail: signal pass2_fail("Output open failed!"); end;
+
+   % Set defaults
+
+	set_ddsko(out_file);
+	set_idntab(globals$get_idntab(globs));
+	set_strtab(globals$get_strtab(globs));
+
+	bputs("\n;"); bputs(head);
+	envn := env$create();
+	z := zen$create();
+	pe_environment(globals$get_environment(globs), envn);
+	puts("\tPass 2\n");
+
+   % Process modules
+
+	process_mods(globs, envn, z);
+
+	file$close(out_file);
+	no_ddsko();
+
+   % Fix up PROC headers
+
+	final_phase(pstart, cmac, z);
+	file$delete(cmac);
+
+	end pass2;
+
+% Read in and process each module.
+
+process_mods = proc(globs: globals, envn: env, z: zen);
+	need_fake: bool := true;
+	while globals$still_modules(globs) do
+	   begin
+		mod: module := pe_module(globals$next_module(globs), envn);
+		zen$new_module(z, envn, get_module_name(mod));
+		tc_module(mod);
+		tagcase mod in
+		   p:	if need_fake
+			   then begin
+				   bputs("\ncluster ,0,0\n");
+				   need_fake := false;
+				end;
+		   c:	if ~need_fake
+			   then begin
+				   bputs("\nretsulc\n");
+				   need_fake := true;
+				end;
+		   end;
+		cg_module(z, mod);
+		putc('\n');
+	   end;
+	if need_fake then return;
+	bputs("\nretsulc\n");
+	end process_mods;
+
+% Run the typechecker.
+
+tc_module = proc (mod: module);
+	mname: string;
+	the_du: DU;
+	the_ver: version;
+	if ~type_checking() then return;
+	mname := get_module_name(mod);
+	the_du := DU$create(name$u(mname), "test");
+	the_ver := version$create(the_du);
+	type_checker(mod, the_ver, the_alist());
+	end tc_module;
+
+final_phase = proc (pstart: string, cmac: string, z: zen) signals (pass2_fail(string));
+	in_file: file := file$open_read(cmac)
+		except open_fail: signal pass2_fail("_CMAC_ file not found!"); end;
+	out_file: file := file$open_write(pstart || "_CLUMA")
+		except open_fail: signal pass2_fail("Output open failed!"); end;
+	file$puts(out_file, ".insrt clusys;alpha >\n");
+	repeat
+	   begin
+		s: string := file$gets(in_file, '\n');
+		file$puts(out_file,
+			  (if s = "proc" then zen$next_head(z) else s) || "\n");
+	   end
+	   until file$eof(in_file);
+	file$puts(out_file, "\n.insrt clusys;omega >\n");
+	file$rename(out_file, pstart || "CLUMAC");
+	file$close(out_file);
+	file$close(in_file);
+	end final_phase;
+
+% Return a module's name.
+
+get_module_name = proc (m: module) returns (string);
+	tagcase m in
+	   p:	return (idn$getstring(m.name));
+	   c:	return (idn$getstring(m.name));
+	   end;
+	end get_module_name;
+
+% Try to find a source file name.
+
+get_filename = proc (fs: string) returns (string);
+	ns: string;
+	if (string$index(fs, ":") >= 0) |
+	   (string$index(fs, ";") >= 0) |
+	   (string$index(fs, " ") >= 0)
+	   then return (fs);
+	ns := fs || " CLU";
+	if file$exists(ns) then return (ns);
+	if file$exists("ARC:" || ns) then return ("ARC:" || ns);
+	if file$exists("AR1:" || ns) then return ("AR1:" || ns);
+	if file$exists("AR2:" || ns) then return ("AR2:" || ns);
+	if file$exists("AR3:" || ns) then return ("AR3:" || ns);
+	if file$exists("AR4:" || ns) then return ("AR4:" || ns);
+	if file$exists(fs || " >") then return (fs || " >");
+	if file$exists("ARC:" || fs) then return ("ARC:" || fs);
+	if file$exists("AR1:" || fs) then return ("AR1:" || fs);
+	if file$exists("AR2:" || fs) then return ("AR2:" || fs);
+	if file$exists("AR3:" || fs) then return ("AR4:" || fs);
+	return (fs || " >");
+	end get_filename;
+
+% This cluster holds stuff which the parser returns.
+
+globals = cluster is	create,		% Create a global
+			get_idntab,	% Return the identifier table
+			get_strtab,	% Return the string table
+			get_environment,% Return environment
+			next_module,	% Return the next module
+			still_modules;	% Test if still modules left
+
+	as = array[string];
+	idntab = as;
+	strtab = as;
+	am = array[module];
+
+   % These will eventually go away,
+
+	idntabfake = string;
+	strtabfake = oneof[n: null, tab: strtab];
+	environmentfake = string;
+	amfake = oneof[n: null, f: file];
+
+   % The rep will be unfaked,
+
+	rep = record[itab: idntabfake,
+		     stab: strtabfake,
+		     envir: environmentfake,
+		     mods: amfake];
+
+   % And the operations rewritten.
+
+create = oper (tab: string, par: string) returns (cvt);
+	return ({itab: tab,
+		 stab: strtabfake$make_n(nil),
+		 envir: par,
+		 mods: amfake$make_n(nil)});
+	end create;
+
+get_idntab = oper (g: cvt) returns (idntab);
+	fake: string := g.itab;
+	tabfile: file := file$open_readobj(fake);
+	itab: idntab := file$readobj(tabfile);
+	g.stab := strtabfake$make_tab(file$readobj(tabfile));
+	file$close(tabfile);
+	file$delete(fake);
+	return (itab);
+	end get_idntab;
+
+get_strtab = oper (g: cvt) returns (strtab);
+	fake: strtabfake := g.stab;
+	tagcase fake in
+	   tab:	return (fake);
+	   end;
+	end get_strtab;
+
+get_environment = oper (g: cvt) returns (environment);
+	fake: string := g.envir;
+	parfile: file := file$open_readobj(fake);
+	envir: environment := FUDGE(file$readobj(parfile));
+	g.mods := amfake$make_f(parfile);
+	return (envir);
+	end get_environment;
+
+still_modules = oper (g: cvt) returns (bool);
+	fake: amfake := g.mods;
+	tagcase fake in
+	   f:	if file$eof(fake)
+		   then begin
+			   ns: string := file$name(fake);
+			   file$close(fake);
+			   file$delete(ns);
+			   return (false);
+			end
+		   else return (true);
+	   end;
+	end still_modules;
+
+next_module = oper (g: cvt) returns (module);
+	fake: amfake := g.mods;
+	tagcase fake in
+	   f:	return (FUDGE(file$readobj(fake)));
+	   end;
+	end next_module;
+
+end globals;
+
+% For error messages
+
+err1 = proc (lineno: int, message: string)
+	if (lineno >= 0) then putc ('\n');
+	if (lineno > 0) then {putd (lineno); puts (": ")};
+	puts (message);
+	end err1;
+

@@ -1,0 +1,78 @@
+		CLU COMPILER VERSION 3
+
+		      #procs
+
+SYNTAX	EQUATE				abstract syntax equates
+SYNTAX	CLU		52		abstract syntax clusters
+CMP1	SPECS				value and filespec specs
+CMP2	SPECS				file and abstract syntax specs
+DU	CLU		 9		description unit
+LIB	CLU		 4		library
+BASIC	TYPES				specs for basic types
+CE	CLU		26		compilation environment
+CE	SPECS				compilation environment specs
+HASH	CMAC		 1		a hashing function
+INIT	CLU		 3		compiler initialization
+OWNVAR	CMAC		 4		various own variables
+SYS1	CMAC		26		system stuff
+SYS2	CLU		 6		system stuff
+WORD	>		27		PDP-10 word cluster
+FSPEC	CMAC		15		filespec cluster
+JOB	CLU		28		job cluster
+RUNT	>		 2		runtime stuff
+RUNTIM	CLU		 7		runtime stuff
+TOPLEV	EQUATE				top level equates
+TOP1	CLU		20		commands
+TOP2	CLU		25		compile
+		       ___
+		       255
+
+PARSE	EQUATE				equates
+PDEFN1	CLU		 9		definitions
+PDEFN2	CLU		 9		definitions
+PSTMT1	CLU		11		statements
+PSTMT2	CLU		18		statements
+PCONST	CLU		16		types and constants
+PEXPR	CLU		11		expressions
+PENV	CLU		53		environment
+PENV	SPECS				environment specs
+TKNTAB	CLU		10		token table
+PTTKN	CLU		 9		token print routines
+		       ___
+		       146
+
+
+CHECK	EQUATE				equates
+CDEFN1	CLU		16		definitions
+CDEFN2	CLU		16		definitions
+CSPECS	CLU		 5		compare DUspecs
+CSTMT1	CLU		16		statements
+CSTMT2	CLU		14		statements
+CCONST	CLU		15		equates, constants, types
+CEXPR1	CLU		13		expressions
+CEXPR2	CLU		17		expressions
+COPER	CLU		10		operations
+EVAL1	CLU		14		constant evaluator
+EVAL2	CLU		11		constant evaluator
+CENV	CLU		83		environment
+CENV	SPECS				environment specs
+BUILD	CLU		21		rebuilding a DUspecs
+		       ___
+		       251
+
+
+CODER	EQUATE				equates
+GDEFN	CLU		13		definitions
+GSTMT	CLU		25		statements
+GEXPR	CLU		15		expressions
+GCONST	CLU		15		constants, types
+GENV	CLU		41		environment
+GENV	SPECS				environment specs
+STRTAB	CLU		 6		map: str -> str
+INTTAB	CLU		 6		map: int -> str
+SIGTAB	CLU		 6		map: exception -> str
+		       ___
+		       127
+
+
+Grand Total	       778

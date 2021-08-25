@@ -1,0 +1,172 @@
+p_env = cluster is	create,			% CE, file, file -> p_env
+			new_env,		% p_env, file ->
+			reset,			% p_env, CE, file, file ->
+			hack,			% p_env ->
+			unhack,			% p_env ->
+			is_hacked,		% p_env -> bool
+			get_peek1,		% p_env -> token
+			peek,			% p_env, int -> token
+			next_token,		% p_env -> token
+			get_line,		% p_env -> int
+			begin_body,		% p_env, bodykind ->
+			end_body,		% p_env ->
+			in_body,		% p_env, bodykind -> bool
+			get_idn,		% p_env, str -> idn
+			get_unknown_type,	% p_env -> typespec
+			get_null_type,		% p_env -> typespec
+			get_bool_type,		% p_env -> typespec
+			get_int_type,		% p_env -> typespec
+			get_real_type,		% p_env -> typespec
+			get_char_type,		% p_env -> typespec
+			get_str_type,		% p_env -> typespec
+			get_type_type,		% p_env -> typespec
+			get_cvt_type,		% p_env -> typespec
+			get_any_type,		% p_env -> typespec
+			get_array_fake,		% p_env -> DUfake
+			get_record_fake,	% p_env -> DUfake
+			get_oneof_fake,		% p_env -> DUfake
+			get_proc_fake,		% p_env -> DUfake
+			get_iter_fake,		% p_env -> DUfake
+			get_bad_expr,		% p_env -> expr
+			assume,			% p_env, str ->
+			get_err,		% p_env -> parerr
+			put_err,		% p_env, parerr ->
+			reset_err,		% p_env ->
+			err,			% p_env, str, parerr ->
+			set_deftype,		% p_env, bool, bool ->
+			in_proc,		% p_env -> bool
+			specd_vals,		% p_env -> bool
+			get_clustr,		% p_env -> str
+			get_applystr,		% p_env -> str
+			put_clustr,		% p_env, str ->
+			put_applystr;		% p_env, str ->
+
+rep = any;
+
+create = proc (comp: CE, inf: file, erf: file) returns (p_env);
+	end create;
+
+new_env = proc (e: p_env, inf: file) returns (p_env);
+	end new_env;
+
+reset = proc (e: p_env, comp: CE, inf: file, erf: file);
+	end reset;
+
+hack = proc (e: p_env);
+	end hack;
+
+unhack = proc (e: p_env);
+	end unhack;
+
+is_hacked = proc (e: p_env) returns (bool);
+	end is_hacked;
+
+get_peek1 = proc (e: p_env) returns (token);
+	end get_peek1;
+
+peek = proc (e: p_env, num: int) returns (token);
+	end peek;
+
+next_token = proc (e: p_env) returns (token);
+	end next_token;
+
+get_line = proc (e: p_env) returns (int);
+	end get_line;
+
+begin_body = proc (e: p_env, kind: bodykind);
+	end begin_body;
+
+end_body = proc (e: p_env);
+	end end_body;
+
+in_body = proc (e: p_env, kind: bodykind) returns (bool);
+	end in_body;
+
+get_idn = proc (e: p_env, s: str) returns (idn);
+	end get_idn;
+
+get_unknown_type = proc (e: p_env) returns (typespec);
+	end get_unknown_type;
+
+get_null_type = proc (e: p_env) returns (typespec);
+	end get_null_type;
+
+get_bool_type = proc (e: p_env) returns (typespec);
+	end get_bool_type;
+
+get_int_type = proc (e: p_env) returns (typespec);
+	end get_int_type;
+
+get_real_type = proc (e: p_env) returns (typespec);
+	end get_real_type;
+
+get_char_type = proc (e: p_env) returns (typespec);
+	end get_char_type;
+
+get_str_type = proc (e: p_env) returns (typespec);
+	end get_str_type;
+
+get_type_type = proc (e: p_env) returns (typespec);
+	end get_type_type;
+
+get_cvt_type = proc (e: p_env) returns (typespec);
+	end get_cvt_type;
+
+get_any_type = proc (e: p_env) returns (typespec);
+	end get_any_type;
+
+get_array_fake = proc (e: p_env) returns (DUfake);
+	end get_array_fake;
+
+get_record_fake = proc (e: p_env) returns (DUfake);
+	end get_record_fake;
+
+get_oneof_fake = proc (e: p_env) returns (DUfake);
+	end get_oneof_fake;
+
+get_proc_fake = proc (e: p_env) returns (DUfake);
+	end get_proc_fake;
+
+get_iter_fake = proc (e: p_env) returns (DUfake);
+	end get_iter_fake;
+
+get_bad_expr = proc (e: p_env) returns (expr);
+	end get_bad_expr;
+
+assume = proc (e: p_env, what: str);
+	end assume;
+
+get_err = proc (e: p_env) returns (parerr);
+	end get_err;
+
+put_err = proc (e: p_env, deg: parerr);
+	end put_err;
+
+reset_err = proc (e: p_env);
+	end reset_err;
+
+err = proc (e: p_env, why: str, deg: parerr);
+	end err;
+
+set_deftype = proc (e: p_env, procdef: bool, specvals: bool);
+	end set_deftype;
+
+in_proc = proc (e: p_env) returns (bool);
+	end in_proc;
+
+specd_vals = proc (e: p_env) returns (bool);
+	end specd_vals;
+
+get_clustr = proc (e: p_env) returns (str);
+	end get_clustr;
+
+get_applystr = proc (e: p_env) returns (str);
+	end get_applystr;
+
+put_clustr = proc (e: p_env, s: str);
+	end put_clustr;
+
+put_applystr = proc (e: p_env, s: str);
+	end put_applystr;
+
+end p_env;

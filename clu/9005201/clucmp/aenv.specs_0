@@ -1,0 +1,226 @@
+a_env = cluster is	create,			% -> env
+			set_input,		% env, file ->
+			get_input,		% env -> file
+			set_output,		% file -> env
+			get_output,		% file -> env
+			get_err,		% env -> bool
+			set_err,		% env, bool ->
+			get_lh_equate,		% env -> bool
+			set_lh_equate,		% env, bool ->
+			begin_cluster,		% env ->
+			end_cluster,		% env ->
+			use_owndata,		% env ->
+			begin_proc,		% env ->
+			end_proc,		% env ->
+			get_arg_count,		% env -> int
+			set_arg_count,		% env, int ->
+			set_proc_type,		% env, wrd ->
+			add_option,		% env, int ->
+			add_clink,		% env, wrd ->
+			add_plink,		% env, wrd -> int
+			add_link,		% env, wrd -> int
+			add_odlink,		% env, wrd -> int
+			add_vinit,		% env, wrd -> int
+			add_mlink,		% env, wrd ->
+			add_rlink,		% env, int, aw -> wrd
+			add_wrd,		% env, wrd
+			add_eblock,		% env ->
+			begin_loop,		% env ->
+			end_loop,		% env ->
+			get_loop_disp,		% env -> wrd
+			begin_if,		% env ->
+			begin_else,		% env ->
+			end_if,			% env ->
+			get_fi_disp,		% env -> wrd
+			get_else_disp,		% env -> wrd
+			begin_tagcase,		% env ->
+			end_tagcase,		% env ->
+			get_tags_exist,		% env -> bool
+			set_tags_exist,		% env, bool ->
+			begin_catch,		% env ->
+			begin_except,		% env, wrd, aw ->
+			end_catch,		% env ->
+			get_uncatch_disp,	% env -> wrd
+			define,			% env, str, wrd ->
+			defmac,			% env, str, mtype ->
+			label,			% env, str -> wrd
+			lookup,			% env, str -> wrd
+			dlookup,		% env, str -> def
+			err,			% env, str ->
+			undefined,		% env, str ->
+			get_char_tab,		% env -> ai
+			get_temp_ac,		% env -> ac
+			newline,		% env ->
+			dump;			% env, chan ->
+
+rep		= any;
+
+create = proc () returns (env);
+	end create;
+
+get_input = proc (e: env) returns (file);
+	end get_input;
+
+set_input = proc (e: env, f: file);
+	end set_input;
+
+get_output = proc (e: env) returns (file);
+	end get_output;
+
+set_output = proc (e: env, f: file);
+	end set_output;
+
+get_err = proc (e: env) returns (bool);
+	end get_err;
+
+set_err =proc (e: env, b: bool);
+	end set_err;
+
+get_lh_equate = proc (e: env) returns (bool);
+	end get_lh_equate;
+
+set_lh_equate = proc (e: env, b: bool);
+	end set_lh_equate;
+
+begin_cluster = proc (e: env);
+	end begin_cluster;
+
+end_cluster = proc (e: env);
+	end end_cluster;
+
+use_owndata = proc (e: env);
+	end use_owndata;
+
+begin_proc = proc (e: env);
+	end begin_proc;
+
+end_proc = proc (ee: env);
+	end end_proc;
+
+get_arg_count = proc (e: env) returns (int);
+	end get_arg_count;
+
+set_arg_count = proc (e: env, cnt: int);
+	end set_arg_count;
+
+set_proc_type = proc (e: env, w: wrd);
+	end set_proc_type;
+
+add_option = proc (e: env, opt: int);
+	end add_option;
+
+add_clink = proc (e: env, w: wrd) returns (int);
+	end add_clink;
+
+add_plink = proc (e: env, w: wrd) returns (int);
+	end add_plink;
+
+add_link = proc (e: env, w: wrd) returns (int);
+	end add_link;
+
+add_odlink = proc (e: env, w: wrd) returns (int);
+	end add_odlink;
+
+add_vinit = proc (e: env, w: wrd) returns (int);
+	end add_vinit;
+
+add_mlink = proc (e: env, w: wrd);
+	end add_mlink;
+
+add_rlink = proc (e: env, typ: int, vec: aw) returns (wrd);
+	end add_rlink;
+
+add_wrd = proc (e: env, w: wrd);
+	end add_wrd;
+
+add_eblock = proc (e: env);
+	end add_eblock;
+
+begin_loop = proc (e: env);
+	end begin_loop;
+
+end_loop = proc (e: env);
+	end end_loop;
+
+get_loop_disp = proc (e: env) returns (wrd);
+	end get_loop_disp;
+
+begin_if = proc (e: env);
+	end begin_if;
+
+begin_else = proc (e: env);
+	end begin_else;
+
+end_if = proc (e: env);
+	end end_if;
+
+get_fi_disp = proc (e: env) returns (wrd);
+	end get_fi_disp;
+
+get_else_disp = proc (e: env) returns (wrd);
+	end get_else_disp;
+
+begin_tagcase = proc (e: env);
+	end begin_tagcase;
+
+get_tags_exist = proc (e: env) returns (bool);
+	end get_tags_exist;
+
+set_tags_exist = proc (e: env, b: bool);
+	end set_tags_exist;
+
+end_tagcase = proc (e: env);
+	end end_tagcase;
+
+begin_catch = proc (e: env);
+	end begin_catch;
+
+begin_except = proc (e: env, var: wrd, names: aw);
+	end begin_except;
+
+end_catch = proc (e: env);
+	end end_catch;
+
+get_uncatch_disp = proc (e: env) returns (wrd);
+	end get_uncatch_disp;
+
+define = proc (e: env, sym: str, val: wrd);
+	end define;
+
+defmac = proc (e: env, sym: str, mac: mtype);
+	end defmac;
+
+label = proc (e: env, sym: str) returns (wrd);
+	end label;
+
+lookup = proc (e: env, sym: str) returns (wrd);
+	end lookup;
+
+dlookup = proc (e: env, sym: str) returns (def);
+	end dlookup;
+
+err = proc (e: env, why: str);
+	end err;
+
+undefined = proc (e: env, sym: str);
+	end undefined;
+
+get_char_tab = proc (e: env) returns (ai);
+	end get_char_tab;
+
+get_temp_ac = proc (e: env) returns (ac);
+	end get_temp_ac;
+
+newline = proc (e: env);
+	end newline;
+
+new_sym = proc (s: str) returns (str);
+	end new_sym;
+
+put_wrd = proc (e: rep, w: wrd);
+	end put_wrd;
+
+dump = proc (e: env, c: chan);
+	end dump;
+
+end a_env;

@@ -1,0 +1,120 @@
+%	CC_PAR	CLU
+%
+%	CLU 3.1 compiler:  parser
+%
+%	Parsing routines
+
+BEGIN
+
+env = par_env;
+
+include "clu/cc_syn.equate"
+
+tokenkind = oneof[null_:	null,		% NIL literal
+		  bool_:	bool,		% TRUE or FALSE literal
+		  int_:		int,		% Int literal
+		  char_:	char,		% Char literal
+		  str_:		str,		% Str literal
+		  ident:	str,		% Identifier or Name
+		  reserved:	str,		% Reserved word
+		  punct:	str,		% Punctuation, bracket, :=, unary and
+						% binary operators, etc.
+		  comment:	str,		% all chars from '%' to '\j'
+		  bad:		badtkn,		% Error
+		  eof:		null];		% EOF has occurred
+
+badtkn = oneof[illegal_char:	char,		% The string/char which caused the error
+	       str_:	oneof[eof,
+			      format,
+			      escape,
+			      esc_eof,
+			      esc_form:	str],
+	       char_:	oneof[eof,
+			      fýü¶áéõƒE	ñ( Aô2óÇü<2¬ñBD‰A     endquote:	char]];
+
+globals = record[strs:	strtab,
+		chars:	chartab,
+		ints:	inttab,
+		types:	typetab,
+		names:	nametab,
+		idns:	idntab,
+		erf:	file];
+
+% equate for error ??
+
+END
+
+
+
+%
+%	EXPR	PARSER
+%
+
+e0_p = proc(pe: env, s: stream) returns(expr);	% signals( ??? );
+	l: expr := e1_p(pe, s);		% except ???? ;
+	while or_op(stream$peek(s, 1) do
+		op: token := stream$next(s);
+		r: expr := e1_p(pe, s);	% except ???? ;
+		l := infix_create(l, op, r, pe);
+		end;
+	return(l);
+	end e0_p;
+
+e1_p
+
+e2_p
+
+e3_p
+
+e4_p
+
+e5_p = proc(pe: env, s: stream) returns(expr);	% signals( ??? );
+	l: expr := prim_p;
+	if pow_op(stream$peek(s, 1))
+		then begin stream$next(s);
+			   r := e5_p(pe, s);
+			   % create an expr for ** with l and r and return it
+			   end;
+	return(l);
+	end e5_p;
+
+prim_p = proc(pe: env, s: stream) returns(prim) signals( ?????? );
+	% look for ~ or - or (, else primary_p
+	end prim_p;
+
+primary_p = proc(pe: env, s: stream) returns(primary) signals( ?????? );
+	% easy:	NIL
+	%	TRUE
+	%	FALSE
+	%	string
+	%	char
+	%	int
+	%	FORCE[type]
+	%	UP(expr)
+	%	DOWN(expr)
+	%	idn
+	%
+	% then:
+
+
+	end primary_p;
+
+infix_create = proc(l: expr, op: token, r: expr, e: env) returns(expr);
+	return(expr$create(exprabs$make_infix({left:	l,
+					       op:	get_op(op),
+					       right:	r}),
+			   typetab$get_unknown(env$get_typetab(e)))); % type of expr??
+	end infix_create;
+
+get_op = proc(op: token) returns(infixop);
+	opkind: tokenkind := token$get_kind(op);
+	tagcase opkind in
+	%
+	%
+	%
+	%
+	end get_op;
+
+%
+% or_op
+%

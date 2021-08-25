@@ -1,0 +1,511 @@
+%	CC_P2	CLU
+%
+%	CLU 3 compiler:  parsing routines for statements
+
+BEGIN
+
+# include "clucmp/cc_syn.equate"
+# include "clucmp/cc_p.equate"
+
+END
+
+p_body = proc (e: env, kind: bodykind) returns (body);
+	p_semi(e);
+	env$new_level(e);
+	equates: equatelist := p_equatelist(e);
+	stmts: stmtlist := p_stmtlist(e, kind);
+	env$pop_level(e);
+	return({equates: equates,
+		stmts:   stmts});
+	end p_body;
+
+p_stmtlist = proc (e: env, kind: bodykind) returns (stmtlist);
+	stmts: stmtlist := stmtlist$create(1);
+	while true do begin
+	   abs: stmtabs;
+	   l: int := e.lineno;
+	   k: token := e.peek_token;
+	   tagcase k in
+	      stmtkey: %(k: stmtkey):
+		   begin
+		   env$next_token(e);
+		   tagcase k in
+		      if_:      abs := p_if(e);
+		      for_:     abs := p_for(e);
+		      tagcase_: abs := p_tagcase(e);
+		      while_:   abs := p_while(e);
+		      return_:  abs := stmtabs$make_return_(p_pexprlist(e, true));
+		      yield_:   abs := stmtabs$make_yield_(p_pexprlist(e, true));
+		      signal_:  abs := p_signal(e);
+		      break_:   abs := stmtabs$make_break_(nil);
+		      begin_:   begin
+				abs := stmtabs$make_body(p_body(e, misc_body));
+				p_end(e, "END in BEGIN...END");
+				end;
+		      end;
+		   end;
+	      ident:
+		   begin
+		   tk: token := env$peek(e, 2);
+		   tagcase tk in
+		      comma, assn, colon:
+			   abs := p_decl_or_assn(e);
+		      op: %(tk: infixop):
+			   tagcase tk in
+			      eq:  begin
+				   tkn: token := env$peek(e, 3);
+				   tagcase tkn in
+				      defnkey: return(stmts);
+				      out:     ;
+				      end;
+				   env$err(e, "equates as stmts - parsing anyway",
+						serious);
+				   p_equatelist(e);
+				   abs := stmtabs$make_bad(nil);
+				   end;
+			      out: abs := p_expr_stmt(e);
+			      end;
+		      out: abs := p_expr_stmt(e);
+		      end;
+		   end;
+	      int_, char_, str, typekey, exprkey:
+		   abs := p_expr_stmt(e);
+	      op, not, l_paren:
+		   begin
+		   env$err(e, "operator or ( starts stmt - parsing as expr",
+				 minor);
+		   abs := p_expr_stmt(e);
+		   end;
+	      out: if p_find_a_stmt(e, kind)
+		      then abs := stmtabs$make_bad(nil);
+		      else return(stmts);
+	      end;
+	   stmtlist$addh(stmts, p_except(e, stmt$create(abs, l)));
+	   end;
+	end p_stmtlist;
+
+p_if = proc (e: env) returns (stmtabs);
+	arms: ifarmlist := ifarmlist$create(1);
+	ifs: ifstmt := {arms:  arms,
+			else_: mbody$make_none(nil)};
+	abs: stmtabs := stmtabs$make_if_(ifs);
+	while true do begin
+		x: expr := p_expr(e, min_prec);
+		k: token := e.peek_token;
+		tagcase k in
+		   then_: env$next_token(e);
+		   out:   env$assume(e, "THEN in expr THEN body");
+		   end;
+		bod: body := p_body(e, then_body);
+		ifarmlist$addh(arms, {test: x,
+				      body: bod});
+		k := e.peek_token;
+		tagcase k in
+		   elseif_: env$next_token(e);
+		   else_:   begin
+			    env$next_token(e);
+			    ifs.else_ := mbody$make_body(p_body(e, misc_body));
+			    p_end(e, "END in IF...END");
+			    return(abs);
+			    end;
+		   end_:    begin
+			    env$next_token(e);
+			    return(abs);
+			    end;
+		   out:     begin
+			    env$assume(e, "END in IF...END");
+			    return(abs);
+			    end;
+		   end;
+		end;
+	end p_if;
+
+p_for = proc (e: env) returns (stmtabs);
+	env$new_level(e);
+	vars: forvars;
+	k: token := e.peek_token;
+	tagcase k in
+	   in_:  vars := forvars$make_old(idnlist$create(1));
+	   out:  vars := p_idns_or_decls(e);
+	   end;
+	k := e.peek_token;
+	tagcase k in
+	   in_: env$next_token(e);
+	   out: env$assume(e, "IN in FOR...IN...END");
+	   end;
+	call: invoke := p_make_invoke(e, p_expr(e, min_prec));
+	bod: body := p_do(e);
+	env$pop_level(e);
+	return(stmtabs$make_for_({idns: vars,
+				  call: call,
+				  body: bod}));
+	end p_for;
+
+p_do = proc (e: env) returns (body);
+	k: token := e.peek_token;
+	tagcase k in
+	   do_: env$next_token(e);
+	   out: env$assume(e, "DO in DO...END");
+	   end;
+	bod: body := p_body(e, misc_body);
+	p_end(e, "END in DO...END");
+	return(bod);
+	end p_do;
+
+p_idns_or_decls = proc (e: env) returns (forvars);
+	l: int := e.lineno;
+	idns: idnlist := p_idnlist(e);
+	k: token := e.peek_token;
+	tagcase k in
+	   colon: begin
+		  env$next_token(e);
+		  t: typespec := p_type(e);
+		  decls: decllist;
+		  tk: token := e.peek_token;
+		  tagcase tk in
+		     comma: begin
+			    env$next_token(e);
+			    decls := p_decllist(e);
+			    end;
+		     out:   decls := decllist$create(1);
+		     end;
+		  decllist$addl(decls, {idns:  idns,
+					type_: t});
+		  decllist$set_low(decls, 1);
+		  return(forvars$make_new(decls));
+		  end;
+	   out:   return(forvars$make_old(idns));
+	   end;
+end p_idns_or_decls;
+
+p_idnlist = proc (e: env) returns (idnlist);
+	idns: idnlist := idnlist$create(1);
+	while true do begin
+		idnlist$addh(idns, p_idn(e));
+		k: token := e.peek_token;
+		tagcase k in
+		   comma: env$next_token(e);
+		   out:   return(idns);
+		   end;
+		end;
+	end p_idnlist;
+
+p_idn = proc (e: env) returns (idn);
+	k: token := e.peek_token;
+	tagcase k in
+	   ident: %(k: ident):
+		begin
+		env$next_token(e);
+		return(env$get_idn(e, k));
+		end;
+	   out: begin
+		env$assume(e, "idn");
+		return(env$new_idn(e, "?idn?"));
+		end;
+	   end;
+	end p_idn;
+
+p_decllist = proc (e: env) returns (decllist);
+	decls: decllist := decllist$create(1);
+	while true do begin
+		decllist$addh(decls, p_decl(e));
+		k: token := e.peek_token;
+		tagcase k in
+		   comma: env$next_token(e);
+		   out:   return(decls);
+		   end;
+		end;
+	end p_decllist;
+
+p_decl = proc (e: env) returns (decl);
+	idns: idnlist := p_idnlist(e);
+	t: typespec;
+	k: token := e.peek_token;
+	tagcase k in
+	   colon: begin
+		  env$next_token(e);
+		  t := p_type(e);
+		  end;
+	   out:   begin
+		  env$assume(e, ": type in decl");
+		  t := e.unknown_type;
+		  end;
+	   end;
+	return({idns:  idns,
+		type_: t});
+	end p_decl;
+
+p_tagcase = proc (e: env) returns (stmtabs);
+	arms: tagarmlist := tagarmlist$create(1);
+	obj: expr := p_expr(e, min_prec);
+	tst: tagstmt := {obj:     obj,
+			 arms:    arms,
+			 others_: mbody$make_none(nil)};
+	abs: stmtabs := stmtabs$make_tag_(tst);
+	while true do begin
+		k: token := e.peek_token;
+		tagcase k in
+		   tag_:    begin
+			    env$next_token(e);
+			    env$new_level(e);
+			    tags: namelist := p_namelist(e);
+			    var: mdecl := p_mdecl(e);
+			    bod: body := p_cbody(e, tag_body, ": in TAG...: body");
+			    tagarmlist$addh(arms, {tags: tags,
+						   var:  var,
+						   body: bod});
+			    env$pop_level(e);
+			    end;
+		   others_: begin
+			    env$next_token(e);
+			    tst.others_ := p_cbody(e, misc_body, ": in OTHERS: body");
+			    p_end(e, "END in TAGCASE...END");
+			    return(abs);
+			    end;
+		   end_:    begin
+			    env$next_token(e);
+			    return(abs);
+			    end;
+		   out:     begin
+			    env$assume(e, "END in TAGCASE...END");
+			    return(abs);
+			    end;
+		   end;
+		end;
+	end p_tagcase;
+
+p_while = proc (e: env) returns (stmtabs);
+	test: expr := p_expr(e, min_prec);
+	bod: body := p_do(e);
+	return(stmtabs$make_while_({test: test,
+				    body: bod}));
+	end p_while;
+
+p_signal = proc (e: env) returns (stmtabs);
+	n: name := p_name(e);
+	args: exprlist := p_pexprlist(e, true);
+	return(stmtabs$make_signal_({name: n,
+				     args: args}));
+	end p_signal;
+
+p_decl_or_assn = proc (e: env) returns (stmtabs);
+	vars: forvars := p_idns_or_decls(e);
+	k: token := e.peek_token;
+	tagcase k in
+	   assn: begin
+		 env$next_token(e);
+		 el: exprlist := p_exprlist(e, false);
+		 tagcase vars in
+		    old: %(vars: idnlist):
+			 return(stmtabs$make_assn({left:  vars,
+						   right: el}));
+		    new: %(vars: decllist):
+			 begin
+			 x: expr;
+			 if exprlist$size(el) = 1
+			    then x := exprlist$bottom(el);
+			    else begin
+				 env$err(e, "only 1 expr allowed in declinit", minor);
+				 x := e.bad_expr;
+				 end;
+			 return(stmtabs$make_declinit({decls: vars,
+						       expr:  x}));
+			 end;
+		    end;
+		 end;
+	   out:  tagcase vars in
+		     old: %(vars: idnlist):
+			     begin
+			     env$assume(e, ": type in decl");
+			     return(stmtabs$make_decl({vars:  vars,
+						       type_: e.unknown_type}));
+			     end;
+		     new: %(vars: decllist):
+			     if decllist$size(vars) = 1
+				then return(stmtabs$make_decl(decllist$bottom(vars)));
+				else begin
+				     env$assume(e, ":= invoke in declinit");
+				     return(stmtabs$make_declinit({decls: vars,
+								   expr:  e.bad_expr}));
+				     end;
+		     end;
+	   end;
+	end p_decl_or_assn;
+
+p_expr_stmt = proc (e: env) returns (stmtabs);
+	x: expr := p_expr(e, min_prec);
+	k: token := e.peek_token;
+	tagcase k in
+	   assn: begin
+		 env$next_token(e);
+		 right: expr := p_expr(e, min_prec);
+		 return(stmtabs$make_sugarassn({left:  x,
+						right: right}));
+		 end;
+	   out:  return(stmtabs$make_invoke(p_make_invoke(e, x)));
+	   end;
+	end p_expr_stmt;
+
+p_make_invoke = proc (e: env, x: expr) returns (invoke);
+	abs: exprabs := x.abs;
+	tagcase abs in
+	   invoke: %(abs: invoke):
+		return(abs);
+	   out: begin
+		env$err(e, "preceding expr is not an invoke", minor);
+		return({apply:  e.bad_expr,
+			args:   exprlist$create(1),
+			rename: renaming$make_none(nil)});
+		end;
+	   end;
+	end p_make_invoke;
+
+p_except = proc (e: env, st: stmt) returns (stmt);
+	while true do begin
+		p_semi(e);
+		k: token := e.peek_token;
+		tagcase k in
+		   except_: env$next_token(e);
+		   out:     return(st);
+		   end;
+		st := p_exceptarms(e, st);
+		p_end(e, "END in EXCEPT...END");
+		end;
+	end p_except;
+
+p_exceptarms = proc (e: env, st: stmt) returns (stmtabs);
+	arms: handlerlist := handlerlist$create(1);
+	xs: exceptstmt := {stmt:    st,
+			   arms:    arms,
+			   others_: mothersarm$make_none(nil)};
+	abs := stmtabs$make_except_(xs);
+	while true do begin
+		k: token := env$next_token(e);
+		tagcase k in
+		   when_:   begin
+			    env$next_token(e);
+			    env$new_level(e);
+			    names: namelist := p_namelist(e);
+			    vars: whendecl := p_whendecl(e);
+			    bod: body := p_cbody(e, when_body, ": in WHEN...: body");
+			    handlerlist$addh(arms, {names: names,
+						    vars:  vars,
+						    body:  bod});
+			    env$pop_level(e);
+			    end;
+		   others_: begin
+			    env$next_token(e);
+			    env$new_level(e);
+			    dec: mdecl := p_mdecl(e);
+			    bod: body := p_cbody(e, misc_body, ": in OTHERS...: body");
+			    xs.others_ := mothersarm$make_arm({decl: dec,
+							       body: bod});
+			    env$pop_level(e);
+			    end;
+		   out:     return(abs);
+		   end;
+		end;
+	end p_exceptarms;
+
+p_mdecl = proc (e: env) returns (mdecl);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_paren: env$next_token(e);
+	   out:     return(mdecl$make_none(nil));
+	   end;
+	dec: decl := p_decl(e);
+	if idnlist$size(dec.idns) > 1
+	   then env$err(e, "more than one idn declared", minor);
+	k := e.peek_token;
+	tagcase k in
+	   r_paren: env$next_token(e);
+	   out:     env$assume(e, ") in (idn: type)");
+	   end;
+	return(mdecl$make_decl(dec));
+	end p_mdecl;
+
+p_cbody = proc (e: env, kind: bodykind, assume: str) returns (body);
+	k: token := e.peek_token;
+	tagcase k in
+	   colon: env$next_token(e);
+	   out:   env$assume(e, assume);
+	   end;
+	return(p_body(e, kind));
+	end p_cbody;
+
+p_whendecl = proc (e: env) returns (whendecl);
+	k: token := e.peek_token;
+	tagcase k in
+	   l_paren: env$next_token(e);
+	   out:     return(whendecl$make_none(nil));
+	   end;
+	dec: whendecl;
+	k := e.peek_token;
+	tagcase k in
+	   op: %(k: infixop):
+		tagcase k in
+		   mul: begin
+			env$next_token(e);
+			dec := whendecl$make_star(nil);
+			end;
+		   out: dec := whendecl$make_decls(p_decllist(e));
+		   end;
+	   out: dec := whendecl$make_decls(p_decllist(e));
+	   end;
+	k := e.peek_token;
+	tagcase k in
+	   r_paren: env$next_token(e);
+	   out:     env$assume(e, ") in (decllist) or (*)");
+	   end;
+	return(dec);
+	end p_whendecl;
+
+p_end = proc (e: env, assume: str);
+	k: token := e.peek_token;
+	tagcase k in
+	   end_: env$next_token(e);
+	   out:  env$assume(e, assume);
+	   end;
+	end p_end;
+
+p_find_a_stmt = proc (e: env, kind: bodykind) returns (bool);
+	flushed: bool := false;
+	b: bool := true;
+	found: bool := false;
+	while b do begin
+		k: token := e.peek_token;
+		tagcase k in
+		   else_, elseif_:
+				if kind = then_body then b := false;
+		   tag_:	if kind = tag_body  then b := false;
+		   when_:	if kind = when_body then b := false;
+		   others_:	if cor(kind = tag_body, kind = when_body)
+				   then b := false;
+		   end_, defnkey, returns_, yields_, where_, is_, has_, to_, eof:
+				b := false;
+		   stmtkey, except_:
+				begin
+				found := true;
+				b := false;
+				end;
+		   semi:	begin
+				env$next_token(e);
+				found := true;
+				b := false;
+				end;
+		   out:		;
+		   end;
+		if b
+		   then begin
+			if ~flushed
+			   then begin
+				env$err(e, "looking for a stmt", serious);
+				flushed := true;
+				end;
+			env$next_token(e);
+			end;
+		end;
+	if flushed
+	   then env$err(e, "resuming parse at this point", none);
+	return(found);
+	end p_find_a_stmt;

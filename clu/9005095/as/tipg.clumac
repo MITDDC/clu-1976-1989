@@ -1,0 +1,901 @@
+;CLU Compiler Version 3.72
+
+.symtab 8000.,4095.
+.insrt clusys;alpha >
+;							36
+tdesc t$1,page,[]
+string s$1,no
+tdesc t$2,diskpage,[]
+string s$2,yes
+sdesc t$3,oneof,[s$1,ttype(tnull),s$2,t$2]
+;							page
+cluster page,t$1,t$3,[]
+odlink ov$1,tbool+true
+oduse
+proc f$17
+;							40
+odlink ov$2,tbad
+pcdesc f$18,pagemap$create,0.
+pcall f$18
+odset rr,ov$2
+assn rr,$false
+odset rr,ov$1
+$rtnc $none
+corp page$%%init
+;							42
+ptdesc t$4,[],[t$1],[]
+;							nilpage
+oduse
+proc f$1,[],[],[],t$4,[]
+odget rr,ov$1
+$ift
+$then
+pcdesc f$19,page$%%init,0.
+pcall f$19
+$fi
+;							43
+args [$nil]
+pcdesc f$20,[t$3,make_no],1.
+pcall f$20
+cvtup rr
+$rtn rr
+corp page$nilpage,[]
+;							46
+string s$3,full
+edesc t$5,s$3,[]
+string s$4,negsize
+edesc t$6,s$4,[]
+string s$5,toobig
+edesc t$7,s$5,[]
+ptdesc t$8,[ttype(tint),ttype(tany)],[t$1],[t$5,t$6,t$7]
+;							create
+oduse
+proc f$2,[v$1,v$2],[v$3,v$4,v$5,v$6],[tbad,tbad,tbad,tbad],t$8,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							49
+$if
+args [v$1(er)]
+args [$zero]
+pcdesc f$21,int$lt,2.
+pcall f$21
+$test
+$then
+edesc t$9,s$4,[]
+signal t$9,0.
+$fi
+;							50
+$if
+args [v$1(er)]
+link c$1,tint+256.
+args [c$1(lr)]
+pcdesc f$22,int$gt,2.
+pcall f$22
+$test
+$then
+edesc t$10,s$5,[]
+signal t$10,0.
+$fi
+;							51
+$if
+args [v$1(er)]
+args [$zero]
+pcdesc f$23,int$equal,2.
+pcall f$23
+$test
+$then
+pcdesc f$24,page$nilpage,0.
+pcall f$24
+cvtdown rr
+cvtup rr
+$rtn rr
+$fi
+;							53
+args [v$1(er)]
+pcdesc f$25,findsize,1.
+pcall f$25
+assn v$3(er),rr
+;							55
+vargen x$1,tbad
+$catch x$1(er)
+args [v$3(er)]
+pcdesc f$26,diskpage$allocate,1.
+pcall f$26
+assn v$4(er),rr
+$except x$1(er),[s$3],[],[]
+edesc t$11,s$3,[]
+signal t$11,0.
+$uncatch x$1(er)
+;							56
+args [v$4(er)]
+pcdesc f$27,page$%allocate_mem,1.
+pcall f$27
+assn v$5(er),rr
+;							57
+args [$zero]
+args [v$4(er)]
+pcdesc f$28,diskpage$get_size,1.
+pcall f$28
+args [rr]
+args [$one]
+pcdesc f$29,int$sub,2.
+pcall f$29
+args [rr]
+pcdesc f$30,int$from_to,2.
+pcall f$30
+$for l1,[v$6(er)]
+;							58
+args [v$5(er)]
+args [v$6(er)]
+args [v$2(er)]
+pcdesc f$31,mempage$store,3.
+pcall f$31
+$rof l1
+;							60
+args [v$4(er)]
+pcdesc f$32,[t$3,make_yes],1.
+pcall f$32
+cvtup rr
+$rtn rr
+corp page$create,[minsize,e]
+;							63
+ptdesc t$12,[t$1],[],[]
+;							destroy
+oduse
+proc f$3,[v$7],[v$8],[tbad],t$12,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							64
+assn rr,v$7(er)
+$tagcase rr
+;							65
+$tag [1.]
+;							66
+$tag [2.]
+assn v$8(er),rr
+;							67
+args [v$8(er)]
+pcdesc f$33,page$%free_mem,1.
+pcall f$33
+;							68
+args [v$8(er)]
+pcdesc f$34,diskpage$free,1.
+pcall f$34
+$etagcase
+$rtnc $none
+corp page$destroy,[p]
+;							72
+ptdesc t$13,[t$1,t$1],[ttype(tbool)],[]
+;							equal
+oduse
+proc f$4,[v$9,v$10],[],[],t$13,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							73
+args [v$9(er)]
+args [v$10(er)]
+pcdesc f$35,[t$3,equal],2.
+pcall f$35
+$rtn rr
+corp page$equal,[p1,p2]
+;							76
+ptdesc t$14,[t$1],[ttype(tint)],[]
+;							get_size
+oduse
+proc f$5,[v$11],[v$12],[tbad],t$14,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							77
+assn rr,v$11(er)
+$tagcase rr
+;							78
+$tag [1.]
+assn rr,$zero
+$rtn rr
+;							79
+$tag [2.]
+assn v$12(er),rr
+args [v$12(er)]
+pcall f$28
+$rtn rr
+$etagcase
+corp page$get_size,[p]
+;							83
+string s$6,bounds
+edesc t$15,s$6,[]
+ptdesc t$16,[t$1,ttype(tint)],[ttype(tany)],[t$15]
+;							fetch
+oduse
+proc f$6,[v$13,v$14],[v$15,v$16],[tbad,tbad],t$16,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							84
+assn rr,v$13(er)
+$tagcase rr
+;							85
+$tag [1.]
+edesc t$17,s$6,[]
+signal t$17,0.
+;							86
+$tag [2.]
+assn v$15(er),rr
+;							87
+$if
+args [v$14(er)]
+args [$zero]
+pcall f$21
+args [rr]
+args [v$14(er)]
+args [v$15(er)]
+pcall f$28
+args [rr]
+pcdesc f$36,int$ge,2.
+pcall f$36
+args [rr]
+pcdesc f$37,bool$or,2.
+pcall f$37
+$test
+$then
+edesc t$18,s$6,[]
+signal t$18,0.
+$fi
+;							88
+args [v$15(er)]
+pcdesc f$38,page$%put_in_mem,1.
+pcall f$38
+assn v$16(er),rr
+;							89
+args [v$16(er)]
+args [v$14(er)]
+pcdesc f$39,mempage$fetch,2.
+pcall f$39
+$rtn rr
+$etagcase
+corp page$fetch,[p,i]
+;							93
+edesc t$19,s$6,[]
+ptdesc t$20,[t$1,ttype(tint),ttype(tany)],[],[t$19]
+;							store
+oduse
+proc f$7,[v$17,v$18,v$19],[v$20,v$21],[tbad,tbad],t$20,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							94
+assn rr,v$17(er)
+$tagcase rr
+;							95
+$tag [1.]
+edesc t$21,s$6,[]
+signal t$21,0.
+;							96
+$tag [2.]
+assn v$20(er),rr
+;							97
+$if
+args [v$18(er)]
+args [$zero]
+pcall f$21
+args [rr]
+args [v$18(er)]
+args [v$20(er)]
+pcall f$28
+args [rr]
+pcall f$36
+args [rr]
+pcall f$37
+$test
+$then
+edesc t$22,s$6,[]
+signal t$22,0.
+$fi
+;							98
+args [v$20(er)]
+pcall f$38
+assn v$21(er),rr
+;							99
+args [v$21(er)]
+args [v$18(er)]
+args [v$19(er)]
+pcall f$31
+$etagcase
+$rtnc $none
+corp page$store,[p,i,e]
+;							107
+tdesc t$23,mempage,[]
+ptdesc t$24,[t$2],[t$23],[]
+;							%allocate_mem
+oduse
+proc f$8,[v$22],[v$23,v$24],[tbad,tbad],t$24,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							108
+args [v$22(er)]
+pcdesc f$40,diskpage$get_sizeno,1.
+pcall f$40
+assn v$23(er),rr
+;							109
+$loop
+;							114
+vargen x$2,tbad
+$catch x$2(er)
+args [v$23(er)]
+pcdesc f$41,mempage$allocate,1.
+pcall f$41
+assn v$24(er),rr
+odget rr,ov$2
+args [rr]
+args [v$22(er)]
+args [v$24(er)]
+pcdesc f$42,pagemap$enter,3.
+pcall f$42
+assn rr,v$24(er)
+$rtn rr
+$except x$2(er),[s$3],[],[]
+;							115
+pcdesc f$43,page$%do_page_replacement,0.
+pcall f$43
+$uncatch x$2(er)
+$pool
+$label l2
+corp page$%allocate_mem,[d]
+;							123
+ptdesc t$25,[t$2],[],[]
+;							%free_mem
+oduse
+proc f$9,[v$25],[v$26],[tbad],t$25,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							125
+vargen x$3,tbad
+$catch x$3(er)
+odget rr,ov$2
+args [rr]
+args [v$25(er)]
+pcdesc f$44,pagemap$lookup,2.
+pcall f$44
+assn v$26(er),rr
+string s$7,not_there
+$except x$3(er),[s$7],[],[]
+$rtnc $none
+$uncatch x$3(er)
+;							126
+odget rr,ov$2
+args [rr]
+args [v$25(er)]
+pcdesc f$45,pagemap$remove,2.
+pcall f$45
+;							127
+args [v$26(er)]
+pcdesc f$46,mempage$free,1.
+pcall f$46
+$rtnc $none
+corp page$%free_mem,[d]
+;							130
+;							%put_in_mem
+oduse
+proc f$10,[v$27],[v$28],[tbad],t$24,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							132
+vargen x$4,tbad
+$catch x$4(er)
+odget rr,ov$2
+args [rr]
+args [v$27(er)]
+pcall f$44
+assn v$28(er),rr
+$except x$4(er),[s$7],[],[]
+;							133
+args [v$27(er)]
+pcall f$27
+assn v$28(er),rr
+;							134
+args [v$27(er)]
+args [v$28(er)]
+pcdesc f$47,page$%swapin,2.
+pcall f$47
+$uncatch x$4(er)
+;							136
+assn rr,v$28(er)
+$rtn rr
+corp page$%put_in_mem,[d]
+;							144
+ptdesc t$26,[],[],[]
+;							%do_page_replacement
+oduse
+proc f$11,[],[v$29],[tbad],t$26,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							146
+odget rr,ov$2
+args [rr]
+pcdesc f$48,pagemap$elements,1.
+pcall f$48
+$for l3,[v$29(er)]
+;							147
+args [v$29(er)]
+pcdesc f$49,page$%write_to_disk,1.
+pcall f$49
+$rof l3
+$rtnc $none
+corp page$%do_page_replacement,[]
+;							151
+;							%write_to_disk
+oduse
+proc f$12,[v$30],[v$31],[tbad],t$25,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							153
+vargen x$5,tbad
+$catch x$5(er)
+odget rr,ov$2
+args [rr]
+args [v$30(er)]
+pcall f$44
+assn v$31(er),rr
+$except x$5(er),[s$7],[],[]
+$rtnc $none
+$uncatch x$5(er)
+;							154
+args [v$30(er)]
+args [v$31(er)]
+pcdesc f$50,page$%swapout,2.
+pcall f$50
+;							155
+args [v$30(er)]
+pcall f$33
+$rtnc $none
+corp page$%write_to_disk,[d]
+;							158
+ptdesc t$27,[t$2,t$23],[],[]
+;							%swapin
+oduse
+proc f$13,[v$32,v$33],[v$34,v$35,v$36],[tbad,tbad,tbad],t$27,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							159
+args [v$32(er)]
+pcdesc f$51,diskpage$read,1.
+pcall f$51
+assn v$34(er),rr
+;							160
+assn v$35(er),$zero
+;							161
+args [v$34(er)]
+tdesc t$28,array,[ttype(tany)]
+pcdesc f$52,[t$28,elements],1.
+pcall f$52
+$for l4,[v$36(er)]
+;							162
+args [v$33(er)]
+args [v$35(er)]
+args [v$36(er)]
+pcall f$31
+;							163
+args [v$35(er)]
+args [$one]
+pcdesc f$53,int$add,2.
+pcall f$53
+assn v$35(er),rr
+$rof l4
+$rtnc $none
+corp page$%swapin,[d,m]
+;							167
+;							%swapout
+oduse
+proc f$14,[v$37,v$38],[v$39,v$40],[tbad,tbad],t$27,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							168
+pcdesc f$54,[t$28,new],0.
+pcall f$54
+assn v$39(er),rr
+;							169
+args [$zero]
+args [v$37(er)]
+pcall f$28
+args [rr]
+args [$one]
+pcall f$29
+args [rr]
+pcall f$30
+$for l5,[v$40(er)]
+;							170
+args [v$39(er)]
+args [v$38(er)]
+args [v$40(er)]
+pcall f$39
+args [rr]
+pcdesc f$55,[t$28,addh],2.
+pcall f$55
+$rof l5
+;							172
+args [v$37(er)]
+args [v$39(er)]
+pcdesc f$56,diskpage$write,2.
+pcall f$56
+$rtnc $none
+corp page$%swapout,[d,m]
+;							179
+tdesc t$29,stream,[]
+ptdesc t$30,[t$1,t$29],[],[]
+;							print
+oduse
+proc f$15,[v$41,v$42],[v$43],[tbad],t$30,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							180
+assn rr,v$41(er)
+$tagcase rr
+;							181
+$tag [1.]
+string s$8,Null
+link c$2,s$8
+args [c$2(lr)]
+args [v$42(er)]
+pcdesc f$57,stream$puts,2.
+pcall f$57
+;							182
+$tag [2.]
+assn v$43(er),rr
+;							183
+args [v$43(er)]
+args [v$42(er)]
+pcdesc f$58,diskpage$print,2.
+pcall f$58
+$etagcase
+$rtnc $none
+corp page$print,[p,s]
+;							187
+ptdesc t$31,[t$29],[],[]
+;							print_pagemap
+oduse
+proc f$16,[v$44],[],[],t$31,[]
+odget rr,ov$1
+$ift
+$then
+pcall f$19
+$fi
+;							188
+odget rr,ov$2
+args [rr]
+args [v$44(er)]
+pcdesc f$59,pagemap$print,2.
+pcall f$59
+$rtnc $none
+corp page$print_pagemap,[s]
+retsulc page
+;							197
+tdesc t$32,pagemap,[]
+string s$9,name
+string s$10,value
+sdesc t$33,record,[s$9,t$2,s$10,t$23]
+tdesc t$34,array,[t$33]
+;							pagemap
+cluster pagemap,t$32,t$34,[]
+;							203
+ptdesc t$35,[],[t$32],[]
+;							create
+proc f$60,[],[],[],t$35,[]
+;							204
+pcdesc f$66,[t$34,new],0.
+pcall f$66
+cvtup rr
+$rtn rr
+corp pagemap$create,[]
+;							207
+string s$11,duplicate_entry
+edesc t$36,s$11,[]
+ptdesc t$37,[t$32,t$2,t$23],[],[t$36]
+;							enter
+proc f$61,[v$45,v$46,v$47],[v$48],[tbad],t$37,[]
+;							208
+args [v$45(er)]
+pcdesc f$67,[t$34,elements],1.
+pcall f$67
+$for l6,[v$48(er)]
+;							209
+$if
+args [v$48(er)]
+pcdesc f$68,[t$33,get_name],1.
+pcall f$68
+args [rr]
+args [v$46(er)]
+pcdesc f$69,diskpage$equal,2.
+pcall f$69
+$test
+$then
+edesc t$38,s$11,[]
+signal t$38,0.
+$fi
+$rof l6
+;							211
+args [v$45(er)]
+args [v$46(er)]
+args [v$47(er)]
+recgen [2.,1.]
+args [rr]
+pcdesc f$70,[t$34,addh],2.
+pcall f$70
+$rtnc $none
+corp pagemap$enter,[pm,d,m]
+;							214
+edesc t$39,s$7,[]
+ptdesc t$40,[t$32,t$2],[t$23],[t$39]
+;							lookup
+proc f$62,[v$49,v$50],[v$51],[tbad],t$40,[]
+;							215
+args [v$49(er)]
+pcall f$67
+$for l7,[v$51(er)]
+;							216
+$if
+args [v$51(er)]
+pcall f$68
+args [rr]
+args [v$50(er)]
+pcall f$69
+$test
+$then
+args [v$51(er)]
+pcdesc f$71,[t$33,get_value],1.
+pcall f$71
+$rtn rr
+$fi
+$rof l7
+;							218
+edesc t$41,s$7,[]
+signal t$41,0.
+corp pagemap$lookup,[pm,d]
+;							221
+ptdesc t$42,[t$32,t$2],[],[]
+;							remove
+proc f$63,[v$52,v$53],[v$54,v$55],[tbad,tbad],t$42,[]
+;							222
+args [v$52(er)]
+pcdesc f$72,[t$34,indexes],1.
+pcall f$72
+$for l8,[v$54(er)]
+;							223
+$if
+args [v$52(er)]
+args [v$54(er)]
+pcdesc f$73,[t$34,fetch],2.
+pcall f$73
+args [rr]
+pcall f$68
+args [rr]
+args [v$53(er)]
+pcall f$69
+$test
+$then
+;							224
+args [v$52(er)]
+pcdesc f$74,[t$34,remh],1.
+pcall f$74
+assn v$55(er),rr
+;							225
+$if
+args [v$55(er)]
+pcall f$68
+args [rr]
+args [v$53(er)]
+pcall f$69
+args [rr]
+pcdesc f$75,bool$not,1.
+pcall f$75
+$test
+$then
+;							226
+args [v$52(er)]
+args [v$54(er)]
+args [v$55(er)]
+pcdesc f$76,[t$34,store],3.
+pcall f$76
+$fi
+;							228
+$rtnc $none
+$fi
+$rof l8
+$rtnc $none
+corp pagemap$remove,[pm,d]
+;							233
+itdesc t$43,[t$32],[t$2],[]
+;							elements
+iter f$64,[v$56],[v$57],[tbad],t$43,[]
+;							234
+args [v$56(er)]
+pcall f$67
+$for l9,[v$57(er)]
+;							235
+args [v$57(er)]
+pcall f$68
+$yield rr
+$rof l9
+$rtnc $none
+reti pagemap$elements,[pm]
+;							243
+ptdesc t$44,[t$32,t$29],[],[]
+;							print
+proc f$65,[v$58,v$59],[v$60],[tbad],t$44,[]
+;							244
+string s$12,Pagemap:
+link c$3,s$12
+args [c$3(lr)]
+args [v$59(er)]
+pcdesc f$77,stream$putl,2.
+pcall f$77
+;							245
+args [v$58(er)]
+pcall f$67
+$for l10,[v$60(er)]
+;							246
+string s$13,  name=
+link c$4,s$13
+args [c$4(lr)]
+args [v$59(er)]
+pcall f$57
+;							247
+args [v$60(er)]
+pcall f$68
+args [rr]
+args [v$59(er)]
+pcall f$58
+;							248
+string s$14,  value=
+link c$5,s$14
+args [c$5(lr)]
+args [v$59(er)]
+pcall f$57
+;							249
+args [v$60(er)]
+pcall f$71
+args [rr]
+args [v$59(er)]
+pcdesc f$78,mempage$print,2.
+pcall f$78
+;							250
+args [$nulls]
+args [v$59(er)]
+pcall f$77
+$rof l10
+;							252
+args [$nulls]
+args [v$59(er)]
+pcall f$77
+$rtnc $none
+corp pagemap$print,[pm,s]
+retsulc pagemap
+cluster
+;							261
+string s$15,badsize
+edesc t$45,s$15,[]
+ptdesc t$46,[ttype(tint)],[ttype(tint)],[t$45]
+;							findsize
+proc f$79,[v$61],[v$62],[tbad],t$46,[]
+;							268
+$if
+args [v$61(er)]
+args [$zero]
+pcall f$21
+$test
+$then
+edesc t$47,s$15,[]
+signal t$47,0.
+$fi
+;							269
+$if
+args [v$61(er)]
+args [$zero]
+pcall f$23
+$test
+$then
+assn rr,$zero
+$rtn rr
+$fi
+;							270
+args [$one]
+link c$6,tint+8.
+args [c$6(lr)]
+pcall f$30
+$for l11,[v$62(er)]
+;							271
+$if
+args [v$61(er)]
+args [$two]
+args [v$62(er)]
+pcdesc f$80,int$power,2.
+pcall f$80
+args [rr]
+pcdesc f$81,int$le,2.
+pcall f$81
+$test
+$then
+assn rr,v$62(er)
+$rtn rr
+$fi
+$rof l11
+;							273
+edesc t$48,s$15,[]
+signal t$48,0.
+corp findsize,[size]
+;							276
+;							sizetab
+proc f$82,[v$63],[],[],t$46,[]
+;							280
+$if
+args [v$63(er)]
+args [$zero]
+pcall f$21
+$iff
+$then
+args [v$63(er)]
+args [c$6(lr)]
+pcall f$22
+$fi
+$test
+$then
+edesc t$49,s$15,[]
+signal t$49,0.
+$fi
+;							281
+$if
+args [v$63(er)]
+args [$zero]
+pcall f$23
+$test
+$then
+assn rr,$zero
+$rtn rr
+$fi
+;							282
+args [$two]
+args [v$63(er)]
+pcall f$80
+$rtn rr
+corp sizetab,[sizeno]
+retsulc
+
+.insrt clusys;omega >

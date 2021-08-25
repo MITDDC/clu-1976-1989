@@ -1,0 +1,500 @@
+%	TOP2 CLU
+%
+%	CLU Compiler Version 3: top level
+
+# include "clucmp;toplev equate"
+
+compile = proc (mode: int, fs: str, comp: CE, tyo: file);
+	sec, msec, usec: int := runt();
+	sec2: int := 0; msec2: int := 0; usec2: int := 0;
+	e: stuff := setup_stuff(mode, fs, comp, tyo);
+	   except when open_failed: return; end;
+	allok: bool;
+	if mode = parse_
+	   then allok := do_parse(e);
+	elseif mode = check_
+	   then allok := do_check(e);
+	elseif mode = specs_
+	   then allok := do_specs(e);
+	elseif mode = ce_
+	   then allok := do_ce(e);
+	else allok := do_compile(e); end;
+	file$close(e.inf);
+	file$close(e.genf);
+	outf: file := e.outf;
+	if allok  cand  mode = binary_
+	   then allok, sec2, msec2, usec2 := do_assemble(e.ifs, outf); end;
+	if outf ~= tyo
+	   then	ofs: str := file$filename(outf);
+		file$close(outf);
+		if allok then file$delete(ofs); end;
+	   end;
+	sec1, msec1, usec1: int := runt();
+	sec, msec, usec := longsub(sec1, msec1, usec1, sec, msec, usec);
+	sec, msec, usec := longadd(sec, msec, usec, sec2, msec2, usec2);
+	time: str := time_format(sec, msec, usec);
+	file$puts(tyo, "time = ");
+	file$puts(tyo, time);
+	file$putc(tyo, '\n');
+	update_stats(e.ifs, time, mode, allok);
+	end compile;
+
+setup_stuff = proc (mode: int, fs: str, comp: CE, tyo: file) returns (stuff)
+								signals (open_failed);
+	CE$reset(comp);
+	inf: file := get_input_file(fs, "clu", tyo);
+	   except when open_failed: signal open_failed; end;
+	ifs: str := file$filename(inf);
+	outf: file;
+	if tyo = file$tyo()
+	   then	outf := get_output_file(ifs, "errors", tyo);
+		   except when open_failed: file$close(inf);
+					    signal open_failed;
+			  end;
+		file$script_file(outf, tyo);
+	   else outf := tyo;
+	   end;
+	genf: file;
+	if mode = clumac_  cor  mode = binary_
+	   then genf := get_output_file(ifs, "clumac", outf);
+	   else genf := file$open_write("nul:");
+	   end;
+	   except when open_failed: file$close(inf);
+				    file$close(outf);
+				    signal open_failed;
+		  end;
+	ep: p_env := get_parser_env(comp, inf, outf);
+	ec: c_env := get_checker_env(comp, outf);
+	eg: g_env := get_generator_env(comp, outf, genf);
+	file$putc(outf, '\n');
+	if mode = parse_
+	   then file$puts(outf, "Parsing");
+	elseif mode = check_
+	   then file$puts(outf, "Checking");
+	elseif mode = clumac_
+	   then file$puts(outf, "Producing CLUMAC for");
+	elseif mode = binary_
+	   then file$puts(outf, "Compiling");
+	elseif mode = specs_
+	   then file$puts(outf, "Creating DU specs from");
+	else file$puts(outf, "Adding to CE from"); end;
+	file$putc(outf, ' ');
+	file$puts(outf, ifs);
+	file$puts(outf, "\n\n");
+	return(stuff${ce:   comp,
+		      penv: ep,
+		      cenv: ec,
+		      genv: eg,
+		      inf:  inf,
+		      ifs:  ifs,
+		      outf: outf,
+		      genf: file});
+	end setup_stuff;
+
+do_parse = proc (e: stuff) returns (bool);
+	allok: bool := true;
+	while true do
+		def: definition, ok: int := parse_one(e);
+		  except when eof: return(allok); end;
+		if ok > no_errs_
+		   then allok := false; end;
+		end;
+	end do_parse;
+
+do_check = proc (e: stuff) returns (bool);
+	allok: bool := true;
+	while true do
+		def: definition, ok: int := parse_one(e);
+		  except when eof: return(allok); end;
+		if ~(ok < bad_errs_  cand  check_one(e, def, ok = no_errs_))
+		   then allok := false; end;
+		end;
+	end do_check;
+
+do_compile = proc (e: stuff) returns (bool);
+	allok: bool := true;
+	while true do
+		def: definition, ok: int := parse_one(e);
+		go: bool := ok = no_errs_  cor ~value$is_none(value$id(".allow"));
+		if ~(ok < bad_errs_  cand
+		     check_one(e, def, go)  cand
+		     generate_one(e, def))
+		   then allok := false; end;
+		end; except when eof: ; end;
+	g_env$end_all(e.genv);
+	return(allok);
+	end do_compile;
+
+do_assemble = proc (fs: str, outf: file) returns (bool, int, int, int);
+	gfs: str := quote_char('_', make_output(fs, "clumac"));
+	nm2: str := force[str](value$id(".binary_name2"));
+	bfs: str := quote_char('_', make_output(fs, nm2));
+	efs: str := make_output(fs, "err");
+	jcl: str := bfs || "_" || gfs || "(we)";
+	j: job := job$create("sys;ts midas", jcl);
+	   except when open_failed:
+			file$puts(outf, "couldn't create assembler\n");
+			return(false, 0, 0, 0);
+		  end;
+	job$start(j);
+	job$wait(j);
+	job$kill(j);
+	sec, msec, usec: int := job$runtime(j);
+	f: file := file$open_read(efs);
+	   except when open_failed:
+			file$puts(outf, "can't find assembly error file\n");
+			return(false, sec, msec, usec);
+		  end;
+	while ~file$eof(f) do
+		if str$indexs("START", file$gets(f, '\n')) > 0
+		   then	file$close(f);
+			dump_file(efs, outf, outf);
+			file$delete(efs);
+			return(false, sec, msec, usec);
+		   end;
+		end;
+	file$close(f);
+	file$delete(efs);
+	file$delete(gfs);
+	return(true, sec, msec, usec);
+	end do_assemble;
+
+quote_char = proc (c: char, s: str) returns (str);
+	x: int := str$indexc(c, s);
+	if x > 0
+	   then s := str$append(str$append(str$substr(s, 1, x - 1), '\021'), c) ||
+		     quote_char(c, str$rest(s, x + 1));
+	   end;
+	return(s);
+	end quote_char;
+
+do_specs = proc (e: stuff) returns (bool);
+	allok1: bool := true;
+	allok2: bool := true;
+	mdefs: mdeflist := mdeflist$create(1);
+	def: definition;  ok: int;  md: mdef;
+	while true do
+		def, ok := parse_one(e);
+		if ok = no_errs_
+		   then	ok, md := specs_one(e, def);
+			if ok = bad_
+			   then allok1 := false;
+			elseif ok = wait_
+			   then mdeflist$addh(mdefs, md);
+			elseif ok = install_
+			   then install_specs(md); end;
+		   else allok1 := false;
+			if ok = minor_errs_
+			   then check_one1(e, def); end;
+		   end;
+		end; except when eof: ; end;
+	if mdeflist$size(mdefs) = 0
+	   then return(allok1); end;
+	CE$reset(e.ce);
+	for md in mdeflist$elements(mdefs) do
+		md.gen.mspecs := md.mspecs;
+		end;
+	for md in mdeflist$elements(mdefs) do
+		def := md.def;
+		output_header(def, e.outf);
+		ok, md := specs_one(e, def);
+		if ok = wait_  cand  value$is_none(value$id(".allow"))
+		   then	file$puts(e.outf, "undefined abstractions used\n");
+			allok2 := false;
+		elseif ok = bad_
+		   then allok2 := false; end;
+		end;
+	if allok2
+	   then for md in mdeflist$elements(mdefs) do
+			if ~definition$is_equates(md.def)
+			   then install_specs(md); end;
+			end;
+	   end;
+	return(allok1 & allok2);
+	end do_specs;
+
+install_specs = proc (md: mdef);
+	gen: DUfake := md.gen;
+	specs: mspecs := md.mspecs;
+	gen.mspecs := specs;
+	tagcase specs
+	   tag specs (ds: DUspecs):
+		   DU$add_specs(gen.du, ds);
+	   others: ;
+	   end;
+	end install_specs;
+
+specs_one = proc (e: stuff, def: definition) returns (int, mdef);
+	undefs: DUfakelist, ok: bool := check_one1(e, def);
+	res: int := install_;
+	gen: DUfake;
+	tagcase def
+	   tag equates:
+		gen := ec.proc_fake;
+		res := equates_;
+	   tag apply (d: applydefn):
+		gen := c_module_idn(d.idn);
+	   tag cluster_, selector_, atype (d: typedefn):
+		gen := c_module_idn(d.idn);
+	   end;
+	specs: mspecs := gen.mspecs;
+	if res = install_
+	   then gen.mspecs := mspecs$make_none(nil); end;
+	md: mdef := mdef${def:    def,
+			  gen:    gen,
+			  mspecs: specs};
+	if ~ok
+	   then res := bad_;
+	% Eventually check if specs already exist
+	elseif DUfakelist$size(undefs) > 0
+	   then res := wait_; end;
+	return(res, md);
+	end specs_one;
+
+do_ce = proc (e: stuff) returns (bool);
+	def: definition, ok: int := parse_one(e);
+	   except when eof: return(true); end;
+	tagcase def
+	   tag equates (eqs: equatelist):
+		if ok < bad_errs_
+		   then	if ~file$eof(inf)
+			   then file$puts(outf, "file has more than equates\n"); end;
+			if check_one(ec, def, outf, ok = no_errs_)
+			   then return(add_ce_entries(e, eqs)); end;
+		   end;
+	   others:
+		file$puts(outf, "file does not have equates!\n");
+	   end;
+	return(false);
+	end do_ce;
+
+add_ce_entries = proc (e: stuff, equates: equatelist) returns (bool);
+	comp: CE := e.ce;
+	outf: file := e.outf;
+	CE$reset_entries(comp);
+	ok: bool := true;
+	for eq: equate in equatelist$elements(equates) do
+		i: idn := eq.idn;
+		CE$add_entry(comp, i);
+		   except when already_exists:
+				file$puts(outf, "value for '");
+				file$puts(outf, i.str);
+				file$puts(outf, "' already exists\n");
+				ok := false;
+			  end;
+		end;
+	CE$keep(comp);
+	return(ok);
+	end add_ce_entries;
+
+get_parser_env = proc (comp: CE, inf: file, outf: file) returns (p_env);
+	v: any := value$id(".parser_environment");
+	pe: p_env;
+	if value$is_none(v)
+	   then	pe := p_env$create(comp, inf, outf);
+		value$assn(".parser_environment", pe);
+	   else pe := force[p_env](v);
+		p_env$reset(pe, comp, inf, outf);
+	   end;
+	return(pe);
+	end get_parser_env;
+
+get_checker_env = proc (comp: CE, outf: file) returns (c_env);
+	v: any := value$id(".checker_environment");
+	che: c_env;
+	if value$is_none(v)
+	   then	che := c_env$create(comp, outf);
+		value$assn(".checker_environment", che);
+	   else che := force[c_env](v);
+		c_env$reset(che, comp, outf);
+	   end;
+	return(che);
+	end get_checker_env;
+
+get_generator_env = proc (comp: CE, outf: file, genf: file) returns (g_env);
+	v: any := value$id(".generator_environment");
+	eg: g_env;
+	if value$is_none(v)
+	   then	eg := g_env$create(comp, outf, genf);
+		value$assn(".generator_environment", eg);
+	   else eg := force[g_env](v);
+		g_env$reset(eg, comp, outf, genf);
+	   end;
+	return(eg);
+	end get_generator_env;
+
+parse_one = proc (e: stuff) returns (definition, int) signals (eof);
+	ep: p_env := e.penv;
+	def: definition := p_definition(ep);
+	    except when eof: signal eof; end;
+	err: int := ep.err;
+	p_env$reset_err(ep);
+	output_header(def, outf);
+	return(def, err);
+	end parse_one;
+
+output_header =  proc (def: definition, outf: file);
+	s: name;
+	tagcase def
+	   tag equates:
+		s := "equates";
+	   tag apply (d: applydefn):
+		s := d.idn.str;
+	   tag cluster_, selector_, atype (d: typedefn):
+		s := d.idn.str;
+	   end;
+	file$puts(outf, s);
+	file$puts(outf, ":\n");
+	end output_header;
+
+check_one = proc (e: stuff, def: definition, go: bool) returns (bool);
+	undefs: DUfakelist, ok: bool := check_one1(e, def);
+	if ~(ok  cand  go)
+	   then return(false); end;
+	mod: idn;
+	tagcase def
+	   tag equates:
+		return(ok);
+	   tag apply (d: applydefn):
+		mod := d.idn;
+	   tag cluster_, selector_, atype (d: typedefn):
+		mod := d.idn;
+	   end;
+	gen: DUfake := c_module_idn(mod);
+	specs: mspecs := gen.mspecs;
+	tagcase specs
+	   tag specs (ds: DUspecs):
+		   DU$add_specs(gen.du, ds);
+			except when specs_exist: ; end;
+	   others: ;
+	   end;
+	return(ok);
+	end check_one;
+
+check_one1 = proc (e: stuff, def: definition) returns (DUfakelist, bool);
+	ec: c_env := e.cenv;
+	outf: file := e.outf;
+	c_definition(ec, def);
+	err: int := ec.err;
+	c_env$end_reset(ec, definition$is_equates(def));
+	exts: idnlist := c_env$pop_externals(ec);
+	undefs: DUfakelist := c_env$pop_undefined(ec);
+	output_externals(exts, outf);
+	output_undefined(undefs, exts, outf);
+	file$putc(outf, '\n');
+	remove_externals(def, exts);
+	for d: DUfake in DUfakelist$elements(undefs) do
+		d.mspecs := mspecs$make_none(nil);
+		end;
+	return(undefs, err < 2);
+	end check_one1;
+
+output_externals = proc (exts: idnlist, outf: file);
+	if idnlist$size(exts) = 0
+	   then return; end;
+	file$puts(outf, "External: ");
+	z: int := 0;
+	for i: idn in idnlist$elements(exts) do
+		n: name := i.str;
+		z1: int := name$size(n);
+		z := z + z1 + 1;
+		if z > 60
+		   then	z := z1;
+			file$puts(outf, "\n\t  ");
+		   end;
+		file$putc(outf, ' ');
+		file$puts(outf, n);
+		end;
+	file$putc(outf, '\n');
+	end output_externals;
+
+output_undefined = proc (undefs: DUfakelist, exts: idnlist, outf: file);
+	if DUfakelist$size(undefs) = 0
+	   then return; end;
+	first: bool := true;
+	z: int := 0;
+	for d: DUfake in DUfakelist$elements(undefs) do
+		if is_internal(d.common, exts)
+		   then	if first
+			   then	file$puts(outf, "Undefined:");
+				first := false;
+			   end;
+			n: name := d.unique;
+			z1: int := name$size(n);
+			z := z + z1 + 1;
+			if z > 60
+			   then	z := z1;
+				file$puts(outf, "\n\t  ");
+			   end;
+			file$putc(outf, ' ');
+			file$puts(outf, n);
+		   end;
+		end;
+	file$putc(outf, '\n');
+	end output_undefined;
+
+is_internal = proc (n: name, exts: idnlist) returns (bool);
+	for i: idn in idnlist$elements(exts) do
+		if n = i.str then return (false); end;
+		end;
+	return(true);
+	end is_internal;
+
+remove_externals = proc (def: definition, exts: idnlist);
+	mod: idn;
+	tagcase def
+	   tag equates:
+		return;
+	   tag apply (d: applydefn):
+		mod := d.idn;
+	   tag cluster_, selector_, atype (d: typedefn):
+		mod := d.idn;
+	   end;
+	k: idnkind := mod.kind;
+	uk: idnkind := idnkind$make_unknown(nil);
+	for i: idn in idnlist$elements(exts) do
+		i.kind := uk;
+		end;
+	mod.kind := k;
+	end remove_externals;
+
+generate_one = proc (e: stuff, def: definition) returns (bool);
+	eg: g_env := e.genv;
+	g_definition(eg, def);
+	err: int := eg.err;
+	g_env$reset_err(eg);
+	return(err = 0);
+	end generate_one;
+
+update_stats = proc (ifs: str, runt: str, mode: int, allok: bool);
+	f: file := file$open_append("clu;dsk:clucmp stat");
+	   except when open_failed: return; end;
+	file$puts(f, force[str](value$id(".compiler_version")));
+	if mode = parse_
+	   then file$putc(f, 'P');
+	elseif mode = check_
+	   then file$putc(f, 'C');
+	elseif mode = clumac_
+	   then file$putc(f, 'M');
+	elseif mode = binary_
+	   then file$putc(f, 'B');
+	elseif mode = specs_
+	   then file$putc(f, 'S');
+	else file$putc(f, 'E'); end;
+	if ~allok
+	   then file$putc(f, 'e'); end;
+	file$putc(f, '\t');
+	file$puts(f, xuname());
+	file$putc(f, '\t');
+	date, time: str := date_time();
+	file$puts(f, date);
+	file$putc(f, ' ');
+	file$puts(f, str$substr(time, 1, 5));
+	file$putc(f, '\t');
+	x: int := str$indexc(' ', runt);
+	file$puts(f, str$substr(runt, 1, x - 1));
+	file$putc(f, '\t');
+	file$puts(f, ifs);
+	file$putc(f, '\n');
+	file$close(f);
+	end update_stats;

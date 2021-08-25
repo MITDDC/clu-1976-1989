@@ -1,0 +1,47 @@
+{
+    "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+    "@type": "SoftwareSourceCode",
+    "codeRepository": "https://github.com/MITDDC/clu-1976-1989",
+    "dateCreated": "1976-07-03",
+    "name": "CLU",
+    "description": "A set of files that can be used to create a working version of an early version of the CLU programming language.",
+    "applicationCategory": "Computer Science",
+    "developmentStatus": "unsupported",
+    "isPartOf": "https://archivesspace.mit.edu/repositories/2/resources/1265",
+    "keywords": [
+        "Programming Language"
+    ],
+    "programmingLanguage": [
+        "CLU"
+    ],
+    "operatingSystem": [
+        "ITS"
+    ],
+    "contributor": [
+        {
+            "@type": "Person",
+            "givenName": "Barbara",
+            "familyName": "Liskov",
+            "email": "liskov@csail.mit.edu",
+            "affiliation": {
+                "@type": "Organization",
+                "name": "Massachusetts Institute of Technology"
+            }
+        },
+        {
+            "@type": "Person",
+            "givenName": "Russ",
+            "familyName": "Atkinson"
+        },
+        {
+            "@type": "Person",
+            "givenName": "Craig",
+            "familyName": "Schaffert"
+        },
+        {
+            "@type": "Person",
+            "givenName": "Alan",
+            "familyName": "Snyder"
+        }
+    ]
+}

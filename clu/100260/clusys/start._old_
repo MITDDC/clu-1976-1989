@@ -1,0 +1,526 @@
+loc	syslo
+nulls$==.	; MUST be at syslo !!!!
+tsrep
+0
+skippy:	twvec+skplen		; This causes GC to skip the next words
+;	global locations for routines to use
+gcon	$tyo,tchan+ttyocn	; default tty output
+gcon	$tyi,tchan+ttyicn	; default tty input
+gcon	$work,trel+work$	; a page to work with
+gcon	$ents,tref+ents$
+
+define	trent	name,info,cause
+	jsp	r0,tracer
+	0
+	jrst	name+1
+	info
+	strlit	cause
+	termin
+
+tr.jsp==0
+tr.xct==1
+tr.fix==2
+tr.inf==3
+tr.str==4
+tr.nxt==5
+
+;	Here is the data used to initially clear some memory
+brinit:	gclo,,gclo+1		; when this is clear, all is clear
+memget:	setz
+	sixbit	/corblk/
+	movei	%cbndw+%cbndr
+	movei	-1
+	move	n1
+	setzi	%jsnew
+
+trtab:	0	; the global tracing flag & fixup table
+	0	; the global trace routine to call
+		; must get fixed specially for GC
+	trent	set.t,	0,enter
+	trent	qset.t,	0,enter
+	trent	exiter,	0,exit
+	trent	mexit,	0,exit
+	trent	yield,	0,yield
+	trent	myield,	0,yield
+	trent	resume,	0,resume
+	trent	sigout,	0,signal
+	0 ? 0 ? 0 ? 0 ? 0
+
+skplen==.-skippy
+
+cluster	%start,0,0
+
+proc	.base,[]
+	$go	doit
+start:	movei	sp,stack+1
+	move	er,sp				; and the pseudo-frame at bottom
+	setzm	(er)
+	movei	mr,.base
+	hrlzm	mr,-1(er)
+	move	pr,en.lpr(mr)
+	movs	lr,pr
+	.open	ttyicn,1+[twvec+5 ? sixbit /   tty/ ? sixbit /tty/ ? sixbit /in/ ? 0 ]
+	setz
+	.open	ttyocn,1+[twvec+5 ? sixbit /  1tty/ ? sixbit /tty/ ? sixbit /out/ ? 0 ]
+	setz
+
+	$if	skipn	br,brinit			; ensure clear gc-mem
+	$then	movei	n1,gclo/pgsize
+		hrli	n1,-memlen/pgsize
+		.call	memget		; ask system for initial memory
+		croak	Can't get initial memory!
+		setzm	gclo		; clear the first word
+		blt	br,gchi		; and all others
+		setzm	brinit		; DON'T do it again!
+	$fi
+
+;	Here we setup the MPV handler.
+	movei	r0,int.tb
+	hrli	r0,-int.sz
+	movem	r0,42		; set the interrupt vector
+	hrrz	r1,pr
+	movei	r0,mpv.su
+	hrli	r0,-mpv.sx
+	.suset	r0		; set the options
+	jrst	ready		; make us ready to go
+
+mpv.in:	hrrz	r0,$memhi	; r0 is highest free addr + 1
+	hrrz	r1,$memlo	; r1 is lowest free addr
+	camge	r0,r1		; if highest < lowest
+	jrst	mpv.i1		; then more mem needed
+	hrli	sp,(tref)
+	camge	sp,$stkhi	; test for stack error
+	pushj	sp,mpvout	; not an alloc error or a stack error
+	hrrz	r0,$stkhi
+	aos	r0
+	caile	r0,-4*pgsize(r1); test for collision with free mem
+	pushj	sp,memout	; collision means death
+	idivi	r0,pgsize	; page to allocate
+	hrro	n1,r0		; allocate one page (-1 in LH)
+	.call	memget		; call to allocate that page
+	pushj	sp,memout	; croak on no memory
+	move	r0,$stkhi
+	aos	r0
+	setzm	(r0)		; clear the first word
+	movei	br,1(r0)
+	hrl	br,r0
+	blt	br,pgsize-1(r0)	; clear the stack page
+	movei	n1,pgsize
+	addm	n1,$stkhi	; show the new limit
+	jrst	mpv.ex		; and go back to user
+;	We get here when we know that an alloc failed to get mem.
+; New pages are required, otherwise we can't continue.
+mpv.i1:	andi	r0,-pgsize
+	subi	r0,4*pgsize	; alloc 4 more pages than we need
+	caige	r0,4*pgsize(sp)
+	pushj	sp,memout	; can't get more memory
+	move	g0,r0		; g0 now has future $memlo
+	sub	r0,r1
+	idivi	r0,pgsize
+	hrl	n1,r0		; length (in pages) to get
+	hrrz	r0,g0
+	idivi	r0,pgsize
+	hrr	n1,r0		; start page to alloc
+	.call	memget		; get new pages
+	pushj	sp,memout
+	hrrz	r0,g0
+	setzm	(g0)		; clear out first word
+	movei	br,1(g0)	; we blt on top of ourselves
+	hrl	br,g0
+	move	r1,$memlo	; the top of the new area + 1
+	blt	br,-1(r1)	; clear the memory
+	hrrm	g0,$memlo	; and give the new limit
+mpv.ex:	.call	mpv.di		; dismiss the interrupt & retry the alloc
+	pushj	sp,memout
+	pushj	sp,memout
+
+mpv.di:	setz
+	sixbit	/dismis/
+	movsi	20
+	setz	mpv.sp
+
+mpv.su:	.soption,,1+[twvec+2 ? (optopc+optint)]	; new style interrupts
+	.smask,,int.tb+1		; MPV stuff & pure writes only
+	.spirq,,mpv.ze	; forget pending interrupts
+	.sifpir,,mpv.ze	; in both words
+	.sdf1,,mpv.ze	; clear the defer words
+	.sdf2,,mpv.ze
+mpv.sx==.-mpv.su
+	
+mpv.ze:	0
+
+int.tb:	20,,mpv.sp
+	%piwro+%pimpv	; MPV & pure write enable only
+	0
+	-1		; defer everything
+	-1
+	mpv.in		; the handler
+int.sz==.-int.tb
+
+mpv.sp:	-40,,.+1
+mpv.re:	block	40
+
+mpvout:	croak	A real MPV! (regs at mpv.re)
+	jrst	start	; if continued, restart
+
+ready:	croak	What do you run on, Rocket Morton? (Say Beans)
+
+; Next we go around and around the entry blocks in our
+; initial system, entering the  entry blocks into  the
+; module table (in $mtab). We only do this if there is
+; no current module table.
+
+	$if	skipe	$mtab
+	$then	mcall	tb.cr,[]
+		movem	rr,$mtab
+		$for	all,rr,mcall	loopv,[$ents]
+			push	sp,(rr)
+			mcall	pname,[(rr)]
+			pop	sp,r0
+			hrli	r0,(tref)
+			mcall	tb.en,[$mtab,rr,r0]
+		$rof	all
+
+		slink	lnk,clusys;dsk:clusys init
+		call	xload,1,[lnk(lr)]
+		tcheck	rr,(tnone)
+	$fi
+
+	$label	doit
+	$loop
+		call	listen,2,[$tyi,$tyo]
+	$pool
+	$rtnc	$none
+corp	%base%,[]
+
+iter	loopy,[addr,incr]
+	$loop
+		move	r0,addr(er)
+		$if	skipe	(r0)
+		$then	$rtnc	$none
+		$fi
+		move	r1,r0
+		hrrz	n0,incr(er)
+		add	r1,n0
+		movem	r1,addr(er)
+		$yield	r0
+	$pool
+reti	loopy,[addr,incr]
+
+iter	loopv,[ptr],[p,c],[trel,0]
+	move	r0,ptr(er)
+	move	n1,(r0)
+	tcheck	n1,(tvec)
+	hrrm	n1,c(er)
+	hrroi	r0,1(r0)
+	$loop
+		$if	sosle	c(er)
+		$then	$rtnc	$none
+		$fi
+		movem	r0,p(er)
+		$yield	r0
+		aos	r0,p(er)
+	$pool
+reti	loopv,[ptr],[p,c]
+
+proc	tr.on,[p]
+	move	r1,p(er)
+	move	r0,$trtab
+	movem	r1,1(r0)	; set the trace routine regardless
+	$if	skipn	(r0)	; if already tracing
+	$then	$rtnc	$none	; then leave now
+	$fi
+	addi	r0,2		; point at first entry
+	hrli	r0,(jrst)
+	$if	skipn	tr.xct(r0)	; if already fixed up
+	$then	aos	-2(r0)		; then just bump the trace flag
+		$rtnc	$none		; and exit
+	$fi
+	$loop
+		$if	skipe	r1,tr.fix(r0)	; test for end of table
+		$then	move	r0,$trtab	; if the end, then
+			aos	(r0)		; turn the trace flag on
+			$rtnc	$none		; and exit
+		$fi
+		move	n1,-1(r1)		; grab the normal contents
+		movem	n1,tr.xct(r0)	; save it to execute later
+		movem	r0,-1(r1)		; hit the instruction with a jump
+		addi	r0,tr.nxt	; move to next item
+	$pool
+corp	trace_on,[p]
+
+proc	tr.of
+	move	r0,$trtab
+	setzm	(r0)		; turn trace flag off
+	$rtnc	$none
+corp	trace_off
+
+proc	tr.fl
+	move	r0,$trtab
+	setzm	(r0)		; turn the trace flag off
+	setzm	1(r0)		; clear out the trace routine
+	addi	r0,2		; move ptr to first entry
+	$loop
+		$if	skipe	r1,tr.fix(r0)	; test for end of table
+			skipn	n1,tr.xct(r0)	; or for no fix to make
+		$then	movem	n1,-1(r1)	; and restore normal contents
+			setzm	tr.xct(r0)	; clear out the table
+			addi	r0,tr.nxt	; move to next item
+		$else	$for	all,rr,call	%table$values,1,[$mtab]
+				setzm	en.tr(rr)	; clear each proc's trace flags
+			$rof	all
+			$rtnc	$none
+		$fi
+	$pool
+corp	trace_flush
+
+proc	xfind,[s]
+	mcall	tb.va,[$mtab,s(er)]
+	$rtn	rr
+corp	xfind,[s]
+
+proc	pfind,[s]
+	mcall	tb.va,[$mtab,s(er)]
+	$if	came	rr,$none
+	$then	$rtn	rr
+	$fi
+	hrrz	r0,en.lpr(rr)		; get the pure part
+	$if	skipe	r0
+	$then	$rtnc	$none
+	$fi
+	tcheck	pr.cod(r0),tprep
+	$rtn	rr
+corp	pfind,[s]
+
+proc	plist,[]
+	call	crlf,1,[$tyo]
+	$for	all,rr,call	%table$names,1,[$mtab]
+		call	chan$writes,2,[$tyo,rr]
+		call	crlf,1,[$tyo]
+	$rof	all
+	$rtnc	$none
+corp	plist,[]
+
+proc	xlist,[]
+	mcall	crlf,[$tyo]
+	$for	all,rr,mcall	tb.na,[$mtab]
+		mcall	ch.ws,[$tyo,rr]
+		mcall	crlf,[$tyo]
+	$rof	all
+	$rtnc	$none
+corp	xlist,[]
+
+;	all_procs is an iterator that yields all currently known
+; procedures.
+proc	allpr,[]
+	$for	all,rr,call	%table$values,1,[$mtab]
+		$yield	rr
+	$rof	all
+	$rtnc	$none
+corp	all_procs,[]
+
+
+proc	crlf,[chan]
+	link	cr,tchar+12
+	mcall	ch.wc,[chan(er),cr(lr)]
+	$rtnc	$none
+corp	crlf,[chan]
+
+proc	siggy,[nargs,eblk],[name],[0]
+	move	r0,eblk(er)
+	assn	name(er),td.nam(r0)
+	$loop
+		mcall	crlf,[$tyo]
+		slink	lnk,signal: 
+		mcall	ch.ws,[$tyo,lnk(lr)]
+		mcall	ch.ws,[$tyo,name(er)]
+		mcall	crlf,[$tyo]
+		croak	signal not yet implemented.
+	$pool
+	$rtnc	$none
+corp	siggy,[nargs,eblk],[name]
+
+proc	pname,[p]
+	hrrz	r1,p(er)	; grab the entry block
+	$if	cail	r1,pgsize
+		cail	r1,gchi
+	$then
+		hrrz	r0,en.lpr(r1)	; get the procedure in it
+		$if	skipe	r0
+		$then	hlrz	r0,en.lpr(r1)	; not a procedure, get the linkage sect
+			move	rr,1(r0)	; name is first string in linkage sect
+		$else	add	r0,pr.nam(r0)	; point at the proc name
+			move	rr,(r0)		; get the name of the procedure
+		$fi
+		tcheck	rr,tstr		; make sure that it is a string !
+	$else
+		slink	lnk,?proc?
+		move	rr,lnk(lr)
+	$fi
+	$rtn	rr		; return the name
+corp	pname,[p]
+
+proc	print,[chan,x]
+	hlrz	n1,x(er)
+	$if	caie	n1,(tstr)
+	$then	link	lnk,tstr+""
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		mcall	ch.ws,[chan(er),x(er)]
+		mcall	ch.ws,[chan(er),lnk(lr)]
+	$elf	caie	n1,(tnone)
+	$then
+	$elf	caie	n1,(tchar)
+	$then	slink	lnk,'
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		mcall	ch.wc,[chan(er),x(er)]
+		mcall	ch.ws,[chan(er),lnk(lr)]
+	$elf	caie	n1,(tnull)
+	$then	slink	lnk,null
+		mcall	ch.ws,[chan(er),lnk(lr)]
+	$elf	caie	n1,(tint)
+	$then	call	int$i2s,1,[x(er)]
+		mcall	ch.ws,[chan(er),rr]
+	$elf	caie	n1,(tbool)
+	$then	hrrz	n1,x(er)
+		slink	lnk,true
+		move	rr,lnk(lr)
+		caie	n1,true
+		slink	lnk,false
+		move	rr,lnk(lr)
+		mcall	ch.ws,[chan(er),rr]
+	$elf	caie	n1,(tpcb)
+	$then	slink	lnk,pcb#
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		mcall	octal,[x(er)]
+		mcall	ch.ws,[chan(er),rr]
+		slink	lnk, : 
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		move	r0,x(er)
+		mcall	ch.ws,[chan(er),pc.str(r0)]
+		slink	lnk,,
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		move	r0,x(er)
+		move	n1,pc.num(r0)
+		hrli	n1,(tint)
+		mcall	print,[chan(er),n1]
+
+	$else	$if	movei	rr,0
+			cail	n1,typlo
+			caile	n1,typhi
+		$then	move	rr,(n1)
+		$fi
+		$if	hlrz	n2,rr
+			caie	n2,(tstr)
+		$then
+			mcall	ch.ws,[chan(er),(n1)]
+		$else
+			mcall	octal,[n1]
+			mcall	ch.ws,[chan(er),rr]
+		$fi
+		slink	lnk,#
+		mcall	ch.ws,[chan(er),lnk(lr)]
+		mcall	octal,[x(er)]
+		mcall	ch.ws,[chan(er),rr]
+	$fi
+	$rtnc	$none
+corp	print,[chan,x]
+
+proc	octal,[x]
+	hrlz	n3,x(er)
+	movei	n1,6
+	hrro	r1,sp
+	.here	octal1
+		movei	n2,0
+		rotc	n2,3
+		addi	n2,"0
+		push	sp,n2
+		sojg	n1,octal1(pr)
+	movei	n1,6
+	movei	n2,(wsize)
+	mcall	tp2s,[r1,n1,n2]
+	$rtn	rr
+corp	octal,[x]
+
+proc	restrt
+	jrst	start
+	$rtnc	$none
+corp	restart
+
+proc	dtyi
+	$rtnc	$tyi
+corp	dtyi
+
+proc	dtyo
+	$rtnc	$tyo
+corp	dtyo
+
+;	the following routine displays a stack frame,
+; giving name of procedure and arguments.
+
+proc	framp,[tyo,frm],[p,n,lonam,loarg],[trel,0,trel,trel]
+
+	tcheck	frm(er),trel
+	mcall	crlf,[tyo(er)]
+	move	g0,frm(er)	; g0 points to frame
+	hlrz	r0,-1(g0)
+	hrrm	r0,p(er)	; r0 has ptr to procedure entry
+	mcall	pname,[p(er)]	; call to get proc name & check validity
+	mcall	ch.ws,[tyo(er),rr]
+	slink	lnk,	has a frame at 
+	mcall	ch.ws,[tyo(er),lnk(lr)]
+	mcall	octal,[frm(er)]
+	mcall	ch.ws,[tyo(er),rr]	; print frame address
+	mcall	crlf,[tyo(er)]
+	move	g0,p(er)	; entry block for procedure
+	$if	trnn	g0,-pgsize
+	$then
+		hrrz	r0,en.lpr(g0)	; pure part of procedure (the pr)
+		hrre	n0,pr.cut(r0)	; number of arguments in n0
+		subi	n0,2		; must be adjusted by 2
+		movem	n0,n(er)
+		add	r0,pr.nam(r0)	; ptr to one less than argument names
+		hrrm	r0,lonam(er)	; gets saved
+		hrrz	r1,frm(er)	; get the frame back again
+		subi	r1,2		; point at the arguments
+		sub	r1,n0		; ptr to one less than lowest arg
+		hrrm	r1,loarg(er)	; & save that ptr
+	
+		$loop
+			$if	sosl	n(er)
+			$then	$rtnc	$none
+			$fi
+			link	lnk,tchar+11
+			mcall	ch.wc,[tyo(er),lnk(lr)]	; print a tab
+			aos	r0,lonam(er)		; advance the name ptr
+			mcall	ch.ws,[tyo(er),(r0)]	; print a name
+			slink	lnk,:	
+			mcall	ch.ws,[tyo(er),lnk(lr)]	; print ":\11"
+			aos	r0,loarg(er)		; advance the arg ptr
+			mcall	print,[tyo(er),(r0)]	; print the argument
+			mcall	crlf,[tyo(er)]		; end-of-the-line
+		$pool
+	$fi
+	$rtnc	$none
+corp	framp,[tyo,frm],[p,n,lonam,loarg]
+
+proc	frall,[tyo],[frm],[trel]
+	hrrm	er,frm(er)
+	$loop
+		hrrz	r0,frm(er)
+		hrrz	r0,(r0)
+		$if	trne	r0,-lolim
+		$then	$rtnc	$none
+		$fi
+		hrrm	r0,frm(er)
+		mcall	framp,[tyo(er),frm(er)]
+	$pool
+corp	frall,[tyo],[frm]
+
+;	This is a fake entry for the linker
+proc	%linkf
+	croak	How the hell did you get to %linkf ?
+	$rtnc	$none
+corp	%linker
+
+retsulc	start
+

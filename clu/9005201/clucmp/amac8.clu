@@ -1,0 +1,24 @@
+# extend
+
+aw = array[a_word];
+env = a_env;
+wrd = a_word;
+_tvec = 0200413;
+_tref = 0400400;
+
+tdchk = proc (e: env) returns (wrd, int, int);
+	dflg: int := 0;
+	vec: aw := aw$[1: wrd$create(0, 0)];
+	for w: wrd in get_wrds(e) do
+		dflg := i_or(dflg, get_flag(w));
+		aw$addh(vec, w);
+		end;
+	dref: wrd;
+	num: int := aw$size(vec);
+	if num > 1
+	   then vec[1] := wrd$create(_tvec, num);
+		dref := env$add_rlink(e, _tref, vec);
+	   else dref := vec[1];
+	   end;
+	return(dref, dflg, get_type(dflg));
+	end tdchk;

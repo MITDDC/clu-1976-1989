@@ -1,0 +1,31 @@
+
+Creating DU specs from clucmp;dsk:basic types
+
+
+time = 122.963 seconds
+
+
+
+External     Referencing Modules
+______________________________________________________________________
+
+chan         file
+file         file
+pstream      null_ bool_ int_ real_ char_ string_ array_ record_
+             oneof_
+
+
+
+Compiling clusys;dsk:heap clu
+
+
+time = 94.578 seconds
+
+
+
+External     Referencing Modules
+______________________________________________________________________
+
+heap         heap
+
+

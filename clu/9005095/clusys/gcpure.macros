@@ -1,0 +1,193 @@
+;;
+;; Midas macros for the Clu garbage collector
+;;
+;;	Init uid counter
+;;
+$uidcnt==0
+;;
+;;	Omit rest on pass 2
+;;
+if2	.ineof
+;;
+;;	If/then/else macros
+;;
+define	if
+	pshsym	$ne,1
+	$1if
+	termin
+;;
+define	then
+	ife	$lt,{	$lt==	.
+			loc	.+1
+			repeat	$no,[	$x==	.
+					loc	$lo
+					jrst	$x
+					loc	$x
+					popsym	$lo
+]}
+	.else	.err misplaced then
+	termin
+;;
+define	else
+	ifg	$lt,{	$le==	.
+			loc	$lt
+			jrst	$le+1
+			loc	$le+1
+			$lt==	-1
+			repeat	$na,[	$x==	.
+					loc	$la
+					jrst	$x
+					loc	$x
+					popsym	$la
+]}
+	.else	.err misplaced else
+	termin
+;;
+define	endif
+	repeat	$ne,$1fi
+	popsym	$ne
+	termin
+;;
+define	elseif
+	else
+	$1if
+	$ne==	$ne+1
+	termin
+;;
+define	$1if
+	pshsym	$le,0
+	pshsym	$lt,0
+	pshsym	$na,0
+	pshsym	$no,0
+	termin
+;;
+define	$1fi
+	$x==	.
+	ifg	$lt,{	loc	$lt
+			jrst	$x
+}
+	ifg	$le,{	loc	$le
+			jrst	$x
+}
+	ife	$le,{	repeat	$na,[	loc	$la
+					jrst	$x
+					popsym	$la
+]}
+	ife	$lt,{	repeat	$no,[	loc	$lo
+					jrst	$x
+					popsym	$lo
+]}
+	ifle	$lt+$le, .err misplaced fi
+	loc	$x
+	popsym	$lt
+	popsym	$le
+	popsym	$na
+	popsym	$no
+	termin
+;;
+;;	Loop macros
+;;
+define	loop
+	pshsym	$sl,.
+	pshsym	$ln,$uid
+	termin
+;;
+define	endloop
+	jrst	$sl
+	$conc	$el,\$ln,==.
+	popsym	$ln
+	popsym	$sl
+	termin
+;;
+define	break
+	jrst	$conc	$el,\$ln
+	ife	$sl$, .err break not in loop
+	termin
+;;
+define	contin
+	jrst	$sl
+	ife	$sl$, .err contin not in loop
+	termin
+;;
+;;	And and Or macros, to be used between an if and a then
+;;		(elseif is ok, too.)
+;;
+define	$and
+	ife	$lt,{	pshsym	$la,.
+			$na==	$na+1
+			loc	.+1
+}
+	.else	.err misplaced $and
+	termin
+;;
+define	$or
+	ife	$lt,{	jrst	.+2
+			pshsym	$lo,.
+			$no==	$no+1
+			loc	.+1
+}
+	.else	.err misplaced $or
+	termin
+;;
+;;	Macro to check symbol stacks at end
+;;
+define	check
+	chksym	[$sl,$ln,$lt,$le,$ne,$na,$no,$la,$lo]
+	termin
+;;
+;;	Helping macros
+;;
+;;	Uid generator
+;;
+define	$uid
+	<$uidcnt==$uidcnt+1> termin
+;;
+;;	Symbol concatenater
+;;
+define	$conc x,y,z
+	x!y!z
+	termin
+;;
+;;	Symbol stack macros
+;;
+define	pshsym sym,#value
+	.lstof
+	ifl	sym!$-1000,{	$conc	sym,\sym!$,==sym
+				sym==	value
+				sym!$==	sym!$+1
+			.lston
+}
+	.else	.err sym stack too deep
+	.lston
+	termin
+;;
+define	popsym (sym
+	.lstof
+	ifg	sym!$,{	sym!$==	sym!$-1
+			$conc	sym,==sym,\sym!$
+			.lston
+}
+	.else	.err sym stack empty
+	.lston
+	termin
+;;
+;;	Symbol initializer
+;;
+define	intsym (syms
+	irp	s,,syms
+		s==	0
+		s!$==	0
+		termin
+	termin
+;;
+;;	Symbol checker
+;;
+define	chksym (syms
+	irp	s,,syms
+		ifn	s!$, .err s stack not flushed
+		termin
+	termin
+;;
+;;	Init symbols
+;;
+	intsym	[$sl,$ln,$lt,$le,$ne,$na,$no,$la,$lo]

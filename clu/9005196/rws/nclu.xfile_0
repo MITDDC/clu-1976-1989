@@ -1,0 +1,6 @@
+sname clucmp
+eval value$assn(".binary_name2" "newbin")
+specs cmp1 specs
+ce syntax equate
+specs cmp2 specs, ce specs
+clu top2

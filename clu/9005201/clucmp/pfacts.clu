@@ -1,0 +1,18 @@
+print_facts = proc ();
+	f: file := file$tyo();
+	file$puts(f, "ppart\tframe\tlink\tpparm\tcparm\towndat\n");
+	for ppart,frame,link,pparm,cparm,owndat: int in facts() do
+		file$puti(f, ppart);
+		file$putc(f, '\t');
+		file$puti(f, frame);
+		file$putc(f, '\t');
+		file$puti(f, link);
+		file$putc(f, '\t');
+		file$puti(f, pparm);
+		file$putc(f, '\t');
+		file$puti(f, cparm);
+		file$putc(f, '\t');
+		file$puti(f, owndat);
+		file$putc(f, '\n');
+		end;
+	end print_facts;

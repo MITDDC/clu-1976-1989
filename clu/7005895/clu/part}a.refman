@@ -1,0 +1,852 @@
+.begin_table_of_contents 4
+.am table_of_contents
+3@@@@s(toc1)*
+3Overview*
+4@@@@@@@@@@@s(toc2)@@@@@@@@@@@@@@@@@@@@@s(toc3)*
+.  em
+\k
+.sr sect_library Section 6
+.sr sect_compare Section 2.3
+.sr sect_stmts Section 4
+.sr app_io Appendix III
+.sr sect_semantics Section 5
+.sr sect_progs Section 1.5
+.sr sect_except Section 14
+.sr sect_parms Section 1.4
+\k
+.sr e 2E*
+.sr m 2m*
+.sr p 2p*
+.sr q 2q*
+.sr x 2x*
+.sr y 2y*
+.sr z 2z*
+.sr a 2a*
+.sr b 2b*
+.sr s 2s*
+.sr v 2v*
+.sr insert 2insert*
+.sr alpha 9a*
+.sr beta 9b*
+.sr gamma 9g*
+\k
+.de circle
+.  lbegin
+.    nv h hpos
+(+1.5)\0(-1.5)
+.    hp h!m
+\1
+.    hs (1.2*fheight)m
+\2
+.    end lbegin
+.  em
+\k
+.chapter "Modules"
+.para 1
+A CLU program consists of a group of modules.
+Three kinds of modules are provided, one for each kind of
+abstraction that we have found to be useful in program construction.
+Procedures support procedural abstraction, iterators support
+control abstraction, and clusters support data abstraction.
+.section "Procedures"
+.para 1
+A CLU i(procedure) performs an action on zero or more
+i(arguments), and terminates returning zero or more i(results).
+All communication between a procedure and its invoker takes place through
+these arguments and results, i.e., a procedure has no global variables.
+.para
+A procedure may terminate in one of a number of i(conditions).
+One of these is the normal condition; the others are
+exceptional conditions.
+Differing numbers and types of results may be returned in different
+conditions.
+All information about the names of conditions and the number and types of
+arguments and results is described in the i(procedure@heading).
+For example
+.show
+div = proc (x,y: real) returns (real) signals (zero_divide)
+.eshow
+is the heading of the div procedure, which takes two real arguments.
+Div terminates either in the normal condition
+(returning a real result representing x/y)
+or in the zero_divide condition (returning no results).
+.para
+Procedures can be recursive.
+.section "Iterators"
+.para 1
+An i(iterator) computes a sequence of i(items)
+based on its input arguments.
+These items are yielded to its invoker one at a time.
+Each item consists of zero or more results.
+.para
+An iterator is invoked by a for statement.
+The iterator provides each item by i(yielding) it.
+The results in the item are assigned to the loop variables of the
+for statement, and the body of the for statement is executed.
+Then control is returned to the iterator so it can yield the next
+item in the sequence.
+The for loop is terminated when the iterator terminates,
+or the for loop body may explicitly terminate itself
+and the iterator.
+.para
+Just like a procedure, an iterator has no global
+variables, and may terminate in one of a number of conditions.
+In the normal condition, no results can be returned, but different
+numbers and types of results can be returned in the exceptional conditions.
+All information about the names of conditions, and the number and types of arguments
+and results is described in the i(iterator@heading).
+For example
+.show
+pairs = iter (s: string) yields (char, int) signals (non_numeric (char))
+.eshow
+describes an iterator, i(pairs), that takes a single string argument,
+and yields a character and an integer on each iteration.
+Pairs has one exceptional condition, non_numeric, in which it returns a character.
+.para
+Iterators can be recursive.
+.section "Clusters"
+.para 1
+A i(cluster) defines a new data abstraction, consisting
+of a set of objects, and a set of i(primitive@operations) to
+manipulate those objects.
+The operations can be either procedural or control abstractions.
+The i(cluster@heading) states what operations are available, e.g.,
+.show
+int_set = cluster is create, insert, elements
+.eshow
+states that the operations of int_set are
+i(create), i(insert), and i(elements).
+.para
+A cluster is used to define a new i(data@type),
+different from all others.
+Users of this new type are constrained to treat the objects abstractly.
+This means that information about how the objects are
+represented in storage may not be used.
+Instead, the primitive operations must be used to manipulate and
+query the information in the objects.
+.para
+Inside the cluster, a i(concrete@representation) (in terms of some
+other type) is chosen for the objects, and the operations are
+implemented in terms of this representation.
+Each operation is implemented by a i(routine) (a procedure or iterator);
+these routines are exactly like those not contained in
+clusters, except that they can treat the objects being defined by the
+cluster either abstractly or in terms of the concrete representation.
+(Treating the objects abstractly is useful when defining recursive
+structures, where the concrete representation makes use of the new type.
+A cluster may contain additional procedures and iterators which
+are purely for local use; these routines do not define operations of the type.
+.section "Parameterized Modules"
+.para 1
+Procedures, iterators and clusters can all be i(parameterized).
+Parameterization provides the ability to define a class of related
+abstractions by means of a single module.
+Parameters are limited to the following types:  int, real,
+bool, char, string, null, and type.
+The most interesting and useful of these are the type parameters.
+.para
+When a module is parameterized by a type parameter,
+this implies that the module was written without knowledge of what the
+actual parameter type would be.  Nevertheless, if the module is
+to do anything with objects of the parameter type, certain operations must be
+provided by any actual type.
+Information about required operations is described in a
+i(where@clause), which is part of the heading of a
+parameterized module.
+For example,
+.show
+set = cluster [t: type] is create, insert, elements
+		where t has equal: proctype (t, t) returns (bool)
+.eshow
+is the header of a parameterized cluster defining a generalized set
+abstraction.
+Sets of many different element types can be obtained from this cluster,
+but the where clause states that the
+element type is constrained to provide an equal operation.
+.para
+To use a parameterized module, actual values for the parameters
+must be provided.
+These values are limited to compile-time computable quantities.
+Providing values for the parameters selects one abstraction out of the
+set of related abstractions;
+since the values are compile-time known, the compiler can do the
+selection and can check that the
+where clause restrictions are satisfied.
+The result of the selection, in the case of a parameterized
+cluster, is a type, which can then be used in declarations;
+in the case of parameterized procedures or iterators,
+a procedure or iterator is obtained, which is then
+available for invocation.
+For example, set[int] is a use of the set
+abstraction shown above, and is legal because int does
+have an equal operation.
+.para
+A parameterized cluster, procedure, or iterator is said to
+implement a i(type@generator), i(procedure@generator),
+or i(iterator@generator), respectively.
+.section "Program Structure"
+.para 1
+A program consists of a group of i(full_modules).
+Each full_module consists of a possibly empty set of local abbreviations
+(equates), and one module.
+Modules are not embedded in other modules
+(the procedures and iterators that define operations within a
+cluster are not considered to be modules).
+Rather, the program is a single level structure, with all modules
+potentially usable by all other modules in the program.
+Type-checking of inter-module references is
+carried out using information in the module headings, augmented in the
+case of clusters, by the headings of the procedures and iterators
+that implement the operations.
+.para
+Each full_module is compiled separately by the compiler.
+Compiling and building programs is discussed in sect_library.
+.chapter "Data Types"
+.para 1
+One of the primary goals of CLU was to provide, through clusters,
+a type extension mechanism that permits user-defined types
+to be treated as similarly as possible to built-in types.
+This goal has been achieved to a large extent.
+Both built-in and user-defined types are viewed as providing
+sets of primitive operations, with access to the real
+representation information limited to just these operations.
+Thus it is possible to view the built-in types
+and type generators as defined by a set
+of pre-defined modules that are part of every CLU program.
+The ways in which built-in types differ from user-defined types
+will be discussed in sect_compare below.
+.section "Built-in Types"
+.para 1
+CLU provides a rich set of built-in types and type-generators.
+The built-in types are int, real, bool,
+char, string, null, and any.
+1Int* and real provide the usual arithmetic and
+relational operators, and bool provides the standard boolean
+operators.
+1Char* is the full ASCII character set;
+the usual relational operators are provided, along with conversion
+to integers.
+1Strings* are (possibly empty) sequences of characters;
+usual string operations like selecting the i(ith) character, and
+concatenation are provided.
+However, strings are somewhat unusual in that string objects cannot
+be modified.
+For example, it is not possible to change a character in a string;
+instead, a new string, differing from the original in that
+position, may be created.
+.para
+1Null* is a special type containing one object, nil.
+1Null* is used primarily in conjunction with the tagged union type
+discussed below.
+.para
+1Any* is provided to permit an escape from compile-time type checking.
+1Any* has no objects, but instead may be used as the type of a variable
+when the programmer wishes to assign objects of different types to that
+variable, or does not know what kind of object is assigned to the variable.
+CLU provides a built-in procedure generator, force, which
+permits a run-time examination of the type of object named by a
+variable of type any.
+.para
+The built-in type generators are:
+array, record, oneof, proctype, and itertype.
+Arrays are one-dimensional.
+The type of element contained in the array is specified by a type parameter,
+e.g., arrayint] and array[array[int]].
+(The latter example shows how a two-dimensional array might be handled.)  
+CLU arrays are unusual in that they can grow dynamically.
+An array is usually empty when first created.
+Array operations can grow and shrink the array at
+either end, query the current size and low and high bounds of the array,
+and access and update elements within the current bounds.
+.para
+CLU records are similar to PASCAL records;
+they are heterogeneous collections of component objects, each accessed
+by a selector name.
+Records must be explicitly constructed by means of a special
+i(record@constructor).
+The constructor requires that an object be provided for each
+component of the record;
+this requirement ensures that no component of the record is undefined
+in the sense of naming no object.
+Record operations permit selection of component objects and
+updating the components with new objects.
+.para
+A oneof type is a tagged discriminated union.
+The objects of a oneof type each consist of a i(tag)
+(an identifier) and an object of some other type.
+Operations are provided for creating oneof objects.
+Oneof objects are usually decomposed through the
+tagcase statement discussed in sect_stmts below.
+.para
+Procedure and iterator types provide procedures
+and iterators as objects.
+These types are parameterized by all the information appearing in
+a procedure or iterator heading, with the exception of the formal
+argument names.
+Since all communication with a procedure or iterator is through
+the arguments and results, no problems concerning evaluation
+environments arise in the use of procedures or iterators as first-class
+objects.
+The information in the procedure or iterator type is sufficient
+to permit the compiler to do type checking of the use of the routine.
+Naturally, when receiving a routine as an argument, it is
+important that the routine have the behavior expected.
+However, such expectations are generally held about any argument; even an
+integer argument has some significance to the called procedure.
+.para
+In addition to all the built-in types
+and type generators mentioned above,
+CLU programs may also make use of the type type.
+The use of type values is limited to parameters of
+parameterized modules;
+there are no arguments or variables of type type.
+Furthermore, the values of type type
+(comprising all built-in and user-defined types) are all compile-time-known.
+.para
+Finally, CLU provides a number of types and procedures to support I/O.
+These types are not considered to be built-in types of CLU,
+but they must be available in the library.
+These types are described in app_io.
+.section "User-Defined Types"
+.para 1
+Users may define new types by providing clusters that implement them.
+The cluster may implement a single type, or, in the case of a
+parameterized cluster, a group of related types.
+The type or types defined by a cluster are distinct from all built-in
+types and from all types defined by other clusters.
+.section "Comparison of User-Defined and Built-In Types"
+.para 1
+Little distinction is made between user-defined types and built-in types.
+Either can be used freely to declare the arguments, variables, and
+results of routines.
+In addition, in either case there is a set of primitive operations
+associated with the type, and the same syntax is used to invoke these operations.
+The ordinary syntax to name an operation is
+.show
+type$opname
+.eshow
+This syntax was chosen to resolve the ambiguity that arises about what
+operation is being invoked, since often types will have operations
+of the same name.
+.para
+For many operations there is also a customary abbreviated form of
+invocation, which can be used for user-defined types as well as for
+built-in types.
+There is a standard translation from each
+abbreviated form to the ordinary form of invocation.
+For example, an addition operation is usually invoked using the
+infix notation "x + y" which is translated into "T$add(x, y)",
+where T is the type of x.
+Extending notation to user-defined types in this way is sometimes
+called i(operator@overloading).
+We permit almost all special syntax to be overloaded;
+there are always constraints on the overloading definition
+(e.g., i(add) must have two input arguments and one result)
+but they are quite minimal.
+.para
+Nevertheless, there are three main distinctions between built-in
+types and user-defined types:
+.nlist
+Built-in type and type generator names cannot be redefined.
+(This is why we always show them in boldface in this document.)
+.nnext
+Some built-in types, e.g., int, real, etc., have literals.
+There is no mechanism for defining literals for user-defined types.
+.nnext
+Some built-in types are related to certain other constructs of CLU.
+For example, the tagcase statement is a control construct
+especially provided to permit discrimination on oneof objects.
+In addition, in places where compile-time constants are required,
+e.g., as actual parameters to parameterized modules, the
+expressions that may appear are limited to a subset of the built-in
+types and their operations.
+One reason for this limitation is that the permitted types are
+known to contain only i(immutable) objects
+(see sect_semantics.1).
+.end_list
+.chapter "Scope, Declarations, and Equates"
+.para 1
+As was discussed in sect_progs, the structure of a CLU
+program is not deeply nested as is customary in block-structured
+languages, but rather consists of a group of modules all at
+the same level.
+The names of the modules, and in the case of clusters, the names
+of the operations, are globally known throughout this level.
+However, since modules are not nested within other modules,
+identifiers used within modules to name, for example, variables,
+are purely local.
+Since we expect modules to be rather small (in the absence of nesting),
+we felt it was reasonable to insist that local identifiers not
+be redefined within a module.
+Therefore, although there is block structure within a module, it is
+not possible to redefine in an inner scope an identifier declared
+in an outer scope.
+.para
+Each full_module defines a scoping unit.
+In addition, all compound statements define new scoping units in the
+obvious places.
+For example, in the if statement, both the then clause
+and the else clause are new scoping units.
+.para
+Variables may be declared anywhere within a scoping unit;
+declarations are not constrained to appear at the beginning of a unit.
+The actual scope of the variable begins after its declaration, and continues to the
+end of the smallest enclosing scoping unit.
+.para
+A variable declaration gives a name for the variable and the
+type of the variable.
+In addition, an initial value for the variable may be provided.
+The use of an uninitialized variable will raise an exception
+if the error is not caught at compile time.
+(CLU arrays and records are defined in such a way that there
+are no uninitialized elements or components to worry about,
+so we can guarantee that all expressions are well-defined
+by checking variable usage.)
+.para
+2Equates* are used to establish abbreviations for types and constants.
+Each expression in an equate must be compile-time
+computable, and must produce an object belonging to one of the
+built-in, immutable types (see sect_semantics.1).
+.para
+Equates must all appear in a group at the beginning of a scoping unit;
+the order of the equates is unimportant, but they may not be recursive.
+The actual scope of the equates is the entire scoping unit containing them.
+.chapter "Expressions and Statements"
+.para 1
+CLU is somewhat unusual in that almost all expressions are considered
+to be just a syntactic means of invoking procedures.
+This view permits user-defined and built-in types to be treated
+uniformly, e.g, x + y invokes T$add
+whether the type of x, T, is built-in or user-defined.
+This view also fits our model that exceptions arise from invocations
+(see sect_except).
+Note that this view does not preclude in-line code for expressions
+(for both built-in and user-defined types);
+we simply view the production of in-line code as analogous
+to in-line substitution for an invocation, followed possibly by
+some optimization.
+.para
+One exception to the view of expressions as invocations
+is the use of the cand (conditional and) and cor
+(conditional or) operators.
+These operators are defined to shortcut evaluation of their operands;
+for example, the second operand of cand will be evaluated only
+if the first operand evaluates to true.  Thus, cand
+and cor cannot be explained in terms of invocation.
+These operators are not available for overloading, and they
+do not raise any exceptions.
+.para
+CLU statements are, for the most part, fairly conventional.
+The most basic statements are the assignment statement and the
+invocation statement;
+the semantics of these statements is discussed in the next section.
+.para
+There are a number of compound statements:  block,
+conditional, iterative, tagcase and except statements.
+Blocks are used to group statements, and to introduce new scoping units.
+The conditional statement is the usual if statement, with an
+additional elseif form which may be used when there are a number of
+clauses all at the same level.
+.para
+There are two iterative statements: one is the usual while statement;
+the other, the for statement, is used in conjunction with an
+iterator which controls the looping.
+.para
+The tagcase statement is used to discriminate on the
+tag of a oneof object;
+it provides i(arms) for possible values of the tag, plus a special
+others arm to handle tag values not mentioned explicitly.
+.para
+The except statement is used to handle exceptions
+arising from invocations, plus locally generated exits.
+Its form is similar to that of the tagcase statement, with arms to handle
+explicitly named exceptions and exits, and an optional
+others arm to handle any exception not explicitly mentioned.
+.para
+Finally, there are a number of termination statements.
+The return statement terminates a procedure or iterator in the
+normal condition, while the signal statement is used to terminate
+in an exceptional condition.
+The yield statement is used within an iterator to
+produce the next item in the sequence.
+.para
+1Return*, signal, and yield are inter-module control mechanisms.
+The remaining termination statements are all intra-module.
+The exit statement raises an exit condition that must be
+handled by a local except statement.
+The break statement terminates the smallest enclosing loop, and
+the continue statement terminates just
+the current cycle of the smallest enclosing loop.
+.chapter "Semantics"
+.para 1
+All languages present their users with some model of computation.
+This section describes those aspects of CLU semantics that differ
+from the common ALGOL-like model.
+In particular, we discuss the notions of objects and variables,
+and the definitions of assignment and argument passing that
+follow from these notions.
+We also discuss type correctness.
+.section "Objects and Variables"
+.para 1
+The basic elements of CLU semantics are
+i(objects) and i(variables).
+Objects are the data entities that are created and manipulated by programs.
+Variables are just the names used in a program to refer to objects.
+.para
+Each object has a i(type), which characterizes its behavior.
+A type defines a set of primitive operations
+that create and manipulate objects of that type.
+An object may be created and manipulated only via the operations of its type.
+.para
+An object may i(refer) to objects.
+For example, a record object refers to the
+objects that are the components of the record.
+This notion is one of logical, not physical, containment.
+In particular, it is possible for two distinct record objects to
+refer to (or i(share)) the same component object.
+In the case of a cyclic structure, it is even possible for an object
+to "contain" itself.
+Thus, it is possible to have recursive data
+structure definitions and shared data objects without explicit
+reference types.
+.para
+Objects exist independently of procedure and iterator activations.
+Space for objects is allocated from a dynamic storage area
+as the result of invoking
+constructor operations of certain primitive CLU types,
+such as records and arrays.
+In theory, all objects continue to exist forever.
+In practice, the space used by an object may be reclaimed
+(via garbage collection) when that object is
+no longer accessible.
+(An object is accessible if it is denoted by a variable of an active
+routine or is a component of an accessible object.)
+.para
+Objects may be divided into two categories.
+Some objects exhibit time-varying behavior.
+Such an object, called a i(mutable) object, has a state that
+may be modified by certain operations without changing the identity of the object.
+Records and arrays are examples of mutable objects.
+For example, updating the i(ith) element of any array a
+causes the state of a to change (to contain a different object
+as the i(ith) element).
+.para
+If a mutable object m is shared by two other objects x and y,
+then a modification to m made via x will be visible when m is
+examined via y.
+Communication through shared mutable objects is most beneficial in the context
+of procedure invocation, described below.
+.para
+Objects that do not exhibit time-varying behavior are called
+i(immutable) objects, or i(constants).
+Examples of constants are integers, booleans, characters, and strings.
+The value of a constant object can not be modified.
+.para
+Variables are names used in programs to i(denote)
+particular objects at execution time.
+Unlike variables in many common programming languages,
+which are containers for values, CLU variables are simply names
+that the programmer uses to refer to objects.
+As such, it is possible for two variables to denote
+(or i(share)) the same object.
+CLU variables are much like those in LISP,
+and are similar to pointer variables in other languages.
+However, CLU variables are i(not) objects;
+they cannot be denoted by other variables or referred to by objects.
+Thus, variables are completely private to the procedure or iterator
+in which they are declared,
+and cannot be accessed or modified by any other routine.
+.section "Assignment and Invocation"
+.para 1
+The basic actions in CLU are i(assignment) and i(invocation).
+The assignment primitive x := E 
+where x is a variable and e is an expression, causes x to denote
+the object resulting from the evaluation of e.
+For example, if e is a simple variable y,
+then the assignment x@:=@y causes x to denote the object denoted by y.
+The object is i(not) copied;
+after the assignment is performed, it will be i(shared) by x and y.
+Assignment does not affect the state of any object.
+.para
+.nr assign_fig current_figure
+Figure assign_fig illustrates these notions of object, variable, and assignment.
+Here we show variables in a stack, and objects
+in a heap (free storage area); an obvious way to implement CLU.
+Figure assign_fig!a contains three objects, alpha, beta, and gamma.
+alpha is an integer (in fact, 3) and is denoted by variable x,
+.foot
+In the actual CLU implementation,
+integers are stored in the variables denoting them, a permissible
+optimization since integers are immutable.
+.efoot
+while beta and gamma are of type
+set[int] and are denoted by variables y and z, respectively.
+Figure assign_fig!b shows the result of executing
+.show
+y := z
+.eshow
+Now y and z both refer to, or share, the same object,
+gamma; beta is no longer accessible, and so can be garbage collected.
+.begin_figure "Assignment"
+.sp 2
+	x		circle(alpha 3 int)
+.sp 2
+	y				circle(beta {9} set[int])
+.sp 2
+	z						circle(gamma {} set[int])
+.sp 2
+Figure assign_fig!a.
+.sp 2
+	x		circle(alpha 3 int)
+.sp 2
+	y				circle(beta {9} set[int])
+.sp 2
+	z						circle(gamma {} set[int])
+.sp 2
+Figure assign_fig!b.
+.finish_figure
+.para
+Invocation involves passing argument objects
+from the caller to the called routine and returning result
+objects from the routine to the caller.
+The formal arguments
+of a procedure or iterator are considered to be local variables of the routine
+and are initialized, by assignment, to the objects resulting from the
+evaluation of the argument expressions.
+Thus, argument objects are shared between the caller and the called routine, but the
+routine has no access to the variables of its caller.
+A routine may modify mutable argument objects (e.g., records),
+but of course it cannot modify immutable ones (e.g., integers).
+The objects returned by the procedure, or yielded by an
+iterator, may be assigned to variables in the caller.
+.nr invoc_fig current_figure
+.para
+Figure invoc_fig illustrates invocation and object mutation.
+Figure invoc_fig!a continues from the situation shown in
+Figure assign_fig!b, and illustrates the situation immediately
+after an invocation
+.show
+set[int]$insert (y, x).
+.eshow
+where i(insert) has two formal arguments, s, to denote
+the set and v to denote the integer to be inserted in s.
+Note that the variables of the caller (x, y and, z)
+are not accessible to i(insert).
+Figure invoc_fig!b illustrates the situation after i(insert) returns.
+Note that object gamma has been modified and now refers to
+alpha (the set gamma now contains 3), and since gamma
+is shared by both y and z, the modification
+of gamma is visible through both these variables.
+.begin_figure "Invocation and object mutation".
+.sp 2
+	x			circle(alpha 3 int)
+.sp .5
+	y
+.sp .5
+	z
+.sp 2
+	s				circle(gamma {} set[int])
+.sp .5
+	v
+.sp 2
+Figure invoc_fig!a.
+.sp 2
+	x			circle(alpha 3 int)
+.sp .5
+	y
+.sp .5
+	z
+.sp 2
+					circle(gamma {@} set[int])
+.sp 2
+Figure invoc_fig!b.
+.finish_figure
+.para
+Procedure invocations may be used directly as statements; those
+that return exactly one object may also be used as expressions.
+Iterators may be invoked only through the for statement.
+Arbitrary recursion among procedures and iterators is permitted.
+.section "Type Correctness"
+.para 1
+Every variable in a CLU module must be declared;
+the declaration specifies the type of object
+that the variable may denote.
+For an assignment to be legal, the type of the
+expression must be i(included@in) the variable's type.
+The type of an expression is the return type of the outermost
+procedure invoked in that expression, or, if the expression is
+simply a variable or literal, then it is the type of
+that variable or literal.
+The type of the expression is included in the variable's type
+if the two types are identical, or if the variable's
+type is any.
+.para
+Because argument passing is defined
+in terms of assignment, the types of the actual
+argument objects must be included in the types of the
+corresponding formal arguments.
+Furthermore, a return statement (or yield statement) is legal
+only if the objects being returned could be legally assigned to
+variables having the types stated in the procedure
+(or iterator) heading.
+Therefore, the type of the actual object that will result
+from evaluating an expression at run time will be included
+in the type of the expression and thus in the type of any variable
+to which the object is assigned.
+.para
+CLU is a i(type-safe) language, that is, it is not possible for a
+legal program (one that the compiler accepts) to operate on an
+object of some type T as if it were of some other type S.
+The discriminated union type generator, oneof, and type any provide
+escapes from compile-time type determination.
+These constructs permit the type of an object to be queried at run-time.
+However, the constructs are defined in such a way that they do not
+undermine the type-safety of the language.
+The type-safety of CLU, plus the restriction that only the code
+in a cluster may convert between the abstract and the concrete
+representation types, ensure that the behavior of an object is indeed
+characterized completely by the operations of its type.
+.chapter "The CLU Library"
+.para 1
+As was mentioned earlier, it is intended that the modules
+making up a CLU program all be separate compilation units.
+A fundamental requirement of any CLU implementation is that it
+support separate compilation, with type checking of inter-module references.
+This checking can be done either at compile time or at load time
+(when a group of separately compiled modules are combined together to
+form a program).
+A second fundamental requirement is that the implementation support
+top down programming.
+The definition of CLU does not define how an implementation
+should meet these requirements.
+However, the current CLU implementation, in addition to satisfying the requirements,
+also has other desirable properties.
+For example, it permits reimplementation of one module without
+requiring recompilation of any other modules.
+Therefore, in this section we describe the current CLU
+implementation, which may serve as a model for others.
+.para
+Our implementation makes use of the CLU library, which plays a
+central role in supporting inter-module references.
+The library contains information about all abstractions.
+It supports incremental program
+development, one abstraction at a time, and, in addition,
+makes abstractions that are defined during the construction of
+one program available as a basis for subsequent program development.
+The information in the library permits the separate
+compilation of single modules, with complete type checking
+at compile time of all external references (such as procedure invocations).
+.para
+The library provides a hierarchical name space for
+retrieving information about abstractions.
+.nr lib_fig current_figure
+The leaf nodes of the library are i(description@units) (DUs), one for each abstration.
+Figure lib_fig illustrates the structure of the library.
+.begin_figure "A sketch of the library structure showing a DU with pathname B.Y"
+.sp 3
+			A       B
+.sp 2
+			        X       Y
+.sp 1.5
+				                DU
+.finish_figure
+.para
+A DU contains all system-maintained information about its abstraction.
+.nr struc_fig current_figure
+A sketch of the structure of a DU is shown in Figure struc_fig.
+For purposes of program development and module
+compilation, two pieces of information must be included
+in the DU:  implementation information, describing zero or
+more modules that implement the abstraction, and the
+interface specification.
+.begin_figure "A sketch showing the structure of a DU"
+.sp 2
+(2.8i)DU
+.sp 2
+(.9i)interface(2.0i)abstractions(3.1i)implementations(4.4i)other
+(.8i)specification(2.2i)used
+.sp 2
+(3.2i)1  1. . .*   n
+.sp 2
+(2i)source(2.6i)object(3.2i)abstractions(4.2i)other
+(3.4i)used
+.sp 1
+.finish_figure
+The i(interface@specification)
+is that information needed to type-check uses of the abstraction.
+For procedural and control abstractions,
+this information consists of the number and types of
+parameters, arguments, and results,
+the names of exceptional conditions and the number and types of
+results returned in each case, plus any constraints
+on type parameters (i.e., the where clause, as described in sect_parms).
+For data abstractions, it includes the number and types of parameters, constraints on
+type parameters, and the name and interface specification of each operation.
+.para
+An abstraction is entered in the library by
+submitting the interface specification;
+no implementations are required.
+In fact, a module can be compiled before any implementations
+have been provided for the abstractions that it uses;
+it is necessary only that interface specifications
+have been given for those abstractions.
+Ultimately, there can be many implementations of an abstraction;
+each implementation is required to satisfy the
+interface specification of the abstraction.
+Because all uses and implementations
+of an abstraction are checked against the interface
+specification, the actual selection
+of an implementation can be delayed
+until just before (or perhaps during) execution.
+We imagine a process of binding together modules
+into programs, prior to execution, at which time
+this selection would be made.
+.para
+An important detail is the method by which modules refer to abstractions.
+To avoid problems of name conflicts that can arise in
+large systems, the names used by a module to refer to
+abstractions can be chosen to suit the programmer's convenience.
+When a module is submitted for
+compilation, its external references must be bound to
+DUs so that type-checking can be performed.
+The binding is accomplished by constructing a i(compilation@environment) (CE),
+mapping names to DUs and constants,
+which is passed to the compiler along with the source code when
+compiling the module.
+A copy of the CE is stored by the compiler in the library as part of the module.
+A similar process is involved in entering interface
+specifications of abstractions, as these will include
+references to other (data) abstractions.
+.para
+When the compiler type checks a module,
+it uses the compilation environment to map the external
+names in the module to description units, and then uses
+the interface specifications in those description
+units to check that the abstractions are used correctly.
+The type-correctness of the module thus
+depends upon the binding of names to DUs
+and the interface specifications in those DUs,
+and could be invalidated if changes to the
+binding or the interface specifications were subsequently made.
+For this reason, the process of compilation
+permanently binds a module to the abstractions it
+uses, and the interface description of an abstraction,
+once defined, is not allowed to change.
+Of course, a new description unit can be created
+to describe a modified abstraction.
+Furthermore, during design (before any implementing modules
+have been entered into the system) it is reasonable to
+permit abstraction interfaces to change.
+.para
+The library and DU structure described above can be used for
+purposes other than compiling and loading programs.
+In each case, additional information can be stored in the DU;
+the "other" fields shown in Figure struc_fig are intended to
+illustrate such additional information.
+For example, the library provides a good basis for program verification.
+Here the "other" information in the DU would contain a formal
+specification of the abstraction, and possibly some theorems
+that had been proved about the abstraction, while for each
+implementation that had been verified, an outline of the correctness
+proof might be retained.
+Additional uses of the library include debugging and optimization.

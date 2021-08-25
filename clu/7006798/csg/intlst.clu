@@ -1,0 +1,85 @@
+intlist = cluster
+
+ is create, construct, append, empty, equal, similar,
+    length, first, rest, elements, copy, print
+
+    rep = oneof [pair: cell, empty: null]
+    cell = struct [car: int, cdr: intlist]
+
+    create = proc () returns (cvt)
+	return (rep$make_empty(nil))
+	end create
+
+    construct = proc (i: int, lst: intlist) returns (cvt)
+	return (rep$make_pair (cell${car: i, cdr: lst}))
+	end construct
+
+    append = proc (lst1: cvt, lst2: intlist) returns (intlist)
+	tagcase lst1
+	    tag empty: return (copy (lst2))
+	    tag pair:
+		c: cell := rep$value_pair (lst1)
+		cdr: intlist := append (c.cdr, lst2)
+		return (up(rep$make_pair(cell${car: c.car, cdr: cdr})))
+	    end
+	end append
+
+    copy = proc (lst: cvt) returns (cvt)
+	return (rep$copy (lst))
+	end copy
+
+    empty = proc (lst: cvt) returns (bool)
+	return (rep$is_empty(lst))
+	end empty
+
+    equal = proc (lst1, lst2: cvt) returns (bool)
+	return (lst1 = lst2)
+	end equal
+
+    similar = proc (lst1, lst2: cvt) returns (bool)
+	return (rep$similar (lst1, lst2))
+	end similar
+
+    length = proc (lst: intlist) returns (int)
+	if empty (lst) then return (0)
+	   else return (1 + length (rest(lst)))
+	   end
+	end length
+
+    first = proc (lst: cvt) returns (int) signals (empty)
+	tagcase lst
+	    tag pair (c: cell): return (c.car)
+	    tag empty: signal empty
+	    end
+	end first
+
+    rest = proc (lst: cvt) returns (intlist) signals (empty)
+	tagcase lst
+	    tag pair (c: cell): return (c.cdr)
+	    tag empty: signal empty
+	    end
+	end rest
+
+    elements = iter (lst: cvt) yields (int)
+	tagcase lst
+	    tag pair (c: cell): yield (c.car)
+		for i: int in elements (c.cdr) do
+		    yield (i)
+		    end
+	    tag empty:
+	    end
+	end elements
+
+    print = proc (l: intlist, out: stream)
+	stream$putc (out, '(')
+	pl: intlist  := l
+	for i: int in elements (l) do
+	    stream$puts (out, int$unparse (i))
+	    pl := rest (l)
+	    if ~empty (pl) then stream$putc (out, ' ') end
+	    end
+	stream$putc (out, ')')
+	end print
+
+    end intlist
+

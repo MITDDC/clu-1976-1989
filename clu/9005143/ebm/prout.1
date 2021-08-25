@@ -1,0 +1,44 @@
+.
+. Outline for  Moss' section of Clu progress report
+. 
+.sr draft Outline
+.so usual >
+.ls 2
+.sr left_heading CLU Progress Report
+.sr center_heading Moss' Section Draft draft
+.sr right_heading date - Page \page
+Conventional Semantics, Data Abstraction, and Pointers -
+	How the semantics of "traditional" programming languages
+must be extended to include abstract data types and pointers.
+.sp 1l
+.nf
+I. Variables and Declarations
+	A. general discussion
+		1. the abstract data type view of types
+		2. Clu variables, objects, and declarations
+		3. traditional variables and declarations
+	B. some implications
+		1. size info must be part of type because that is all you
+			have to allocate from
+		2. implication that polymorphic procedures must be used
+		3. under what conditions is run-time type checking necessary
+	C. type parameters
+		1. Clu parameters - motivation for types as parameters
+		2. size parms => ints, can add bool, etc. (cf. CLU)
+		3. collections and why they must be parms
+			a. what they are (conceptually disjoint storage areas)
+			b. user must be able to decide where items go
+			c. dependencies should be explicit
+			d. disjointness property falls out (types unequal)
+II. Procedure calls and returns
+	A. Call by ref (cf. Clu)
+	B. no-aliasing rules and their desirability, enforceability
+	C. Some possible schemes (only returning gives problems)
+		1. implicit := and why it fails with pointers and ADTs
+		2. no returns; result arguments
+			a. advantages - simple; clear; the desired semantics
+			b. disadvantages - many temps
+		3. Alphard's approach - temps and := of type
+			a. advantages - no copy-down (cf. PL/1); solves above prob
+			b. disadvantages - hard to optimize
+III. Outlook - promising; profitable; further investigation under way

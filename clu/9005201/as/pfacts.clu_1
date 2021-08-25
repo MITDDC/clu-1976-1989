@@ -1,0 +1,29 @@
+print_facts = proc ()
+	s: stream := stream$create_write ("facts")
+	vppart: vstream := vstream$create ("pure part size", false)
+	vargs: vstream := vstream$create ("argument vector size", false)
+	vvars: vstream := vstream$create ("local variables size", false)
+	vlink: vstream := vstream$create ("linkage section size", true)
+	vpparm: vstream := vstream$create ("procedure parameter section size",
+						false)
+	vcparm: vstream := vstream$create ("cluster parameter section size",
+						true)
+	vowndat: vstream := vstream$create ("own data section size", true)
+	for ppart,args,vars,link,pparm,cparm,owndat: int in facts() do
+		vstream$addnum (vppart, ppart)
+		vstream$addnum (vargs, args)
+		vstream$addnum (vvars, vars)
+		vstream$addnum (vlink, link)
+		vstream$addnum (vpparm, pparm)
+		vstream$addnum (vcparm, cparm)
+		vstream$addnum (vowndat, owndat)
+		end
+	vstream$output (vppart, s)
+	vstream$output (vargs, s)
+	vstream$output (vvars, s)
+	vstream$output (vlink, s)
+	vstream$output (vpparm, s)
+	vstream$output (vcparm, s)
+	vstream$output (vowndat, s)
+	stream$close (s)
+	end print_facts

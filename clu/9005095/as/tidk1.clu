@@ -1,0 +1,425 @@
+# extend
+# include "tidefs.clu"
+
+%
+%	A disk is a secondary storage module.  It implements pages,
+%	which are referred to by their secondary storage addresses.
+%	A disk maintains a table that contains information about the
+%	blocks on that disk.  Each block is used to hold pages of
+%	one particular size.  The table allows one to quickly find
+%	non-full blocks providing each page size.
+%
+
+disk = cluster is create, equal, allocate_page, free_page, get_sizeno,
+	read_page, write_page,
+	print, print_map
+
+	rep = struct [
+		dv: dskdev,	% the actual disk device
+		m: dskblkmap	% the block map
+		]
+
+	% A disk would actually be represented by a disk number.
+
+create = proc (dv: dskdev) returns (cvt)
+
+	% No two disks can share a device.
+
+	m: dskblkmap := dskblkmap$create (dv)
+	return (rep${dv: dv, m: m})
+	end create
+
+equal = proc (d1, d2: cvt) returns (bool)
+	return (d1 = d2)
+	end equal
+
+allocate_page = proc (d: cvt, sizeno: word) returns (address)
+			signals (full)
+
+	bn: word := find_block (d, sizeno)
+	    except when full: signal full
+		end
+	o: word := allocate_page_from_block (d, bn)
+	return (address$create (bn, o))
+	end allocate_page
+
+free_page = proc (d: cvt, a: address) signals (bad_address)
+
+	% Free the specified page.  If it's already
+	% free, bad things will happen.  This could be checked by
+	% having a special internal type-code for free-list chains.
+
+	bn, o: word := address$unpack (a)
+	sz: word := sizetab (dskblkmap$get_sizeno (d.m, bn))
+	if o//sz ~= 0 then signal bad_address end
+	fl: word := dskblkmap$get_free_list (d.m, bn)
+	dskdev$write1 (d.dv, bn, o, fl)
+	dskblkmap$set_free_list (d.m, bn, o)
+	end free_page
+
+get_sizeno = proc (d: cvt, a: address) returns (word)
+	bn: word := a.block
+	return (dskblkmap$get_sizeno (d.m, bn))
+	end get_sizeno
+
+read_page = proc (d: cvt, a: address) returns (sequence[any])
+	bn, o: word := address$unpack (a)
+	size: word := sizetab (dskblkmap$get_sizeno (d.m, bn))
+	dskdev$read (d.dv, bn, o, size)
+	end read_page
+
+write_page = proc (d: cvt, a: address, v: sequence[any]) signals (wrong_size)
+	bn, o: word := address$unpack (a)
+	size: word := sizetab (dskblkmap$get_sizeno (d.m, bn))
+	if (size ~= sequence[any]$size(v)) then signal wrong_size end
+	dskdev$write (d.dv, bn, o, v)
+	end write_page
+
+%
+%	Internal operations for the DISK cluster.
+%
+
+find_block = proc (d: rep, sizeno: word) returns (word) signals (full)
+
+	% Return the block number of a non-full block that implements
+	% pages of the specified size.  If there are no such blocks,
+	% then an empty block may be converted to the specified page
+	% size.
+
+	bn: word := dskblkmap$find_nonfull_block (d.m, sizeno)
+	    except when none:
+		if sizeno = MAXSIZENO then signal full end
+		bn := allocate_block (d, sizeno)
+		    except when full: signal full end
+		end
+	return (bn)
+	end find_block
+
+allocate_block = proc (d: rep, sizeno: word) returns (word) signals (full)
+
+	% Allocate an empty block to provide pages of the specified
+	% size.  Put it on the head of the appropriate chain.
+	% Construct the free page list.
+
+	bn: word := dskblkmap$find_nonfull_block (d.m, MAXSIZENO)
+		except when none: signal full end
+	if sizeno = MAXSIZENO then return (bn) end
+	sz: word := sizetab (sizeno)
+	b: sequence[any] := sequence[any]$fill (0, BLOCKSIZE, -1)
+	o: word := 0
+	while TRUE do
+		if o+sz>=BLOCKSIZE
+			then
+				b[o] := -1
+				break
+			else b[o] := o+sz
+			end
+		o := o+sz
+		end
+	dskdev$write (d.dv, bn, 0, b)
+	dskblkmap$change_sizeno (d.m, bn, sizeno)
+	dskblkmap$set_free_list (d.m, bn, 0)
+	return (bn)
+	end allocate_block
+
+allocate_page_from_block = proc (d: rep, bn: word) returns (word) signals (block_full)
+
+	% Allocate a page from the block, returning its offset in
+	% the block.  If there are no free pages in the block, signal
+	% block_full.  The free pages are chained together.
+
+	fl: word := dskblkmap$get_free_list (d.m, bn)
+	if fl<0 then signal block_full end
+	next: word := force[word] (dskdev$read1 (d.dv, bn, fl))
+	dskblkmap$set_free_list (d.m, bn, next)
+	return (fl)
+	end allocate_page_from_block
+
+%
+%	Debugging operations for DISK cluster.
+%
+
+print = proc (d: cvt, s: stream)
+	dskdev$print (d.dv)
+	end print
+
+print_map = proc (d: cvt, s: stream)
+	dskblkmap$print (d.m, s)
+	end print_map
+
+	end disk
+
+%
+%	The disk-block-map.  It is very much the same as the mem-block
+%	map.  We ignore the details of reserving a place on the disk
+%	for a copy of the map.
+%
+
+dskblkmap = cluster is create, get_sizeno, get_free_list, set_free_list,
+		chain_elements, find_nonfull_block, put_at_head_of_chain,
+		change_sizeno,
+		print
+
+	rep = struct [
+		dv: dskdev,
+		nblocks: word,		% The number of blocks.
+		map: mvector,		% Descriptions of each block.
+		chains: mvector		% Chains of blocks of each size.
+		]
+
+create = proc (dv: dskdev) returns (cvt)
+
+	nblocks: word := dv.nblocks
+	map: mvector := mvector$create (nblocks)
+	for i:word in word$from_to (0, nblocks-1) do
+		map[i] := blkentry$make_nonexistent ()
+		end
+	chains: mvector := mvector$create (MAXSIZENO+1)
+	ochain: word := -1
+	for bn: word in word$from_to (0, nblocks-1) do
+		if dskdev$exists (dv, bn) then
+			map[bn] := blkentry$make_empty (ochain)
+			dskdev$write1 (dv, bn, 0, -1)	% freelist
+			ochain := bn
+			end
+		end
+	for i: word in word$from_to (0, MAXSIZENO-1) do
+		chains[i] := -1
+		end
+	chains[MAXSIZENO] := ochain
+	return (rep${dv: dv, nblocks: nblocks, map: map, chains: chains})
+	end create
+
+get_sizeno = proc (m: cvt, bn: word) returns (word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	return (e.sizeno)
+	end get_sizeno
+
+get_free_list = proc (m: cvt, bn: word) returns (word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	return (e.freelist)
+	end get_free_list
+
+set_free_list = proc (m: cvt, bn: word, fl: word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	e := blkentry$set_freelist (e, fl)
+	m.map[bn] := e
+	end set_free_list
+
+chain_elements = iter (m: cvt, sizeno: word) yields (word)
+	bn: word := force[word] (m.chains[sizeno])
+	while bn>=0 do
+		yield (bn)
+		bn := get_chain (m, bn)
+		end
+	end chain_elements
+
+find_nonfull_block = proc (m: dskblkmap, sizeno: word)
+			returns (word) signals (none)
+	for bn: word in dskblkmap$chain_elements (m, sizeno) do
+		fl: word := dskblkmap$get_free_list (m, bn)
+		if fl >= 0 then
+			dskblkmap$put_at_head_of_chain (m, bn)
+			return (bn)
+			end
+		end
+	signal none
+	end find_nonfull_block
+
+put_at_head_of_chain = proc (m: cvt, bn: word)
+	sizeno: word := get_sizeno (up (m), bn)
+	head: word := force[word] (m.chains[sizeno])
+	if bn ~= head then
+		obn: word := head
+		while obn >= 0 do
+			cbn: word := get_chain (m, obn)
+			if cbn = bn then
+				set_chain (m, obn, get_chain (m, bn))
+				set_chain (m, bn, head)
+				m.chains[sizeno] := bn
+				return
+				end
+			obn := cbn
+			end
+		signal failure ("block not on proper chain")
+		end
+	end put_at_head_of_chain
+
+change_sizeno = proc (m: cvt, bn: word, sizeno: word)
+	remove_from_chain (m, bn)
+	set_chain (m, bn, force[word] (m.chains[sizeno]))
+	m.chains[sizeno] := bn
+	set_sizeno (m, bn, sizeno)
+	end change_sizeno
+
+%
+%	Internal procedures for the DSKBLKMAP cluster.
+%
+
+get_chain = proc (m: rep, bn: word) returns (word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	return (e.chain)
+	end get_chain
+
+set_chain = proc (m: rep, bn: word, c: word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	e := blkentry$set_chain (e, c)
+	m.map[bn] := e
+	end set_chain
+
+set_sizeno = proc (m: rep, bn: word, sizeno: word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	e := blkentry$set_sizeno (e, sizeno)
+	m.map[bn] := e
+	end set_sizeno
+
+remove_from_chain = proc (m: rep, bn: word)
+	e: blkentry := force[blkentry] (m.map[bn])
+	osizeno: word := e.sizeno
+	head: word := force[word] (m.chains[osizeno])
+	if bn = head then
+		m.chains[osizeno] := get_chain (m, bn)
+		return
+		end
+	obn: word := head
+	while obn >= 0 do
+		cbn: word := get_chain (m, obn)
+		if cbn = bn then
+			set_chain (m, obn, get_chain (m, bn))
+			return
+			end
+		obn := cbn
+		end
+	signal failure ("block not on proper chain")
+	end remove_from_chain
+
+%
+%	Debugging operations for DSKBLKMAP cluster.
+%
+
+print = proc (m: cvt, s: stream)
+	stream$putl ("Disk Block Map:", s)
+	for i: word in word$from_to (0, m.nblocks-1) do
+		stream$puts ("  block ", s)
+		stream$puts (word$unparse (i), s)
+		stream$puts ("  ", s)
+		blkentry$print (m.map[i], s)
+		stream$putl ("", s)
+		end
+	stream$putl ("", s)
+	end print
+
+end dskblkmap
+
+%
+%	A dskdev is a secondary storage unit (e.g., a disk pack).
+%	The various devices can be accessed in parallel.  Each may
+%	use a different storage technology, with a different internal
+%	addressing structure.
+%
+%	A dskdev implements a set of consecutively numbered blocks,
+%	numbered from zero.  Some blocks may be nonexistent,
+%	allowing for the use of disks with only nearly-contiguous
+%	addresses.  (No data structure is implied.)  The purpose
+%	for using consecutive block numbers is to allow for a
+%	directly-indexed block map.
+%
+%	A dskdev also implements the basic I/O operations.
+%	We ignore the fact that current-technology secondary storage
+%	devices cannot directly write a subpiece of a block.
+%
+
+dskdev = cluster is create, get_nblocks, exists, read, write, read1, write1,
+	print
+
+	rep = struct [n: word, v: mvector]
+
+	% A dskdev is actually identified by a small integer.
+	% This integer is used to send requests to the proper
+	% hardware unit.
+
+create = proc (n: word) returns (cvt)
+	return (rep${n: n, v: mvector$create (DISKSIZE*BLOCKSIZE)})
+	end create
+
+get_nblocks = proc (dv: cvt) returns (word)
+
+	% Return one greater than the highest numbered block on the
+	% disk.
+
+	return (DISKSIZE)
+	end get_nblocks
+
+exists = proc (dv: cvt, bn: word) returns (bool)
+
+	% Return TRUE iff the block exists.
+
+	return (bn >= 0 cand bn < DISKSIZE)
+	end exists
+
+read = proc (dv: cvt, bn, o: word, size: word) returns (sequence[any])
+		signals (nonexistent_block, bad_offset, bad_size)
+	if ~dskdev$exists (up(dv), bn) then signal nonexistent_block end
+	if o<0 | o>BLOCKSIZE then signal bad_offset end
+	if size<0 | size>BLOCKSIZE-o then signal bad_size end
+
+	% do the read (This code is a hack.)
+
+	v: sequence[any] := sequence[any]$new ()
+	for i: word in word$from_to (0, size-1) do
+		sequence[any]$addh (v, dv.v[bn*BLOCKSIZE+o+i])
+		end
+	return (v)
+
+	end read
+
+write = proc (dv: cvt, bn, o: word, v: sequence[any])
+		signals (nonexistent_block, bad_offset, bad_size)
+	if ~dskdev$exists (up(dv), bn) then signal nonexistent_block end
+	if o<0 | o>BLOCKSIZE then signal bad_offset end
+	size: word := sequence[any]$size(v)
+	if size<0 | size>BLOCKSIZE-o then signal bad_size end
+
+	% do the write
+
+	i: word := 0
+	for x: any in sequence[any]$elements (v) do
+		dv.v[bn*BLOCKSIZE+o+i] := x
+		i := i + 1
+		end
+	end write
+
+read1 = proc (dv: cvt, bn, o: word) returns (any)
+		signals (nonexistent_block, bad_offset)
+	if ~dskdev$exists (up(dv), bn) then signal nonexistent_block end
+	if o<0 | o>=BLOCKSIZE then signal bad_offset end
+
+	% do the read
+
+	return (dv.v[bn*BLOCKSIZE+o])
+	end read1
+
+write1 = proc (dv: cvt, bn, o: word, v: any)
+		signals (nonexistent_block, bad_offset)
+	if ~dskdev$exists (up(dv), bn) then signal nonexistent_block end
+	if o<0 | o>=BLOCKSIZE then signal bad_offset end
+
+	% do the write
+
+	dv.v[bn*BLOCKSIZE+o] := v
+	end write1
+%
+%	Debugging operations.
+%
+
+print = proc (dv: cvt, s: stream)
+	stream$puts (word$unparse (dv.n))
+	end print
+
+	end dskdev
+
+print_diskmaps = proc (s: stream)
+	for d: disk in diskset$disks () do
+		disk$print_map (d, s)
+		end
+	end print_diskmaps

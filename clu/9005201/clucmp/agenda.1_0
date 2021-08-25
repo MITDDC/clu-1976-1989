@@ -1,0 +1,38 @@
+Ò"D¡èENDA		(* = in progress)
+
+
+Remember if environments have been reset, so as to minimize overhead.
+
+Output the filename for # include errors.
+
+Add a .extend variable (for reading equates via CE?)
+
+The linenumber on an error message about the wrong idn on an "end <clustername>"
+  is the linenumber for the token following the idn.
+  When the last module in the file has the wrong name on the end,
+  CLU should realize that.
+
+Look at what happens when you say
+	rules = array[rules]
+  and then later try to iterate over rules$elements.
+
+
+Allow types as free external references.  I need a macro to give me a
+  type descriptor for type_of(external).
+
+
+Think about speeding up parsing with some hand-coding.  Specifically,
+  avoid the c2i-fetch for (every?) character.
+
+
+Fix_filename doesn't quite do the right thing. For example, "boo;foo bar zoo:"
+  comes out "boo;foo:".
+
+
+Implement the force statement, if possible.
+
+
+Come up with a short, simple, readable form for DU specs, and implement it.
+
+
+Document, document, document.

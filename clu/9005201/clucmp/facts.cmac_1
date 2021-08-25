@@ -1,0 +1,43 @@
+.insrt clusys;alpha >
+
+cluster
+
+iter facts,[],[],[]
+	$for all,rr,call	%table$values,1,[$mtab]
+	   $if	isrep	rr,terep
+		$then	$fakef
+			movei	n0,0
+			hrro	g1,en.lpr(rr)
+			hrrz	n1,pr.cod(g1)
+			hrli	n1,(tint)
+			push	sp,n1			; size(pure part)
+			hrr	n1,pr.cut(g1)
+			subi	n1,2
+			push	sp,n1			; size(arguments)
+			hrr	n1,en.vi(rr)
+			push	sp,n1			; size(local variables)
+			hlro	g1,en.lpr(rr)
+			hrr	n1,ve.cod(g1)
+			push	sp,n1			; size(linkage section)
+			hlro	g1,en.par(rr)
+			hrr	n1,ve.cod(g1)
+			push	sp,n1			; size(pparm section)
+			hrro	g1,en.par(rr)
+			hrr	n1,ve.cod(g1)
+			push	sp,n1			; size(cparm section)
+			hrrz	n2,en.cod(rr)
+			$if	caig	n2,en.odv
+			  $then	hrro	g1,en.odv(rr)
+				hrr	n1,ve.cod(g1)
+			  $else	hllz	n1,n1
+			  $fi
+			push	sp,n1			; size(own data)
+			$myield	7
+		$fi
+	$rof all
+	$rtnc $none
+	reti facts,[]
+
+retsulc
+
+.insrt clusys;omega >

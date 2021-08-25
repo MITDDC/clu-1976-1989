@@ -1,0 +1,112 @@
+%	AWORD CLU
+%
+%	CLUMAC assembler:  a_word cluster
+
+a_word = cluster is	create,			% int, int -> wrd
+			inst,			% int, int, int, wrd -> wrd
+			xinst,			% int, int, int, int -> wrd
+			make_unknown,		% str -> wrd
+			add,			% wrd, wrd -> wrd
+			iadd,			% wrd, int -> wrd
+			iaddl,			% wrd, int -> wrd
+			sub,			% wrd, wrd -> wrd
+			mul,			% wrd, wrd -> wrd
+			and,			% wrd, wrd -> wrd
+			or,			% wrd, wrd -> wrd
+			minus,			% wrd -> wrd
+			swap,			% wrd -> wrd
+			r2l,			% wrd -> wrd
+			get_left,		% wrd -> wrd
+			get_right,		% wrd -> wrd
+			s2ascii,		% str -> wrd
+			w2i,			% wrd -> int, int
+			w2all,			% wrd -> int, int, str, str
+			has_unknowns,		% wrd -> bool
+			get_left_unknown,	% wrd -> str
+			get_right_unknown,	% wrd -> str
+			parse,			% str -> wrd => bad_format, overflow
+			dparse,			% str -> wrd => bad_format, overflow
+			equal,			% wrd, wrd -> bool
+			iequal;			% wrd, int -> bool
+
+rep = any;
+
+create = proc (left: int, right: int) returns (wrd);
+	end create;
+
+inst = proc (op: int, acc: int, xreg: int, addr: wrd) returns (wrd);
+	end inst;
+
+xinst = proc (op: int, acc: int, xreg: int, addr: int) returns (wrd);
+	end xinst;
+
+make_unknown = proc (s: str) returns (wrd);
+	end make_unknown;
+
+add = proc (w1: wrd, w2: wrd) returns (wrd);
+	end add;
+
+iadd = proc (w: wrd, r2: int) returns (wrd);
+	end iadd;
+
+iaddl = proc (w: wrd, l2: int) returns (wrd);
+	end iaddl;
+
+mul = proc (w1: wrd, w2: wrd) returns (wrd);
+	end mul;
+
+sub = proc (w1: wrd, w2: wrd) returns (wrd);
+	end sub;
+
+and = proc (w1: wrd, w2: wrd) returns (wrd);
+	end and;
+
+or = proc (w1: wrd, w2: wrd) returns (wrd);
+	end or;
+
+minus = proc (w: wrd) returns (wrd);
+	end minus;
+
+swap = proc (w: wrd) returns (wrd);
+	end swap;
+
+r2l = proc (w: wrd) returns (wrd);
+	end r2l;
+
+get_left = proc (w: wrd) returns (wrd);
+	end get_left;
+
+get_right = proc (w: wrd) returns (wrd);
+	end get_right;
+
+s2ascii = proc (s: str) returns (wrd);
+	end s2ascii;
+
+w2i = proc (w: wrd) returns (int, int);
+	end w2i;
+
+w2all = proc (w: wrd) returns (int, int, str, str);
+	end w2all;
+
+has_unknowns = proc (w: wrd) returns (bool);
+	end has_unknowns;
+
+get_left_unknown = proc (w: wrd) returns (str);
+	end get_left_unknown;
+
+get_right_unknown = proc (w: wrd) returns (str);
+	end get_right_unknown;
+
+parse = proc (s: str) returns (wrd) signals (bad_format, overflow);
+	end parse;
+
+dparse = proc (s: str) returns (wrd) signals (bad_format, overflow);
+	end dparse;
+
+equal = proc (w1: wrd, w2: wrd) returns (bool);
+	end equal;
+
+iequal = proc (w: wrd, i: int) returns (bool);
+	end iequal;
+
+end a_word;

@@ -1,0 +1,331 @@
+# extend
+# include "tidefs.clu"
+
+%
+%	Vectors are fixed-length mutable collections of objects.
+%	The elements are numbered starting from 0.
+%
+
+vector = cluster is create, equal, size, fetch, store,
+	print
+
+	rep = page
+
+	% Oops! at the moment, all zero-length vectors are equal!
+	% Does this matter??
+
+	% If the size of the vector is zero, then the rep is NILPAGE.
+	% If the size is less than BLOCKSIZE, then the rep is a page
+	% whose first word contains the refcount and the size, and
+	% the remaining words are the elements of the vector.  If
+	% the size is greater than or equal to BLOCKSIZE, then the
+	% rep is a page whose first word contains the refcount and
+	% the size, and the remaining words are subsidiary pages
+	% of size BLOCKSIZE containing the data.  Such pages may be
+	% NILPAGEs, signifying that all elements of the pages are
+	% UNDEFINED.
+
+MAXSIZE = (BLOCKSIZE-1)*BLOCKSIZE	% size of largest vector
+BIGSIZE = BLOCKSIZE			% size of smallest big vector
+
+create = proc (sz: word) returns (cvt) signals (negsize, toobig)
+	if sz<0 then signal negsize end
+	if sz>MAXSIZE then signal toobig end
+	if sz=0 then return (page$NILPAGE ()) end
+	p: page
+	if sz < BIGSIZE then
+		p := page$create (sz + 1, UNDEFINED)
+	    else
+		p := page$create (countpages(sz)+1, page$NILPAGE ())
+		end
+	p[0] := pack (1, sz)
+	return (p)
+	end create
+
+equal = proc (v1, v2: cvt) returns (bool)
+	return (v1 = v2)
+	end equal
+
+size = proc (v: cvt) returns (word)
+	if v = page$NILPAGE () then return (0) end
+	return (getsize (force[word] (v[0])))
+	end size
+
+fetch = proc (v: cvt, i: word) returns (any) signals (bounds)
+	sz: word := vector$size (up (v))
+	if i<0 | i>=sz then signal bounds end
+	if sz < BIGSIZE then return (v[i+1]) end
+	p: page := force[page] (v[i/BLOCKSIZE + 1])
+	if p = page$NILPAGE () then return (UNDEFINED) end
+	return (p[i//BLOCKSIZE])
+	end fetch
+
+store = proc (v: cvt, i: word, e: any) signals (bounds)
+	sz: word := vector$size (up (v))
+	if i<0 | i>=sz then signal bounds end
+	if sz < BIGSIZE then v[i+1] := e
+	    else
+		p: page := force[page] (v[i/BLOCKSIZE + 1])
+		if p = page$NILPAGE () then
+			p := page$create (BLOCKSIZE, UNDEFINED)
+			v[i/BLOCKSIZE + 1] := p
+			end
+		p[i//BLOCKSIZE] := e
+		end
+	end store
+
+
+%
+%	Internal procedures for the VECTOR cluster.
+%
+
+pack = proc (refcount, sz: word) returns (word)
+	% Pack the refcount and size into one header word.
+	% Refcount not needed for simulation.
+	return (sz)
+	end pack
+
+getsize = proc (w: word) returns (word)
+	return (w)
+	end getsize
+
+getrefcount = proc (w: word) returns (word)
+	return (1)
+	end getrefcount
+
+countpages = proc (sz: word) returns (word)
+	% Return the total number of pages needed.
+	return ((sz + (BLOCKSIZE-1)) / BLOCKSIZE)
+	end countpages
+
+%
+%	Debugging Operations
+%
+print = proc (v: vector, s: stream)
+	sz: word := vector$size (v)
+	stream$puts (" Vector [rep=", s)
+	page$print (down (v), s)
+	stream$puts ("] size=", s)
+	stream$puts (word$unparse (sz), s)
+	if sz > 0 then
+		stream$puts (" vals=", s)
+		for i: word in word$from_to (0, 4) do
+			if i < sz then
+				value$print (s, v[i])	% True hack!!!
+				stream$puts (" ", s)
+				end
+			end
+		end
+	stream$putl ("", s)
+	end print
+
+end vector
+
+%
+%	Segments are like vectors, except that elements can be added
+%	and removed from the high end.
+%
+
+segment = cluster is create, equal, size, fetch, store, top, grow, shrink,
+	trim, addh, remh
+
+	% Our representation for segments is similar to that of
+	% vectors.  However, since a segment's size can be changed,
+	% it is necessary to indirectly access the data page, as a
+	% new, larger data page must be allocated when the old one is
+	% full.  Thus, there is no point in storing the refcount and
+	% size in the first word of the data.  Instead, we use
+	% a dope vector:
+
+	rep = record [rc: word,		% the reference count
+		      big: bool,	% true if 2-level structure
+		      size: word,	% the visible size
+		      data: page]
+
+	% This dope vector is not really a record.  Actually, it is
+	% a two-word page that is treated like a record.
+
+	% In this implementation, we never release any physical
+	% storage, regardless of how many elements are removed from
+	% the segment.
+
+MAXSIZE = BLOCKSIZE*BLOCKSIZE		% maximum size of segment
+BIGSIZE = BLOCKSIZE+1			% minimum size needing big segment
+LOWBOUND = 0				% low bound of segment
+
+create = proc (sz: word) returns (cvt) signals (negsize, toobig)
+	if sz<0 then signal negsize end
+	if sz>MAXSIZE then signal toobig end
+	p: page
+	if sz<BIGSIZE then
+		p := page$create (sz, UNDEFINED)
+	    else
+		p := page$create (countpages (sz), page$NILPAGE ())
+		end
+	return (rep${rc: 1, big: sz>=BIGSIZE, size: sz, data: p})
+	end create
+
+equal = proc (v1, v2: cvt) returns (bool)
+	return (v1 = v2)
+	end equal
+
+size = proc (v: cvt) returns (word)
+	return (v.size)
+	end size
+
+fetch = proc (v: cvt, i: word) returns (any) signals (bounds)
+	if i<LOWBOUND then signal bounds end
+	i := i - LOWBOUND
+	if i>=v.size then signal bounds end
+	if v.big then
+		p: page := force[page] (v.data[i/BLOCKSIZE])
+		if p = page$NILPAGE () then return (UNDEFINED) end
+		return (p[i//BLOCKSIZE])
+		end
+	return (v.data[i])
+	end fetch
+
+store = proc (v: cvt, i: word, e: any) signals (bounds)
+	if i<LOWBOUND then signal bounds end
+	i := i - LOWBOUND
+	if i>=v.size then signal bounds end
+	if v.big then
+		p: page := force[page] (v.data[i/BLOCKSIZE])
+		if p = page$NILPAGE () then
+			p := page$create (BLOCKSIZE, UNDEFINED)
+			v.data[i/BLOCKSIZE] := p
+			end
+		p[i//BLOCKSIZE] := e
+	    else
+		v.data[i] := e
+		end
+	end store
+
+top = proc (v: segment) returns (any) signals (bounds)
+	sz: word := segment$size (v)
+	if sz = 0 then signal bounds end
+	return (v[sz+(LOWBOUND-1)])
+	end top
+
+grow = proc (v: cvt, n: word) signals (negsize, toobig)
+	if n<0 then signal negsize end
+	if n=0 then return end
+	if v.size > MAXSIZE-n			% avoid overflow
+		then signal toobig end
+	nsize: word := v.size + n
+	if nsize < BIGSIZE & ~v.big then	% small -> small
+		enlarge_small (v, nsize)
+	    elseif ~v.big then			% small -> big
+		small_to_big (v, nsize)
+	    else				% big -> big
+		enlarge_big (v, nsize)
+		end
+	v.size := nsize
+	end grow
+
+shrink = proc (v: cvt, n: word) signals (negsize)
+	if n<0 then signal negsize end
+	if n>v.size then n := v.size end
+	v.size := v.size - n
+	end shrink
+
+trim = proc (v: segment, sz: word)
+	if sz<0 then sz := 0 end		% avoid overflow
+	diff: word := segment$size(v) - sz	% amount to be trimmed
+	if diff<=0 then return end		% no trimming needed
+	segment$shrink (v, diff)
+	end trim
+
+addh = proc (v: segment, e: any) signals (toobig)
+	segment$grow (v, 1)
+		except when toobig: signal toobig end
+	segment$store (v, segment$size(v)+LOWBOUND-1, e)
+	end addh
+
+remh = proc (v: segment) returns (any) signals (bounds)
+	e: any := segment$top (v)
+		except when bounds: signal bounds end
+	segment$shrink (v, 1)
+	end remh
+
+%
+%	Internal procedures for the SEGMENT cluster.
+%
+
+enlarge_small = proc (v: rep, nsize: word)
+
+	% Given a segment V with a 1-level representation, enlarge it
+	% to size NSIZE by adding UNDEFINED elements.
+
+	v.data := enlargepage (v.data, v.size, nsize, UNDEFINED)
+	end enlarge_small
+
+small_to_big = proc (v: rep, nsize: word)
+
+	% Given a segment V with a 1-level representation, change it
+	% to a 2-level representation, adding UNDEFINED elements
+	% to make a total size NSIZE.
+
+	p: page := page$create (countpages (nsize), page$NILPAGE ())
+	p[0] := enlargepage (v.data, v.size, BLOCKSIZE, UNDEFINED)
+	v.data := p
+	v.big := TRUE
+	end small_to_big
+
+enlarge_big = proc (v: rep, nsize: word)
+
+	% Given a segment V with a 2-level representation, enlarge it
+	% to size NSIZE by adding UNDEFINED elements.
+
+	old_npages: word := countpages (v.size)
+	new_npages: word := countpages (nsize)
+	if new_npages > old_npages then
+		v.data := enlargepage (v.data, old_npages,
+			new_npages, page$NILPAGE ())
+		if old_npages > 0 then
+			old_lsize: word := v.size - (old_npages-1)*BLOCKSIZE
+			fill_page (force[page] (v.data[old_npages-1]),
+					old_lsize, BLOCKSIZE)
+			end
+	    elseif old_npages > 0 then
+		old_lsize: word := v.size - (old_npages-1)*BLOCKSIZE
+		fill_page (force[page] (v.data[old_npages-1]),
+				old_lsize, old_lsize+(nsize-v.size))
+		end
+	end enlarge_big
+
+enlargepage = proc (p: page, oldsize, newsize: word, e: any)
+			returns (page)
+
+	% Return a page whose contents are the first OLDSIZE elements
+	% of P, followed by at least NEWSIZE-OLDSIZE elements of value E.
+	% The returned page may be the page P.
+	% The NEWSIZE must not be larger than BLOCKSIZE.
+
+	psize: word := p.size
+	if newsize > psize then
+		newp: page := page$create (newsize, e)
+		for i: word in word$from_to (0, oldsize-1) do
+			newp[i] := p[i]
+			end
+		return (newp)
+		end
+	for i: word in word$from_to (oldsize, newsize-1) do
+		p[i] := e
+		end
+	return (p)
+	end enlargepage
+
+countpages = proc (sz: word) returns (word)
+	% return the total number of pages needed
+
+	return ((sz + (BLOCKSIZE-1)) / BLOCKSIZE)
+	end countpages
+
+fill_page = proc (p: page, oldsize, newsize: word)
+	for i: word in word$from_to (oldsize, newsize-1) do
+		p[i] := UNDEFINED
+		end
+	end fill_page
+
+end segment

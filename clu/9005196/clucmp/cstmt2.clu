@@ -1,0 +1,255 @@
+%	CSTMT2 CLU
+%
+%	CLU Compiler Version 3: statement checker
+
+c_tagcase = proc (e: env, ts: tagstmt);
+	specs: fieldspeclist := c_oneof_specs(e, c_expr(e, ts.obj));
+	used: flaglist := c_tagarms(e, ts.arms, specs);
+	all_used: bool := true;
+	for all_used in flaglist$elements(used) do
+		if ~all_used then break; end;
+		end;
+	tagcase ts.others_
+	   tag body (mb: body):
+		 if all_used  cand  fieldspeclist$size(specs) > 0
+		    then env$err1(e, "others arm not allowed - all selectors present");
+		    end;
+		 c_body(e, mb);
+	   tag none:
+		 if ~all_used
+		    then env$err1(e, "others arm required - not all selectors present");
+		    end;
+	   end;
+	end c_tagcase;
+
+c_oneof_specs = proc (e: env, t: typespec) returns (fieldspeclist);
+	tagcase t.abs
+	   tag select (ta: seltype):
+		if ta.gen = e.oneof_fake
+		   then return(ta.parms); end;
+	   tag other (ta: othertype):
+		tagcase ta
+		   tag return_: return(fieldspeclist$create(1));
+		   others:      ;
+		   end;
+	   tag unknown:
+		return(fieldspeclist$create(1));
+	   others:
+	   end;
+	env$err1(e, "tagcase expression not a oneof");
+	return(fieldspeclist$create(1));
+	end c_oneof_specs;
+
+c_tagarms = proc(e: env, arms: tagarmlist, specs: fieldspeclist) returns (flaglist);
+	used: flaglist := flaglist$fill(1, fieldspeclist$size(specs), false);
+	for arm: tagarm in tagarmlist$elements(arms) do
+		env$begin_scope(e);
+		e.line := arm.line;
+		t: typespec := c_mdecl(e, arm.var);
+		for n: name in namelist$elements(arm.tags) do
+			if typespec$mismatch2(t, c_sel(e, specs, used, n))
+			   then env$err(e, as$["value for tag '", n,
+						"' does not match variable type"]);
+			   end;
+			end;
+		c_body(e, arm.body);
+		env$end_scope(e);
+		end;
+	return(used);
+	end c_tagarms;
+
+c_mdecl = proc (e: env, md: mdecl) returns (typespec);
+	tagcase md
+	   tag decl (d: decl):
+		 c_decl(e, d);
+		 return(d.type_);
+	   tag none:
+		return(e.unknown_type);
+	   end;
+	end c_mdecl;
+
+c_return = proc (e: env, exprs: exprlist);
+	for x: expr in exprlist$elements(exprs) do
+		c_expr(e, x);
+		end;
+	if env$in_proc(e)
+	   then c_values(e, e.values, exprs, "return");
+	elseif exprlist$size(exprs) > 0
+	   then env$err1(e, "iterator cannot return values"); end;
+	end c_return;
+
+c_yield = proc (e: env, exprs: exprlist);
+	for x: expr in exprlist$elements(exprs) do
+		c_expr(e, x);
+		end;
+	if env$in_proc(e)
+	   then env$err1(e, "yield statement within procedure");
+	   else c_values(e, e.values, exprs, "yield");
+	   end;
+	end c_yield;
+
+c_signal = proc (e: env, sig: condition);
+	for x: expr in exprlist$elements(sig.args) do
+		c_expr(e, x);
+		end;
+	n: name := sig.name;
+	for xsig: exception in exceptionlist$elements(e.xsignals) do
+		if n = xsig.name
+		   then	c_values(e, xsig.types, sig.args, "signal");
+			return;
+		   end;
+		end;
+	if n = "failure"
+	   then t: typespec := e.str_type;
+		c_values(e, typelist$[1: t], sig.args, "signal");
+		return;
+	   end;
+	env$err(e, as$["signal '", n, "' not listed in header"]);
+	end c_signal;
+
+c_values = proc (e: env, types: typelist, exprs: exprlist, st: str);
+	if exprlist$size(exprs) ~= typelist$size(types)
+	   then	env$err(e, as$["number of expressions in ", st,
+				" statement disagrees with header declaration"]);
+		return;
+	   end;
+	cvt_: typespec := e.cvt_type;
+	for i: int in exprlist$indexes(exprs) do
+		t: typespec := types[i];
+		x: expr := exprs[i];
+		is_cvt_: bool;
+		if t = cvt_
+		   then	t := e.down_type;
+			is_cvt_ := true;
+		   else is_cvt_ := false;
+		   end;
+		if typespec$mismatch(t, x.typespec)
+		   then env$err(e, as$["expression ", int$unparse(i), " of ", st,
+							" statement of wrong type"]);
+		   end;
+		   except when anyize: x := expr$create(exprabs$make_any_(x),
+							e.any_type);
+				       exprs[i] := x;
+			  end;
+		if is_cvt_
+		   then exprs[i] := expr$create(exprabs$make_up_(x), e.up_type); end;
+		end;
+	end c_values;
+
+c_exit = proc (e: env, cond: condition);
+	types: typelist := c_exprlist(e, cond.args);
+	ex: exception := exception${name:  cond.name,
+				    types: types};
+	env$add_cond(e, ex, exit_);
+	end c_exit;
+
+c_except = proc (e: env, xs: exceptstmt);
+	env$push_handlers(e, xs);
+	c_stmt(e, xs.stmt);
+	conds: exceptionlist := env$pop_handlers(e);
+	used: flaglist := c_whenarms(e, xs.arms, conds);
+	tagcase xs.others_
+	   tag arm (marm: othersarm):
+		 e.line := marm.line;
+		 env$begin_scope(e);
+		 if typespec$mismatch(e.str_type, c_mdecl(e, marm.decl))
+		    then env$err1(e, "others arms variable of wrong type"); end;
+		 all_used: bool := true;
+%		 for all_used in flaglist$elements(used) do
+%			if ~all_used then break; end;
+%			end;
+%		 if all_used
+%		    then env$warn1(e, "others arm not known to catch anything"); end;
+		 c_body(e, marm.body);
+		 env$end_scope(e);
+	   others:
+	   end;
+	end c_except;
+
+c_whenarms = proc (e: env, arms: handlerlist, conds: exceptionlist) returns (flaglist);
+	used: flaglist := flaglist$fill(1, exceptionlist$size(conds), false);
+	for arm: handler in handlerlist$elements(arms) do
+		e.line := arm.line;
+		env$begin_scope(e);
+		vars: whendecl := arm.vars;
+		tagcase vars
+		   tag decls (decls: decllist):
+			c_decllist(e, decls);
+		   others:
+		   end;
+		for n: name in namelist$elements(arm.names) do
+			c_when(e, conds, used, vars, n);
+			end;
+		c_body(e, arm.body);
+		env$end_scope(e);
+		end;
+	return(used);
+	end c_whenarms;
+
+c_when = proc (e: env, conds: exceptionlist, used: flaglist, vars: whendecl, n: name);
+	for i: int in exceptionlist$indexes(conds) do
+		cond: exception := conds[i];
+		if n = cond.name
+		   then	if used[i]
+			   then env$err(e, as$["multiple handlers for condition '", n,
+										"'"]);
+			   else used[i] := true;
+			   end;
+			tagcase vars
+			   tag decls (decls: decllist):
+				c_when_assn(e, decls, cond);
+			   tag none:
+				if typelist$size(cond.types) > 0
+				   then env$err(e, as$["condition '", n,
+								"' has values"]);
+				   end;
+			   others:
+			   end;
+			return;
+		   end;
+		end;
+%	env$warn(e, as$["condition '", n, "' not known to be raised"]);
+	end c_when;
+
+c_when_assn = proc (e: env, decls: decllist, cond: exception);
+	types: typelist := cond.types;
+	j: int := typelist$low(types);
+	h: int := typelist$high(types);
+	for d: decl in decllist$elements(decls) do
+	    t: typespec := d.type_;
+	    for i: idn in idnlist$elements(d.idns) do
+		if j > h
+		   then	env$err(e, as$["more variables than values for condition '",
+						cond.name, "'"]);
+			return;
+		   end;
+		if typespec$mismatch2(t, types[j])
+		   then env$err(e, as$["object of wrong type assigned to '",
+					   i.str, "' for condition '", cond.name, "'"]);
+		   end;
+		j := j + 1;
+		end;
+	    end;
+	if j <= h
+	   then env$err(e, as$["move values than variables for condition '",
+					cond.name, "'"]);
+	   end;
+	end c_when_assn;
+
+c_forcestmt = proc (e: env, fs: forcestmt);
+	t: typespec := c_expr(e, fs.expr);
+	if typespec$mismatch(t, e.any_type)
+	   then env$err1(e, "force expression not of type any"); end;
+	i: idn := fs.type_;
+	ni: idn := idn$create(i.str, idnkind$make_tconst(opspeclist$create(1)));
+	nt: typespec := env$get_type(e, typeabs$make_idn(ni));
+	x: expr := expr$create(exprabs$make_type_(nt), e.type_type);
+	env$declare(e, i, idnkind$make_expr(x));
+	reqs: restrictlist := fs.where_;
+	env$begin_specs(e);
+	c_restrictlist(e, reqs);
+	env$end_specs(e);
+	c_add_restricts(e, reqs);
+	c_restrictlist(e, reqs);
+	env$add_var(e, fs.val, nt);
+	end c_forcestmt;

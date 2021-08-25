@@ -1,0 +1,114 @@
+ô¢lR‹F CLU
+%
+%	CLU Compiler Version 3:  cross-reference data structure
+
+xref = cluster is	create,		% -> xref
+			add_refs,	% xref, str, as ->
+			add_ref,	% xref, str, str ->
+			print,		% xref, str, str, file ->
+			flush;		% xref ->
+
+str		= string;
+as		= array[str];
+entry		= record[ref:   str,
+			 users: as];
+rep		= array[entry];
+
+create = proc () returns (cvt);
+	return(rep$create(0));
+	end create;
+
+add_refs = proc (tab: xref, user: str, refs: as);
+	for ref: str in as$elements(refs) do
+		add_ref(tab, ref, user);
+		end;
+	end add_refs;
+
+add_ref = proc (tab: cvt, ref: str, user: str);
+	ll: int := rep$low(tab);
+	hh: int := rep$high(tab);
+	l: int := ll;
+	h: int := hh;
+	while l <= h do			% Binary search
+		m: int := (l + h)/2;
+		me: entry := tab[m];
+		mref: str := me.ref;
+		if ref < mref
+		   then h := m - 1;
+		elseif ref = mref
+		   then	musers: as := me.users;
+			for muser: str in as$elements(musers) do
+				if user = muser
+				   then return; end;
+				end;
+			as$addh(musers, user);
+			return;
+		else  l := m + 1; end;
+		end;
+	% (h = l - 1) and ref should be inserted between them
+	ent: entry := entry${ref:   ref,
+			     users: as$[0: user]};
+	if hh - l <= h - ll		% Which move is shorter?
+	   then rep$addh(tab, ent);
+		for n: int in int$from_to_by(hh, l, -1) do
+			tab[n + 1] := tab[n];
+			end;
+		tab[l] := ent;
+	   else rep$addl(tab, ent);
+		for n: int in int$from_to_by(ll, h, 1) do
+			tab[n - 1] := tab[n];
+			end;
+		tab[h] := ent;
+	   end;
+	end add_ref;
+
+print = proc (tab: cvt, lhead, rhead: str, f: file);
+	if rep$size(tab) = 0
+	   then return; end;
+	max: int := str$size(lhead);
+	for ent: entry in rep$elements(tab) do
+		n: int := str$size(ent.ref);
+		if n > max
+		   then max := n; end;
+		end;
+	max := max + 4;
+	output(f, lhead, as$[rhead], max);
+	for i: int in int$from_to_by(1, 6, 1) do
+		file$puts(f, "__________");
+		end;
+	file$puts(f, "\n\n");
+	for ent: entry in rep$elements(tab) do
+		output(f, ent.ref, ent.users, max);
+		end;
+	end print;
+
+output = proc (f: file, ref: str, users: as, max: int);
+	n: int := str$size(ref);
+	file$puts(f, ref);
+	for i: int in int$from_to_by(n, max - 1, 1) do
+		file$putc(f, ' ');
+		end;
+	pos: int := max;
+	for user: str in as$elements(users) do
+		n := str$size(user) + 1;
+		if pos + n > 60
+		   then file$putc(f, '\n');
+			for i: int in int$from_to_by(2, max, 1) do
+				file$putc(f, ' ');
+				end;
+			pos := max;
+		   end;
+		file$putc(f, ' ');
+		file$puts(f, user);
+		pos := pos + n;
+		end;
+	file$putc(f, '\n');
+	end output;
+
+flush = proc (tab: cvt);
+	rep$set_low(tab, 1);
+	rep$trim(tab, 1, 0);
+	end flush;
+
+end xref;
+

@@ -1,0 +1,44 @@
+.
+. string registers for CLU keywords
+.
+.sr array 1array*
+.sr bool 1bool*
+.sr boolean bool
+.sr break 1break*
+.sr char 1char*
+.sr character char
+.sr cluster 1cluster*
+.sr cvt 1cvt*
+.sr do 1do*
+.sr else 1else*
+.sr elseif 1elseif*
+.sr end 1end*
+.sr false 1false*
+.sr for 1for*
+.sr has 1has*
+.sr if 1if*
+.sr in 1in*
+.sr int 1int*
+.sr integer int
+.sr is 1is*
+.sr iterator 1iter*
+.sr nil 1nil*
+.sr null 1null*
+.sr oneof 1oneof*
+.sr proc 1proc*
+.sr proctype 1proctype*
+.sr record 1record*
+.sr rep 1rep*
+.sr return 1return*
+.sr returns 1returns*
+.sr string 1string*
+.sr tag 1tag*
+.sr tagcase 1tagcase*
+.sr then 1then*
+.sr true 1true*
+.sr type 1type*
+.sr until 1until*
+.sr where 1where*
+.sr while 1while*
+.sr yield 1yield*
+.sr yields 1yields*

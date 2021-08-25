@@ -1,0 +1,300 @@
+%	AWORD CLU
+%
+%	CLUMAC assembler:  a_word cluster
+
+a_word = cluster is	create,			% int, int -> wrd
+			inst,			% int, int, int, wrd -> wrd
+			xinst,			% int, int, int, int -> wrd
+			make_unknown,		% str -> wrd
+			add,			% wrd, wrd -> wrd
+			iadd,			% wrd, int -> wrd
+			iaddl,			% wrd, int -> wrd
+			sub,			% wrd, wrd -> wrd
+			mul,			% wrd, wrd -> wrd
+			and,			% wrd, wrd -> wrd
+			or,			% wrd, wrd -> wrd
+			minus,			% wrd -> wrd
+			swap,			% wrd -> wrd
+			r2l,			% wrd -> wrd
+			get_left,		% wrd -> wrd
+			get_right,		% wrd -> wrd
+			s2ascii,		% str -> wrd
+			w2i,			% wrd -> int, int
+			w2all,			% wrd -> int, int, str, str
+			has_unknowns,		% wrd -> bool
+			get_left_unknown,	% wrd -> str
+			get_right_unknown,	% wrd -> str
+			parse,			% str -> wrd => bad_format, overflow
+			dparse,			% str -> wrd => bad_format, overflow
+			equal,			% wrd, wrd -> bool
+			iequal;			% wrd, int -> bool
+
+rep		= oneof[left:   int,
+			right:  int,
+			off_er: int,
+			off_lr: int,
+			uleft:  str,
+			uright: str,
+			word:   word,
+			full:   full];
+
+full		= record[word:   word,
+			 uleft:  str,
+			 uright: str];
+
+create = proc (left: int, right: int) returns (cvt);
+	if left = 0
+	   then return(rep$make_right(right));
+	elseif right = 0
+	   then return(rep$make_left(left));
+	elseif left = ER
+	   then return(rep$make_off_er(right));
+	elseif left = LR
+	   then return(rep$make_off_lr(right));
+	else return(rep$make_word(word$create(left, right))); end;
+	end create;
+
+inst = proc (op: int, acc: int, xreg: int, addr: wrd) returns (cvt);
+	l, r: int, ul, ur: str := w2all(addr);
+	w: word := word$create(op + acc*32 + xreg + l, r);
+	if ul = ""  cand  ur = ""
+	   then return(rep$make_word(w));
+	   else return(rep$make_full(full${word:   w,
+					   uleft:  ul,
+					   uright: ur}));
+	   end;
+	end inst;
+
+xinst = proc (op: int, acc: int, xreg: int, addr: int) returns (cvt);
+	return(rep$make_word(word$create(op + acc*32 + xreg, addr)));
+	end xinst;
+
+make_unknown = proc (s: str) returns (cvt);
+	return(rep$make_uright(s));
+	end make_unknown;
+
+add = proc (w1: wrd, w2: wrd) returns (wrd);
+	l1, r1: int := w2i(w1);
+	l2, r2: int := w2i(w2);
+	l1, r1 := i_add4(l1, r1, l2, r2);
+	return(add_unknowns(l1, r1, w1, w2));
+	end add;
+
+iadd = proc (w: wrd, r2: int) returns (wrd);
+	l, r: int, ul, ur: str := w2all(w);
+	l, r := i_add4(l, r, 0, r2);
+	return(add_unknowns1(l, r, ul, ur));
+	end iadd;
+
+iaddl = proc (w: wrd, l2: int) returns (wrd);
+	l, r: int, ul, ur: str := w2all(w);
+	l, r := i_add4(l, r, l2, 0);
+	return(add_unknowns1(l, r, ul, ur));
+	end iaddl;
+
+mul = proc (w1: wrd, w2: wrd) returns (wrd);
+	l1, r1: int := w2i(w1);
+	l2, r2: int := w2i(w2);
+	l1, r1 := i_mul4(l1, r1, l2, r2);
+	return(add_unknowns(l1, r1, w1, w2));
+	end mul;
+
+sub = proc (w1: wrd, w2: wrd) returns (wrd);
+	l1, r1: int := w2i(w1);
+	l2, r2: int := w2i(w2);
+	l1, r1 := i_sub4(l1, r1, l2, r2);
+	return(add_unknowns(l1, r1, w1, w2));
+	end sub;
+
+and = proc (w1: wrd, w2: wrd) returns (wrd);
+	l1, r1: int := w2i(w1);
+	l2, r2: int := w2i(w2);
+	l1 := i_and(l1, r1);
+	r1 := i_and(r1, r2);
+	return(add_unknowns(l1, r1, w1, w2));
+	end and;
+
+or = proc (w1: wrd, w2: wrd) returns (wrd);
+	l1, r1: int := w2i(w1);
+	l2, r2: int := w2i(w2);
+	l1 := i_or(l1, r1);
+	r1 := i_or(r1, r2);
+	return(add_unknowns(l1, r1, w1, w2));
+	end or;
+
+minus = proc (w: wrd) returns (wrd);
+	l, r: int, ul, ur: str := w2all(w);
+	l, r := i_minus(l, r);
+	return(add_unknowns1(l, r, ul, ur));
+	end minus;
+
+swap = proc (w: wrd) returns (wrd);
+	l, r: int, ul, ur: str := w2all(w);
+	return(add_unknowns1(r, l, ur, ul));
+	end swap;
+
+r2l = proc (w: wrd) returns (wrd);
+	l, r: int, ul, ur: str := w2all(w);
+	return(add_unknowns1(r, 0, ur, ""));
+	end r2l;
+
+get_left = proc (w: wrd) returns (wrd);
+	l, r: int, ul, ur: str := w2all(w);
+	return(add_unknowns1(0, l, "", ul));
+	end get_left;
+
+get_right = proc (w: wrd) returns (wrd);
+	l, r: int, ul, ur: str := w2all(w);
+	return(add_unknowns1(0, r, "", ur));
+	end get_right;
+
+s2ascii = proc (s: str) returns (wrd);
+	l, r: int := i_ascii(s);
+	return(create(l, r));
+	end s2ascii;
+
+w2i = proc (w: cvt)  returns (int, int);
+	tagcase w
+	   tag right (i: int):
+		return(0, i);
+	   tag left (i: int):
+		return(i, 0);
+	   tag off_er (i: int):
+		return(ER, i);
+	   tag off_lr (i: int):
+		return(LR, i);
+	   tag word (ww: word):
+		l, r: int := word$w2i(ww);
+		return(l, r);
+	   tag full (f: full):
+		l, r: int := word$w2i(f.word);
+		return(l, r);
+	   others:
+		return(0, 0);
+	   end;
+	end w2i;
+
+w2all = proc (w: cvt)  returns (int, int, str, str);
+	tagcase w
+	   tag right (i: int):
+		return(0, i, "", "");
+	   tag left (i: int):
+		return(i, 0, "", "");
+	   tag off_er (i: int):
+		return(ER, i, "", "");
+	   tag off_lr (i: int):
+		return(LR, i, "", "");
+	   tag word (ww: word):
+		l, r: int := word$w2i(ww);
+		return(l, r, "", "");
+	   tag uleft (s: str):
+		return(0, 0, s, "");
+	   tag uright (s: str):
+		return(0, 0, "", s);
+	   tag full (f: full):
+		l, r: int := word$w2i(f.word);
+		return(l, r, f.uleft, f.uright);
+	   end;
+	end w2all;
+
+add_unknowns = proc (l: int, r: int, w1: cvt, w2: cvt) returns (wrd);
+	uleft: str := "";
+	uright: str := "";
+	tagcase w1
+	   tag right, left, off_er, off_lr, word:
+	   tag uleft (s: str):
+		uleft := s;
+	   tag uright (s: str):
+		uright := s;
+	   tag full (f: full):
+		uleft := f.uleft;
+		uright := f.uright;
+	   end;
+	tagcase w2
+	   tag right, left, off_er, off_lr, word:
+	   tag uleft (s: str):
+		uleft := s;
+	   tag uright (s: str):
+		uright := s;
+	   tag full (f: full):
+		uleft := f.uleft;
+		uright := f.uright;
+	   end;
+	return(add_unknowns1(l, r, uleft, uright));
+	end add_unknowns;
+
+add_unknowns1 = proc (l: int, r: int, ul: str, ur: str) returns (wrd);
+	if ul = ""  cand  ur = ""
+	   then return(create(l, r)); end;
+	if l = 0  cand  r = 0
+	   then if ul = ""
+		   then return(up(rep$make_uright(ur)));
+		elseif ur = ""
+		   then return(up(rep$make_uleft(ul))); end;
+	   end;
+	return(up(rep$make_full(full${word:   word$create(l, r),
+				      uleft:  ul,
+				      uright: ur})));
+	end add_unknowns1;
+
+has_unknowns = proc (w: cvt) returns (bool);
+	tagcase w
+	   tag uleft, uright, full:
+		return(true);
+	   others:
+		return(false);
+	   end;
+	end has_unknowns;
+
+get_left_unknown = proc (w: cvt) returns (str);
+	tagcase w
+	   tag uleft (s: str):
+		return(s);
+	   tag full (f: full):
+		return(f.uleft);
+	   others:
+		return("");
+	   end;
+	end get_left_unknown;
+
+get_right_unknown = proc (w: cvt) returns (str);
+	tagcase w
+	   tag uright (s: str):
+		return(s);
+	   tag full (f: full):
+		return(f.uright);
+	   others:
+		return("");
+	   end;
+	end get_right_unknown;
+
+parse = proc (s: str) returns (wrd) signals (bad_format, overflow);
+	l, r: int := i_oparse(s);
+	   except when bad_format: signal bad_format;
+		  when overflow: signal overflow;
+		  end;
+	return(create(l, r));
+	end parse;
+
+dparse = proc (s: str) returns (wrd) signals (bad_format, overflow);
+	l, r: int := i_dparse(s);
+	   except when bad_format: signal bad_format;
+		  when overflow: signal overflow;
+		  end;
+	return(create(l, r));
+	end dparse;
+
+equal = proc (w1: cvt, w2: cvt) returns (bool);
+	return(rep$similar(w1, w2));
+	end equal;
+
+iequal = proc (w: cvt, i: int) returns (bool);
+	tagcase w
+	   tag right (j: int):
+		return(i = j);
+	   others:
+		return(false);
+	   end;
+	end iequal;
+
+end a_word;

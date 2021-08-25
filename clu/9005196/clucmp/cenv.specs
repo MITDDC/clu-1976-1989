@@ -1,0 +1,313 @@
+c_env = cluster is	create,			% CE, file -> c_env
+			reset,			% c_env, CE, file ->
+			hack,			% c_env ->
+			unhack,			% c_env ->
+			is_hacked,		% c_env -> bool
+			put_line,		% c_env, int ->
+			new_apply,		% c_env, applytype ->
+			begin_specs,		% c_env ->
+			end_specs,		% c_env ->
+			begin_recheck,		% c_env ->
+			end_recheck,		% c_env ->
+			begin_scope,		% c_env ->
+			end_scope,		% c_env ->
+			begin_loop,		% c_env ->
+			end_loop,		% c_env ->
+			begin_type_scope,	% c_env ->
+			end_type_scope,		% c_env ->
+			equates,		% c_env, equatelist ->
+			eval_parms,		% c_env, decllist, equatelist ->
+			eval_equates,		% c_env ->
+			get_type,		% c_env, typeabs -> typespec
+			fix_type,		% c_env, typespec -> bool
+			get_unknown_type,	% c_env -> typespec
+			get_null_type,		% c_env -> typespec
+			get_bool_type,		% c_env -> typespec
+			get_int_type,		% c_env -> typespec
+			get_real_type,		% c_env -> typespec
+			get_char_type,		% c_env -> typespec
+			get_str_type,		% c_env -> typespec
+			get_type_type,		% c_env -> typespec
+			get_any_type,		% c_env -> typespec
+			get_cvt_type,		% c_env -> typespec
+			get_up_type,		% c_env -> typespec
+			put_up_type,		% c_env, typespec ->
+			get_down_type,		% c_env -> typespec
+			put_down_type,		% c_env, typespec ->
+			get_array_fake,		% c_env -> DUfake
+			get_record_fake,	% c_env -> DUfake
+			get_oneof_fake,		% c_env -> DUfake
+			get_proc_fake,		% c_env -> DUfake
+			get_iter_fake,		% c_env -> DUfake
+			get_dufake,		% c_env, DU -> DUfake
+			get_mod_gen,		% c_env -> DUfake
+			put_mod_gen,		% c_env -> DUfake
+			get_module_name,	% c_env -> name
+			put_varlist,		% c_env, idnlist ->
+			pop_externals,		% c_env -> idnlist
+			add_undefined,		% c_env, DUfake ->
+			pop_undefined,		% c_env -> DUfakelist
+			in_cluster,		% c_env -> bool
+			in_proc,		% c_env -> bool
+			break_illegal,		% c_env -> bool
+			types_illegal,		% c_env -> bool
+			building_specs,		% c_env -> bool
+			checking_specs,		% c_env -> bool
+			err,			% c_env, array[str] ->
+			err1,			% c_env, str ->
+			warn,			% c_env, array[str] ->
+			warn1,			% c_env, str ->
+			eval_err,		% c_env, str, str, str ->
+			comperr,		% c_env, str ->
+			get_err,		% c_env -> int
+			end_reset,		% c_env, bool ->
+			get_xsignals,		% c_env -> exceptionlist
+			get_values,		% c_env -> typelist
+			get_expr0,		% c_env -> exprlist
+			get_bad_expr,		% c_env -> expr
+			push_vals,		% c_env, idnlist, exprlist ->
+			push_parms,		% c_env, idnlist, idnlist ->
+			push_parm,		% c_env, idn, idn ->
+			declare,		% c_env, idn, idnkind ->
+			add_var,		% c_env, idn, typespec ->
+			scopify,		% c_env, idn ->
+			lookup,			% c_env, idn, bool ->
+			push_handlers,		% c_env, exceptstmt ->
+			pop_handlers,		% c_env -> exceptionlist
+			add_cond;		% c_env, exception ->
+
+DUfakelist = array[DUfake];
+rep = any;
+
+create = proc (comp: CE, erf: file) returns (c_env);
+	end create;
+
+reset = proc (e: c_env, comp: CE, erf: file);
+	end reset;
+
+hack = proc (e: c_env);
+	end hack;
+
+unhack = proc (e: c_env);
+	end unhack;
+
+is_hacked = proc (e: c_env) returns (bool);
+	end is_hacked;
+
+put_line = proc (e: c_env, line: int);
+	end put_line;
+
+new_apply = proc (e: c_env, at: applytype);
+	end new_apply;
+
+begin_specs = proc (e: c_env);
+	end begin_specs;
+
+end_specs = proc (e: c_env);
+	end end_specs;
+
+begin_recheck = proc (e: c_env);
+	end begin_recheck;
+
+end_recheck = proc (e: c_env);
+	end end_recheck;
+
+begin_scope = proc (e: c_env);
+	end begin_scope;
+
+end_scope = proc (e: c_env);
+	end end_scope;
+
+begin_loop = proc (e: c_env);
+	end begin_loop;
+
+end_loop = proc (e: c_env);
+	end end_loop;
+
+begin_type_scope = proc (e: c_env);
+	end begin_type_scope;
+
+end_type_scope = proc (e: c_env);
+	end end_type_scope;
+
+equates = proc (e: c_env, list: equatelist);
+	end equates;
+
+eval_parms = proc (e: c_env, parms: decllist, list: equatelist);
+	end eval_parms;
+
+eval_equates = proc (e: c_env);
+	end eval_equates;
+
+get_type = proc (e: c_env, ta: typeabs) returns (typespec);
+	end get_type;
+
+fix_type = proc (e: c_env, t: typespec) returns (bool);
+	end fix_type;
+
+get_unknown_type = proc (e: c_env) returns (typespec);
+	end get_unknown_type;
+
+get_null_type = proc (e: c_env) returns (typespec);
+	end get_null_type;
+
+get_bool_type = proc (e: c_env) returns (typespec);
+	end get_bool_type;
+
+get_int_type = proc (e: c_env) returns (typespec);
+	end get_int_type;
+
+get_real_type = proc (e: c_env) returns (typespec);
+	end get_real_type;
+
+get_char_type = proc (e: c_env) returns (typespec);
+	end get_char_type;
+
+get_str_type = proc (e: c_env) returns (typespec);
+	end get_str_type;
+
+get_type_type = proc (e: c_env) returns (typespec);
+	end get_type_type;
+
+get_any_type = proc (e: c_env) returns (typespec);
+	end get_any_type;
+
+get_cvt_type = proc (e: c_env) returns (typespec);
+	end get_cvt_type;
+
+get_up_type = proc (e: c_env) returns (typespec);
+	end get_up_type;
+
+put_up_type = proc (e: c_env, t: typespec);
+	end put_up_type;
+
+get_down_type = proc (e: c_env) returns (typespec);
+	end get_down_type;
+
+put_down_type = proc (e: c_env, t: typespec);
+	end put_down_type;
+
+get_array_fake = proc (e: c_env) returns (DUfake);
+	end get_array_fake;
+
+get_record_fake = proc (e: c_env) returns (DUfake);
+	end get_record_fake;
+
+get_oneof_fake = proc (e: c_env) returns (DUfake);
+	end get_oneof_fake;
+
+get_proc_fake = proc (e: c_env) returns (DUfake);
+	end get_proc_fake;
+
+get_iter_fake = proc (e: c_env) returns (DUfake);
+	end get_iter_fake;
+
+get_dufake = proc (e: c_env, d: DU) returns (DUfake);
+	end get_dufake;
+
+get_mod_gen = proc (e: c_env) returns (DUfake);
+	end get_mod_gen;
+
+put_mod_gen = proc (e: c_env, gen: DUfake);
+	end put_mod_gen;
+
+get_module_name = proc (e: c_env) returns (name);
+	end get_module_name;
+
+put_varlist = proc (e: c_env, vars: idnlist);
+	end put_varlist;
+
+pop_externals = proc (e: c_env) returns (idnlist);
+	end pop_externals;
+
+add_undefined = proc (e: c_env, d: DUfake);
+	end add_undefined;
+
+pop_undefined = proc (e: c_env) returns (DUfakelist);
+	end pop_undefined;
+
+in_cluster = proc (e: c_env) returns (bool);
+	end in_cluster;
+
+in_proc = proc (e: c_env) returns (bool);
+	end in_proc;
+
+break_illegal = proc (e: c_env) returns (bool);
+	end break_illegal;
+
+types_illegal = proc (e: c_env) returns (bool);
+	end types_illegal;
+
+building_specs = proc (e: c_env) returns (bool);
+	end building_specs;
+
+checking_specs = proc (e: c_env) returns (bool);
+	end checking_specs;
+
+err = proc (e: c_env, msg: as);
+	end err;
+
+err1 = proc (e: c_env, msg: str);
+	end err1;
+
+warn = proc (e: c_env, msg: as);
+	end warn;
+
+warn1 = proc (e: c_env, msg: str);
+	end warn1;
+
+eval_err = proc (e: c_env, type_: str, op: str, sig: str);
+	end eval_err;
+
+comperr = proc (e: c_env, msg: str);
+	end comperr;
+
+get_err = proc (e: c_env) returns (int);
+	end get_err;
+
+end_reset = proc (e: c_env, lasting: bool);
+	end end_reset;
+
+get_xsignals = proc (e: c_env) returns (exceptionlist);
+	end get_xsignals;
+
+get_values = proc (e: c_env) returns (typelist);
+	end get_values;
+
+get_expr0 = proc (e: c_env) returns (exprlist);
+	end get_expr0;
+
+get_bad_expr = proc (e: c_env) returns (expr);
+	end get_bad_expr;
+
+push_vals = proc (e: c_env, idns: idnlist, vals: exprlist);
+	end push_vals;
+
+push_parms = proc (e: c_env, parms: idnlist, nparms: idnlist);
+	end push_parms;
+
+push_parm = proc (e: c_env, parm: idn, nparm: idn);
+	end push_parm;
+
+declare = proc (e: c_env, i: idn, nk: idnkind);
+	end declare;
+
+add_var = proc (e: c_env, i: idn, t: typespec);
+	end add_var;
+
+scopify = proc (e: c_env, i: idn);
+	end scopify;
+
+lookup = proc (e: c_env, i: idn, want: int);
+	end lookup;
+
+push_handlers = proc (e: c_env, xs: exceptstmt);
+	end push_handlers;
+
+pop_handlers = proc (e: c_env) returns (exceptionlist);
+	end pop_handlers;
+
+add_cond = proc (e: c_env, cond: exception, is_exit: bool);
+	end add_cond;
+
+end c_env;

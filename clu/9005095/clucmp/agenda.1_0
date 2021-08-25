@@ -1,0 +1,24 @@
+Ò"D¡èENDA		(* = in progress)
+
+
+The linenumber on an error message about the wrong idn on and end <clustername>
+  is the linenumber for the token following the idn.
+ When the last module in the file has the wrong name on the
+ end, it should realize that.
+
+Look at what happens when you say
+	rules = array[rules]
+  and then later try to iterate over rules$elements.
+
+
+Allow types as free external references.  I need a macro to give me a
+  type descriptor for type_of(external).
+
+
+Implement the force statement, if possible.
+
+
+Come up with a short, simple, readable form for DU specs, and implement it.
+
+
+Document, document, document.

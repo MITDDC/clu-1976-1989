@@ -1,0 +1,23 @@
+clusys;string bin
+clusys;int bin
+clusys;real bin
+clusys;char bin
+clusys;booln bin
+clusys;trace bin
+clusys;listen bin
+clusys;vectab bin
+clusys;desc bin
+clusys;array bin
+clusys;record bin
+clusys;oneof bin
+clusys;file bin
+clusys;except bin
+clusys;ssnap bin
+clusys;value bin
+clusys;pdump bin
+clusys;sname bin
+clusys;xfile bin
+
+
+
+

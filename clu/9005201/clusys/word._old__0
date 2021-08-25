@@ -1,0 +1,535 @@
+; word = cluster is
+;
+;		create		% int, int -> word
+;		extend		% int -> word
+;		and		% word, word -> word
+;		or		% word, word -> word
+;		xor		% word, word -> word
+;		add		% word, word -> word
+;		sub		% word, word -> word
+;		mul		% word, word -> word
+;		div		% word, word -> word
+;		mod		% word, word -> word
+;		minus		% word -> word
+;		comp		% word -> word
+;		shift		% word, int ->
+;		get_right	% word -> word
+;		get_left	% word -> word
+;		swap		% word -> word
+;		bit		% word, int -> bool
+;		set_bit		% word, int -> word
+;		clear_bit	% word, int -> word
+;		s2w		% str -> word
+;		w2s		% word -> str
+;		w2i		% word -> int, int
+;		w2runt		% word -> int, int, int
+;		ascii2s		% word -> str
+;		s2ascii		% str -> word
+;		zero		% word -> bool
+;		equal		% word, word -> bool
+;		similar		% word, word -> bool
+;		copy		% word -> word
+;		parse		% str -> word => bad_format, overflow
+;		dparse		% str -> word => bad_format, overflow
+;		unparse		% word -> string
+;		print		% word, file ->
+
+.insrt clusys;alpha >
+
+edesc	e$ovl,overflow
+edesc	e$bfm,bad_format
+
+tdesc	tw,word
+ti==	ttype(tint)
+ts==	ttype(tstr)
+tb==	ttype(tbool)
+ptdesc	t$cre,[ti,ti],[tw],[]
+ptdesc	t$ext,[ti],[tw],[]
+ptdesc	t$and,[tw,tw],[tw],[]
+t$or==	t$and
+t$xor==	t$and
+ptdesc	t$cmp,[tw],[tw],[]
+t$min==	t$cmp
+ptdesc	t$shi,[tw,ti],[tw],[]
+t$gr==	t$cmp
+t$gl==	t$cmp
+t$swp==	t$cmp
+ptdesc	t$bit,[tw,ti],[tb],[]
+ptdesc	t$set,[tw,ti],[tw],[]
+t$clr==	t$set
+ptdesc	t$s2w,[ts],[tw],[]
+ptdesc	t$w2s,[tw],[ts],[]
+ptdesc	t$w2i,[tw],[ti,ti],[]
+ptdesc	t$w2t,[tw],[ti,ti,ti],[]
+t$a2s==	t$w2s
+t$s2a==	t$s2w
+ptdesc	t$zer,[tw],[tb],[]
+ptdesc	t$eq,[tw,tw],[tb],[]
+t$sim==	t$eq
+t$cpy==	t$cmp
+ptdesc	t$par,[ts],[tw],[e$ovl,e$bfm]
+t$dpa==	t$par
+t$unp==	t$w2s
+
+cluster word
+
+link	six,tint+6
+link	thr5,tint+35.
+slink	z5,00000
+
+; create word from left and right halves as ints
+
+proc	w.cre,[l,r],[],[],t$cre
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	hrl	n2,l(er)
+	hrr	n2,r(er)
+	movem	n2,1(rr)
+	$rtn	rr
+	corp word$create,[l,r]
+
+; create word from right halves as int, and extend sign
+
+proc	w.ext,[r],[],[],t$ext
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	hrre	n2,r(er)
+	movem	n2,1(rr)
+	$rtn	rr
+	corp word$extend,[r]
+
+proc	w.and,[w1,w2],[],[],t$and
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w1(er)
+	move	n1,1(r1)
+	refchk	r0,w2(er)
+	and	n1,1(r0)
+	movem	n1,1(rr)
+	$rtn	rr
+	corp	word$and,[w1,w2]
+
+proc	w.or,[w1,w2],[],[],t$or
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w1(er)
+	move	n1,1(r1)
+	refchk	r0,w2(er)
+	ior	n1,1(r0)
+	movem	n1,1(rr)
+	$rtn	rr
+	corp	word$or,[w1,w2]
+
+proc	w.xor,[w1,w2],[],[],t$xor
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w1(er)
+	move	n1,1(r1)
+	refchk	r0,w2(er)
+	xor	n1,1(r0)
+	movem	n1,1(rr)
+	$rtn	rr
+	corp	word$xor,[w1,w2]
+
+proc	w.add,[w1,w2],[],[],t$xor
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w1(er)
+	move	n1,1(r1)
+	refchk	r0,w2(er)
+	add	n1,1(r0)
+	movem	n1,1(rr)
+	$rtn	rr
+	corp	word$add,[w1,w2]
+
+proc	w.sub,[w1,w2],[],[],t$xor
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w1(er)
+	move	n1,1(r1)
+	refchk	r0,w2(er)
+	sub	n1,1(r0)
+	movem	n1,1(rr)
+	$rtn	rr
+	corp	word$sub,[w1,w2]
+
+proc	w.mul,[w1,w2],[],[],t$xor
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w1(er)
+	move	n1,1(r1)
+	refchk	r0,w2(er)
+	mul	n1,1(r0)
+	movem	n2,1(rr)
+	$rtn	rr
+	corp	word$mul,[w1,w2]
+
+proc	w.div,[w1,w2],[],[],t$xor
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w1(er)
+	move	n1,1(r1)
+	refchk	r0,w2(er)
+	idiv	n1,1(r0)
+	movem	n1,1(rr)
+	$rtn	rr
+	corp	word$div,[w1,w2]
+
+proc	w.mod,[w1,w2],[],[],t$xor
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w1(er)
+	move	n1,1(r1)
+	refchk	r0,w2(er)
+	idiv	n1,1(r0)
+	movem	n1,1(rr)
+	$rtn	rr
+	corp	word$mod,[w1,w2]
+
+proc	w.cmp,[w],[],[],t$cmp
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w(er)
+	setcm	n2,1(r1)
+	movem	n2,1(rr)
+	$rtn	rr
+	corp	word$comp,[w]
+
+proc	w.min,[w],[],[],t$min
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w(er)
+	move	n2,1(r1)
+	movnm	n2,1(rr)
+	$rtn	rr
+	corp	word$minus,[w]
+
+proc	w.shi,[w,i],[],[],t$shi
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	rsbchk	n1,i(er)
+	hrrz	n1,n1
+	refchk	r1,w(er)
+	move	n2,1(r1)
+	lsh	n2,@n1
+	movem	n2,1(rr)
+	$rtn	rr
+	corp	word$shift,[w,i]
+
+; returns right half in right half
+
+proc	w.gr,[w],[],[],t$gr
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w(er)
+	move	n2,1(r1)
+	hrrm	n2,1(rr)
+	$rtn	rr
+	corp	word$get_right,[w]
+
+; returns left half in right half
+
+proc	w.gl,[w],[],[],t$gl
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w(er)
+	move	n2,1(r1)
+	hlrm	n2,1(rr)
+	$rtn	rr
+	corp	word$get_left,[w]
+
+; swaps halves
+
+proc	w.swp,[w],[],[],t$swp
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	refchk	r1,w(er)
+	move	n2,1(r1)
+	movsm	n2,1(rr)
+	$rtn	rr
+	corp	word$swap,[w]
+
+; returns bit i as a bool
+
+proc	w.bit,[w,i],[],[],t$bit
+	setcm	n1,i(er)
+	hrrz	n1,n1
+	refchk	rr,w(er)
+	move	n2,1(rr)
+	rot	n2,(n1)
+	skipge	n2
+	$rtnc	$true
+	$rtnc	$false
+	corp	word$bit,[w,i]
+
+; sets bit i
+
+proc	w.sbt,[w,i],[],[],t$set
+	rsbchk	n1,i(er)
+	hrrz	n1,n1
+	movei	n2,1
+	rot	n2,(n1)
+	refchk	rr,w(er)
+	ior	n2,1(rr)
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	movem	n2,1(rr)
+	$rtn	rr
+	corp	word$set_bit,[w,i]
+
+; clears bit i
+
+proc	w.cbt,[w,i],[],[],t$clr
+	rsbchk	n1,i(er)
+	hrrz	n1,n1
+	movei	n2,1
+	rot	n2,(n1)
+	refchk	rr,w(er)
+	andca	n2,1(rr)
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	movem	n2,1(rr)
+	$rtn	rr
+	corp	word$clear_bit,[w,i]
+
+; converts first 6 chars of string to sixbit
+
+proc	w.s2w,[s],[],[],t$s2w
+	call	string$size,1,[s(er)]
+	$if	came	rr,$zero
+	  $then
+		hrri	n1,2
+		hrli	n1,(twvec)
+		alloc	2,n1
+		$rtn	rr
+	$elf	camg	rr,six(lr)
+	  $then
+		call	string$substr,3,[s(er),$one,six(lr)]
+	  $else	move	rr,s(er)
+	$fi
+	call	str2six,1,[rr]
+	$rtn	rr
+	corp	word$s2w,[s]
+
+; interprets word as sixbit chars
+
+proc	w.w2s,[w],[],[],t$w2s
+	call	six2str,1,[w(er)]
+	$rtn	rr
+	corp	word$w2s,[w]
+
+; returns left and right half as ints
+
+proc	w.w2i,[w],[],[],t$w2i
+	refchk	r1,w(er)
+	hlr	rr,1(r1)
+	hrli	rr,(tint)
+	args	[rr]
+	hrr	rr,1(r1)
+	args	[rr]
+	$mrtn	2
+	corp	word$w2i,[w]
+
+; converts 4 microsecond tic count into seconds, milliseconds, microseconds
+
+proc	w.w2t,[w],[],[],t$w2t
+	refchk	r1,w(er)
+	move	n1,1(r1)
+	idivi	n1,250.
+	lsh	n2,2
+	move	n0,n1
+	idivi	n0,1000.
+	stypix	n0,tint		; n0 has seconds
+	stypix	n1,tint		; n1 has milliseconds
+	stypix	n2,tint		; n2 has microseconds
+	$mrtn	3,[n0,n1,n2]	; return all of the goodies
+	corp	word$w2runt,[w]
+
+; interprets word as ascii chars
+
+proc	w.a2s,[w],[],[],t$a2s
+	refchk	r0,w(er)
+	move	n3,1(r0)
+	jumpn	n3,c.som(pr)
+	 $rtnc $nulls			; the null string
+.here	c.som
+	setz	n1,
+	setz	n2,
+.here	c.beg
+	jumpe	n3,c.dne(pr)
+	lshc	n2,chsize
+	aoja	n1,c.beg(pr)
+.here	c.dne
+	caie	n1,1
+	  $go	many
+	hrli	n2,(tstr)		; a single char
+	$rtn	n2
+$label	many
+	hrli	n1,(tsrep)
+	alloc	2,n1
+	move	n2,1(r0)
+	movem	n2,1(rr)
+	hrli	rr,%str
+	$rtn	rr
+	corp	word$ascii2s,[w]
+
+; make first 5 chars a word
+
+proc	w.s2a,[s],[],[],t$s2a
+	isrsb	r1,s(er)
+	 $go	refr
+	move	n1,r1
+	setz	n2,			; a single char
+	lshc	n1,-chsize
+	$go	fin
+$label	refr
+	move	n2,1(r1)
+$label	fin
+	hrri	n1,2			; allocate the word
+	hrli	n1,(twvec)
+	alloc	2,n1
+	movem	n2,1(rr)
+	$rtn	rr
+	corp	word$s2ascii,[s]
+
+; returns true if word is 0
+
+proc	w.z,[w],[],[],t$zer
+	refchk	rr,w(er)
+	skipe	1(rr)
+	 $rtnc	$false
+	$rtnc	$true
+	corp	word$zero,[w]
+
+proc	w.eq,[w1,w2],[],[],t$eq
+	refchk	rr,w1(er)
+	move	n1,1(rr)
+	refchk	rr,w2(er)
+	came	n1,1(rr)
+	 $rtnc	$false
+	$rtnc	$true
+	corp	word$equal,[w1,w2]
+
+proc	w.sim,[w1,w2],[],[],t$sim
+	refchk	rr,w1(er)
+	move	n1,1(rr)
+	refchk	rr,w2(er)
+	came	n1,1(rr)
+	 $rtnc	$false
+	$rtnc	$true
+	corp	word$similar,[w1,w2]
+
+proc	w.cpy,[w],[],[],t$cpy
+	$rtn	w(er)
+	corp	word$copy,[w]
+
+; parses octal representation of word
+
+proc	w.par,[s],[w],[0],[t$par]
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	movem	rr,w(er)
+	$for	each,rr,call string$chars,1,[s(er)]
+		hrrz	n1,rr
+		subi	n1,60
+		$if	cail	n1,0
+		$then	signal	e$bfm
+		$elf	caig	n1,7
+		$then	signal	e$bfm
+		$fi
+		move	rr,w(er)
+		move	n2,1(rr)
+		$if	tlnn	n2,700000
+		$then	signal	e$ovl
+		$fi
+		lsh	n2,3
+		add	n2,n1
+		movem	n2,1(rr)
+	$rof	each
+	$rtn	w(er)
+corp	word$parse,[s],[w]
+
+; parses decimal representation of word
+
+proc	w.dpa,[s],[w],[0],[t$dpa]
+	hrri	n1,2
+	hrli	n1,(twvec)
+	alloc	2,n1
+	movem	rr,w(er)
+	$for	each,rr,call string$chars,1,[s(er)]
+		hrrz	n1,rr
+		subi	n1,60
+		$if	cail	n1,0
+		$then	signal	e$bfm
+		$elf	caig	n1,9.
+		$then	signal	e$bfm
+		$fi
+		move	rr,w(er)
+		move	n2,1(rr)
+		muli	n2,10.
+		add	n3,n1
+		$if	skipg	n2
+		$then	signal	e$ovl
+		$fi
+		movem	n3,1(rr)
+	$rof	each
+	$rtn	w(er)
+corp	word$dparse,[s],[w]
+
+; returns octal representation of word
+
+proc	w.unp,[w],[],[],t$unp
+	refchk	r1,w(er)
+	hlr	rr,1(r1)
+	hrli	rr,(tint)
+	$if	came	rr,$zero
+	  $then
+		hrr	rr,1(r1)
+		call	octal,1,[rr]
+		$rtn	rr
+	  $fi
+	call	octal,1,[rr]
+	args	[rr]
+	move	r1,w(er)
+	hrr	rr,1(r1)
+	hrli	rr,(tint)
+	call	octal,1,[rr]
+	call	string$concat,2,[z5(lr),rr]
+	args	[rr]
+	call	string$size,1,[rr]
+	subi	rr,5
+	call	string$rest,2,[rr]
+	call	string$concat,2,[rr]
+	$rtn	rr
+	corp	word$unparse,[w]
+
+; prints octal representation of word
+
+proc	w.prt,[w,f]
+	call	word$unparse,1,[w(er)]
+	call	file$puts,2,[f(er),rr]
+	$rtnc	$none
+	corp	word$print,[w,f]
+
+retsulc word
+
+.insrt clusys;omega >

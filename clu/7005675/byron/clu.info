@@ -1,0 +1,37 @@
+
+MSG: *MSG   283   
+RWS@MIT-XX 06/10/82 21:32:58 Re:  CLU for the VAX under 4.1bsd
+Date: 9 Jun 1982 1656-EDT
+From: RWS at MIT-XX
+Subject: CLU for the VAX under 4.1bsd
+To: world:
+Remailed-date: 10 Jun 1982 2132-EDT
+Remailed-from: Arpanet-BBoards-Request at MIT-ML
+
+An efficient implementation of the CLU programming language/system is now
+available for the VAX under 4.1bsd.  The user interface is nearly identical
+to the TOPS-20 version of CLU, and includes a compiler, linker, assembler,
+run-time system, extensive debugging environment, and a powerful real-time
+display text editor (written in CLU) with a number of CLU-related features.
+The CLU reference manual is available from Springer-Verlag, Lecture Notes in
+Computer Science 114.  The system is available for free with the proviso
+that it not be used for commercial gain.  The complete system (all sources
+and binaries) is about 16Mb; a bare bones system is about 3Mb.  The system
+is not available over a network; to get a copy, send a written request
+specifying VAX/4.1bsd and a magtape to
+	Bob Scheifler
+	MIT Laboratory for Computer Science
+	545 Technology Square
+	Room 522
+	Cambridge, MA 02139
+We (currently) pay the return postage.  The default tape format will be
+	tar cb 20 .
+of a directory hierarchy.  In this format, an 800 foot magtape will suffice.
+If you want a different format, make sure you specify it.  All we have is a
+TS-11 drive.  And please, no queries about a VMS version.  We are starting
+work on one, but don't hold your breath.  And no, we don't have a version
+for any other machines or operating systems except the 20 under TOPS-20.
+
+-------
+
+

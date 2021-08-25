@@ -1,0 +1,111 @@
+%	AMEM CLU
+%
+%	CLUMAC assembler: memory cluster
+
+memory = cluster is	create,		% -> memory
+			get_loc,	% memory -> int
+			set_loc,	% memory, int ->
+			deposit,	% memory, int, int => overflow
+			store,		% memory, int, int, int ->
+			fetch,		% memory, int -> int, int
+			dump;		% memory, int, int, chan ->
+
+rep		= record[loc:   int,
+			 pages: mpagelist];
+mpagelist	= array[mpage];
+mpage		= oneof[none: null,
+			page: page];
+_pgtotal	= 256;
+_mdpoint	= _pgtotal / 2;
+
+create = proc () returns (cvt);
+	mem: mpagelist := mpagelist$predict(0, _pgtotal);
+	for i: int in int$from_to(1, _pgtotal) do
+		mpagelist$addh(mem, mpage$make_none(nil));
+		end;
+	return(rep${loc:   0,
+		    pages: mem});
+	end create;
+
+get_loc = proc (m: cvt) returns (int);
+	return(m.loc);
+	end get_loc;
+
+set_loc = proc (m: cvt, loc: int);
+	m.loc := loc;
+	end set_loc;
+
+deposit = proc (m: cvt, left: int, right: int) signals (overflow);
+	loc: int := m.loc;
+	memory$store(up(m), loc, left, right);
+	if loc = -1
+	   then signal overflow;
+	   else m.loc := loc + 1;
+	   end;
+	   except when overflow: m.loc := - loc - 1; end;
+	end deposit;
+
+store = proc (m: cvt, loc: int, left: int, right: int);
+	index: int := loc / _pgsize;
+	if loc < 0
+	   then index := index + _mdpoint; end;
+	tagcase m.pages[index]
+	   tag none:
+		p: page := page$create();
+		m.pages[index] := mpage$make_page(p);
+		page$store(p, loc // _pgsize, left, right);
+	   tag page (p: page):
+		page$store(p, loc // _pgsize, left, right);
+	   end;
+	end store;
+
+fetch = proc (m: cvt, loc: int) returns (int, int);
+	index: int := loc / _pgsize;
+	if loc < 0
+	   then index := index + _mdpoint; end;
+	tagcase m.pages[index]
+	   tag none:
+		return(0, 0);
+	   tag page (p: page):
+		left, right: int := page$fetch(p, loc // _pgsize);
+		return(left, right);
+	   end;
+	end fetch;
+
+dump = proc (m: cvt, low: int, high: int, c: chan);
+	sys$writeb(c, word$create(JRST, 1));
+	lpage: int := low / _pgsize;
+	if low < 0
+	   then lpage := lpage + _mdpoint; end;
+	hpage: int := high / _pgsize;
+	if high < 0
+	   then hpage := hpage + _mdpoint; end;
+	ll: int := low // _pgsize;
+	hh: int := high // _pgsize;
+	if hpage < lpage
+	   then return; end;
+	if hpage = lpage
+	   then page_dump(m, lpage, ll, hh - ll + 1, c);
+	   else page_dump(m, lpage, ll, _pgsize - ll, c);
+		for pnum: int in int$from_to(lpage + 1, hpage - 1) do
+			page_dump(m, pnum, 0, _pgsize, c);
+			end;
+		page_dump(m, hpage, 0, hh + 1, c);
+	   end;
+	sys$writeb(c, word$create(JRST, low));
+	sys$writeb(c, word$create(0, 0));
+	end dump;
+
+page_dump = proc (m: rep, pnum: int, low: int, len: int, c: chan);
+	if len < 0
+	   then return; end;
+	tagcase m.pages[pnum]
+	   tag page (p: page):
+		l, r: int := i_mul4(0, pnum, 0, _pgsize);
+		l, r := i_add4(l, r, 0, low);
+		page$dump(p, r, low, len, c);
+	   tag none:
+	   end;
+	end page_dump;
+
+end memory;

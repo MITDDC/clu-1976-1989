@@ -1,0 +1,54 @@
+;CLU Compiler Version 3.76
+
+.symtab 8000.,4095.
+.insrt clusys;alpha >
+cluster
+;							1
+ptdesc t$1,[],[ttype(tbool)],[]
+;							p
+proc f$1,[],[],[],t$1,[]
+;							2
+$if
+link c$1,tint+3.
+args [c$1(lr)]
+args [$zero]
+pcdesc f$2,int$equal,2.
+pcall f$2
+$ift
+$then
+link c$2,tint+4.
+args [c$2(lr)]
+link c$3,tint+5.
+args [c$3(lr)]
+pcall f$2
+$fi
+$test
+$then
+;							3
+assn rr,$true
+$rtn rr
+;							4
+$elf
+args [c$2(lr)]
+args [$zero]
+pcall f$2
+$ift
+$then
+args [c$2(lr)]
+args [c$3(lr)]
+pcall f$2
+$fi
+$test
+$then
+;							5
+assn rr,$true
+$rtn rr
+$else
+;							6
+assn rr,$false
+$rtn rr
+$fi
+corp p,[]
+retsulc
+
+.insrt clusys;omega >

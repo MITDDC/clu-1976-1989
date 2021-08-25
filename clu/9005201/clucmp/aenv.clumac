@@ -1,0 +1,6 @@
+;CLU Compiler Version 3.76
+
+.symtab 8000.,4095.
+.insrt clusys;alpha >
+
+.insrt clusys;omega >

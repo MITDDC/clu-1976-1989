@@ -1,0 +1,167 @@
+% The following describes the basics of a hardware
+% fully-associative memory.
+
+% An associative memory consists of some number of
+% cells, each containing some information (represented
+% here by the type parameter T).  The cells are
+% numbered from 1 to some maximum N.  At any time, a
+% subset of these cells are "selected".  Cells
+% are selected either by address or by comparing
+% the values of the cells with some other value.
+% In addition, one may select the entire set of cells.
+
+% Operations are provided to read, write, or
+% functionally update all of the selected cells.
+% (Reading makes sense only when there is exactly
+% one selected cell.)
+
+AM = cluster [t: type] is
+	create,			% create the AM
+	get_size,		% return number of cells
+	get_nselected,		% return number of selected cells
+	load,			% load cells from array
+	store,			% store cells into array
+	select_by_address,	% select a particular cell
+	select_by_match,	% select cells by matching
+	select_all,		% select all cells
+	read,			% read selected cells
+	write,			% write selected cells
+	update			% update selected cells
+
+at = array[t]
+ab = array[bool]
+rep = record [values: at, selected: ab, nselected: int]
+
+create = proc (n: int, e: t) returns (cvt) signals (bad_size)
+
+	% Create an AM with N cells, all initialized to E.
+
+	if n<=0 then signal bad_size end
+	return (rep${
+		values: at$fill (1, n, e),
+		selected: ab$fill (1, n, false),
+		nselected: 0})
+	end create
+
+get_size = proc (a: cvt) returns (int)
+
+	% Return the number of cells.
+
+	return (at$size (a.values))
+	end get_size
+
+get_nselected = proc (a: cvt) returns (int)
+
+	% Return the number of selected cells.
+
+	return (a.nselected)
+	end get_nselected
+
+load = proc (a: cvt, x: at) signals (bad_array)
+
+	% Load the cells from the array X.
+	% Deselect all cells.
+
+	z: at := a.values
+	if at$low(x) ~= at$low(z) cor
+	   at$high(x) ~= at$high(z) then
+		signal bad_array
+		end
+	for i: int in at$indexes (z) do
+		z[i] := x[i]
+		end
+	clear_selected (a)
+	end load
+
+store = proc (a: cvt, x: at) signals (bad_array)
+
+	% Store the cells into the array X.
+
+	z: at := a.values
+	if at$low(x) ~= at$low(z) cor
+	   at$high(x) ~= at$high(z) then
+		signal bad_array
+		end
+	for i: int in at$indexes (z) do
+		x[i] := z[i]
+		end
+	end store
+
+select_by_address = proc (a: cvt, n: int) signals (bad_address)
+
+	% Select the cell numbered N.
+
+	clear_selected (a)
+	a.selected[n] := true
+	    except when bounds: signal bad_address end
+	a.nselected := 1
+	end select_by_address
+
+select_by_match = proc (a: cvt, x: t, p: proctype (t, t) returns (bool))
+
+	% Select the cells C for which P(C,X) is true.
+
+	clear_selected (a)
+	for i: int in at$indexes (a.values) do
+		if p (a.values[i], x) then
+			a.selected[i] := true
+			a.nselected := a.nselected + 1
+			end
+		end
+	end select_by_match
+
+select_all = proc (a: cvt)
+
+	% Select all cells.
+
+	for i: int in at$indexes (a.values) do
+		a.selected[i] := true
+		end
+	a.nselected := at$size (a.values)
+	end select_all
+
+read = proc (a: cvt) returns (t) signals (none_selected, many_selected)
+
+	% Read the unique selected cell.
+
+	if a.nselected = 0 then signal none_selected
+	  elseif a.nselected > 1 then signal many_selected
+	  end
+	for i: int in at$indexes (a.values) do
+		if a.selected[i] then return (a.values[i]) end
+		end
+	signal failure ("no selected cell")
+	end read
+
+write = proc (a: cvt, x: t)
+
+	% Write all selected cells.
+
+	if a.nselected > 0 then
+		for i: int in at$indexes (a.values) do
+			if a.selected[i] then a.values[i] := x end
+			end
+		end
+	end write
+
+update = proc (a: cvt, x: any, p: proctype (t, any) returns (t))
+
+	% Update all cells C = P(C,X).
+
+	if a.nselected > 0 then
+		for i: int in at$indexes (a.values) do
+			if a.selected[i] then
+				a.values[i] := p (a.values[i], x)
+				end
+			end
+		end
+	end update
+
+clear_selected = proc (a: rep)
+	for i: int in at$indexes (a.values) do
+		a.selected[i] := false
+		end
+	a.nselected := 0
+	end clear_selected
+
+end AM

@@ -1,0 +1,29 @@
+;;
+;; Arguments and initialization
+;;
+;;	Arguments are as follows:
+;;
+;;	register 1	pointer to vector of aobjn pointer for basic areas
+;;		 2	return address
+;;		 3	start of stack
+;;		 4	end of stack
+;;		 5	start of heap
+;;		 6	end of heap
+;;		 7	frame pointer
+;;		10	flags
+;;			0 - 1 => do not trim arrays
+;;			1 - 1 => purify
+;;			rest - ignored
+;;		11	first array not to trim
+;;		12	other array not to trim
+;;
+
+;;
+;;	We must give some info back
+;;
+;;		 4	end of stack
+;;		 5	start of heap
+;;		 6	new "memlo" (lowest existing word for allocation)
+;;		 7	number of words "saved" by GC
+;;		10	end of heap
+;;

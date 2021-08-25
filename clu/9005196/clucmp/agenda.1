@@ -1,0 +1,57 @@
+Ò"D¡èENDA		(* = in progress)
+
+
+* Change the "put" sugar to be "set", and change BASIC TYPES.
+
+
+* Change the top level to look for CLU;CLU ORDER, not CLUSYS;CLU ORDER.
+
+
+* Throw out sys$kill, and use quit_.  Use gc_pure_dump().
+
+
+* Change the error messages that say "T 'op' operation" to say
+  "operation 'op' in type 'T'" if it reads ok.
+
+
+* Fix the bug that prints a variable name as a line number:
+	redeclaration of 'foo' declared in line v$12
+
+
+* Fix the bug that causes an uncaught "no_du" in c_new_module on the second
+  call to c_module_idn.
+
+
+* Forget all of a non-equate-module's references in the CE after checking.
+
+
+* Do type-checking even if there are "minor" syntax errors.
+
+
+* Replace the HACK and UNHACK commands with compiler directives:
+	# extend    and     # normal
+
+
+Change the format of TTY output.  In particular, save all information about
+  external and undefined references until the very end of all files.  Output
+  this information as a cross-reference, rather than per module.  Don't print
+  out module names when checking. This puts all error messages at the beginning
+  of a 'junk' file, so its easy to tell if any errors occurred.  Problems:
+  If a reference is in an equate, have to give the file.  Should the modules
+  also be linked to files?
+
+
+Change code generation for own variables, using the following macros:
+	oduse			% just before proc line of proc using own data
+	odlink disp,init	% for each own var
+	odget  reg,disp		% to get ref into reg
+	odset  reg,disp		% to store reg in own var
+
+
+Start recompiling the universe.
+
+
+Come up with a short, simple, readable form for DU specs, and implement it.
+
+
+Document, document, document.

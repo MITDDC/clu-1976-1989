@@ -1,0 +1,129 @@
+.insrt	clusys;alpha >
+.insrt	clusys;uuo >
+
+cluster	styx
+proc	sx.on
+	setzm	$trsav
+	setzm	$trace
+	setzm	$styx
+	$for	all,rr,icall %table$values,1,[$mtab]	
+		hrrz	r1,$memhi
+		$if	caig	r1,(rr)
+		$then	
+		$elf	isrsb	rr,rr
+		$then
+		$elf	isrep	rr,terep
+		$then	; this entry can be counted
+			setzm	en.tr(rr)	; init the styx count
+			hrro	r0,en.lpr(rr)	; get pure part
+			hrrz	n1,pr.err(r0)	; get length to scan
+			movni	n1,-pr.go(n1)	; skip over setup words
+			movei	r0,pr.go(r0)
+			hrl	r0,n1		; r0 has aobjn ptr to range
+			.here	sx.on1
+				move	n1,(r0)		; get an instruction
+				camn	n1,sx.onz(pr)	; test for scan-stopper
+				 jrst	sx.on2(pr)
+				$if	came	n1,sx.onx(pr)
+				$then	hrlzi	n1,(u.sty)	; replace xct by u.sty
+					movem	n1,(r0)
+				$fi
+				aobjn	r0,sx.on1(pr)	; keep scanning
+			.here	sx.on2
+		$fi
+	$rof	all
+	setom	$styx
+	setom	$trace
+	$rtnc	$none
+	.here	sx.onz
+	setz			; a scan-stopper instruction
+	.here	sx.onx
+	xct	1(mr)		; a call instruction
+corp	styx$on
+
+proc	sx.off
+	setzm	$trace
+	setzm	$trsav
+	setzm	$styx
+	setzm	en.tr(mr)	; clear self-count
+	$for	all,rr,icall %table$values,1,[$mtab]	
+		hrrz	r1,$memhi
+		$if	caig	r1,(rr)
+		$then	
+		$elf	isrsb	rr,rr
+		$then
+		$elf	isrep	rr,terep
+		$then	; this entry can be counted
+			hrro	r0,en.lpr(rr)	; get pure part
+			hrrz	n1,pr.err(r0)	; get length to scan
+			movni	n1,-pr.go(n1)	; skip over setup words
+			movei	r0,pr.go(r0)
+			hrl	r0,n1		; r0 has aobjn ptr to range
+			.here	sx.of1
+				move	n1,(r0)		; get an instruction
+				camn	n1,sx.ofz(pr)	; test for scan-stopper
+				 jrst	sx.of2(pr)
+				$if	came	n1,sx.ofs(pr)
+				$then	move	n1,sx.ofx(pr)
+					movem	n1,(r0)	; put in the execute again
+				$fi
+				aobjn	r0,sx.of1(pr)	; keep scanning
+			.here	sx.of2
+		$fi
+	$rof	all
+	$rtnc	$none
+	.here	sx.ofz
+	setz			; a scan-stopper instruction
+	.here	sx.ofx
+	xct	1(mr)		; the execute instruction
+	.here	sx.ofs
+	u.sty			; the statistics call
+corp	styx$off
+
+proc	sx.clr
+	$for	all,rr,icall %table$values,1,[$mtab]	
+		$if	isrsb	rr,rr
+		$then	; nothing
+		$elf	isrep	rr,terep
+		$then	.here	sx.cl1
+			setzm	en.tr(rr)
+			skipe	rr,en.nxt(rr)
+			 jrst	sx.cl1(pr)
+		$fi
+	$rof	all
+	$rtnc	$none
+corp	styx$clear
+
+; styx$sum yields the name of each entry and the associated
+; count for all entries with that name (summed over all parameter-
+; specific entries). The state of statistics-keeping is not affected,
+; but no statistics are kept during the iterator
+iter	s.yld
+	move	n1,$trace
+	movem	n1,$trsav
+	setzm	$trace		; turn off $trace-keeping
+	$for	all,rr,icall %table$values,1,[$mtab]	
+		$if	isrep	rr,terep
+		$then	; a real entry exists
+			move	r0,rr
+			movei	n2,0
+			.here	sx.pr0
+				add	n2,en.tr(r0)
+				skipe	r0,en.nxt(r0)
+				 jrst	sx.pr0(pr)
+			$fakef
+			push	sp,rr
+			hrli	n2,(tint)
+			push	sp,n2	; and the count
+			call	pname,1,[rr]
+			movem	rr,-1(sp)
+			$myield	2.	; yield both items
+		$fi
+	$rof	all
+	move	n1,$trsav
+	movem	n1,$trace
+	$rtnc	$none	
+reti	styx$sum
+
+retsulc	styx
+.insrt	clusys;omega >

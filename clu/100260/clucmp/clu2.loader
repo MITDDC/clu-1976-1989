@@ -1,0 +1,72 @@
+ôS'Á‰ô¤Ì‹ô§ÒAVERSION 2 OF CLU COMPILER"
+
+<BLOAT 140000 14000 1100 1000 100 514 0 50000 0 0 0 0 46080>
+ 
+<SETG L-NOISY <>>
+
+<RSUBR-LINK <>>	;" TURNED BACK ON WHEN WE'RE DONE LOADING"
+
+<FLOAD "CLU;PRTYPE MUD">
+
+<DEFINE TRY-TO-OPEN (S USER) 
+	#DECL ((S USER) <OR ATOM STRING>)
+	<AND <==? <TYPE .S> ATOM> <SET S <PNAME .S>>>
+	<AND <==? <TYPE .USER> ATOM> <SET USER <PNAME .USER>>>
+	<OR <OPEN "READ" .S "FBIN" "DSK" "CLU">
+	    <OPEN "READ" .S "NBIN" "DSK" .USER>
+	    <OPEN "READ" .S "CMUD" "DSK" .USER>
+	    <OPEN "READ" .S "MUD" "DSK" .USER>>>
+ 
+<DEFINE CL1 (S "AUX" C FX SRC) 
+	#DECL ((S) <OR ATOM STRING> (C) <OR FALSE CHANNEL> (FX) VECTOR (SRC) STRING)
+	<SET C
+	     <OR <TRY-TO-OPEN .S <SNAME>>
+		 <TRY-TO-OPEN .S "CLUCMP">
+		 <TRY-TO-OPEN .S "CLUSYS">>>
+	<COND (.C
+	       <LOAD .C>
+	       <SET FX <CHTYPE .C VECTOR>>
+	       <SET SRC
+		    <STRING <9 .FX> ":" <10 .FX> ";" <7 .FX> " " <8 .FX>>>
+	       <PRINC "  ">
+	       <PRINC .SRC>
+	       <PRINC " LOADED">
+	       <TERPRI>)
+	      (ELSE
+	       <PRINC "  ">
+	       <PRINC .S>
+	       <PRINC "**MISSING**">
+	       <TERPRI>)>
+	.S>    
+ 
+<DEFINE CL ("TUPLE" S) #DECL ((S) <TUPLE [REST <OR ATOM STRING>]>) <MAPF <> ,CL1 .S>
+	DONE>
+ 
+<CL	CLUS1
+	CLUS2
+	CLUSG
+	CLUIN
+	CLUED
+	CLUCG
+	STAMPR
+	CLUMI
+	CLUTY
+	CLUTC
+	CLUP2>
+
+<SET DU_TAB <ARRAY$NEW>>
+
+<:INITIALIZE>
+
+<SET PARSER-NAME "PARSE2">
+
+<SET THE-ALIST <:A_LIST$NEW>>
+
+<SET DO-TC <>>
+
+<DEFINE CLUT (X "AUX" (DO-TC T)) <CLU .X>>
+
+<RSUBR-LINK T>
+
+"CLU built."   
+ 

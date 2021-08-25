@@ -1,0 +1,7 @@
+reverse = proc (l: intlist) returns (intlist)
+    il = intlist
+    if il$empty(l) then return (il$create()) else
+	   return(il$append(reverse(il$rest(l)),
+			    il$construct(il$first(l),il$create())))
+       end
+    end reverse

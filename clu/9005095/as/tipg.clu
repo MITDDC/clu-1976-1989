@@ -1,0 +1,283 @@
+# extend
+# include "tidefs.clu"
+
+%
+%	Pages are fixed-length, mutable collections of objects.  The
+%	number of different page sizes is limited.  When you create
+%	a page, you specify the minimum size that you need.  Most
+%	likely, the page you get will be the smallest size page
+%	that meets your requirement.  The actual page size can
+%	be determined using the size operation.
+%
+%	There is a single, distinguished page of size 0, called
+%	NILPAGE.  We also guarantee the existence of maximum-size
+%	pages, of size BLOCKSIZE.
+%	
+%	The elements of a page are numbered starting from 0.  Pages
+%	are the lowest-level virtual storage primitive; they not
+%	visible at the user interface.
+%
+%	We imagine that the page sizes might be the powers of two
+%	from 2 to 4096.  However, this choice is not essential.
+%
+%	This file describes an implementation of pages using a
+%	two-level memory hierarchy.
+%
+%	A page "object descriptor" is simply a diskpage "object
+%	descriptor", which contains a secondary storage address.
+%	For all pages currently in main memory, there is an entry
+%	in a map that maps the diskpage (secondary storage address)
+%	to the corresponding mempage (primary memory address).
+%
+%	The bounds checking done by the page cluster is redundant
+%	and could be eliminated in an actual implementation.
+%
+
+page = cluster is NILPAGE, create, destroy, equal, get_size, fetch, store,
+	print, print_pagemap
+
+	rep = oneof [no: null, yes: diskpage]
+	own pm: pagemap := pagemap$create ()
+
+NILPAGE = proc () returns (cvt)
+	return (rep$make_no (nil))
+	end NILPAGE
+
+create = proc (minsize: word, e: any) returns (cvt)
+		signals (negsize, toobig, full)
+
+	if minsize<0 then signal negsize end
+	if minsize>BLOCKSIZE then signal toobig end
+	if minsize=0 then return (down (page$NILPAGE ())) end
+
+	sizeno: word := findsize (minsize)
+	d: diskpage := diskpage$allocate (sizeno)
+	    except when full: signal full end
+	m: mempage := allocate_mem (d)
+	for i: word in word$from_to (0, d.size - 1) do
+		m[i] := e
+		end
+	return (rep$make_yes (d))
+	end create
+
+destroy = proc (p: cvt)
+	tagcase p
+	    tag no:
+	    tag yes (d: diskpage):
+		free_mem (d)
+		diskpage$free (d)
+	    end
+	end destroy
+
+equal = proc (p1, p2: cvt) returns (bool)
+	return (p1 = p2)
+	end equal
+
+get_size = proc (p: cvt) returns (word)
+	tagcase p
+	    tag no: return (0)
+	    tag yes (d: diskpage): return (d.size)
+	    end
+	end get_size
+
+fetch = proc (p: cvt, i: word) returns (any) signals (bounds)
+	tagcase p
+	    tag no: signal bounds
+	    tag yes (d: diskpage):
+		if i<0 | i>=d.size then signal bounds end
+		m: mempage := put_in_mem (d)
+		return (m[i])
+	    end
+	end fetch
+
+store = proc (p: cvt, i: word, e: any) signals (bounds)
+	tagcase p
+	    tag no: signal bounds
+	    tag yes (d: diskpage):
+		if i<0 | i>=d.size then signal bounds end
+		m: mempage := put_in_mem (d)
+		m[i] := e
+	    end
+	end store
+
+%
+%	Internal procedures for the PAGE cluster.
+%
+
+allocate_mem = proc (d: diskpage) returns (mempage)
+	sizeno: word := d.sizeno
+	while TRUE do
+		begin
+			m: mempage := mempage$allocate (sizeno)
+			pagemap$enter (pm, d, m)
+			return (m)
+			end except when full:
+				do_page_replacement ()
+				% for single-process simulation purposes
+				end
+		% keep trying, eventually the page replacement
+		% process will release some
+		end
+	end allocate_mem
+
+free_mem = proc (d: diskpage)
+	m: mempage := pagemap$lookup (pm, d)
+		except when not_there: return end
+	pagemap$remove (pm, d)
+	mempage$free (m)
+	end free_mem
+
+put_in_mem = proc (d: diskpage) returns (mempage)
+	m: mempage := pagemap$lookup (pm, d)
+		except when not_there:
+			m := allocate_mem (d)
+			swapin (d, m)
+			end
+	return (m)
+	end put_in_mem
+
+%	A separate page-replacement process continually frees main
+%	memory pages in an attempt to keep a minimum amount of
+%	free main memory.  For simulation purposes, the following
+%	simple procedure suffices.
+
+do_page_replacement = proc ()
+	% Flush all main memory.
+	for d: diskpage in pagemap$elements (pm) do
+		write_to_disk (d)
+		end
+	end do_page_replacement
+
+write_to_disk = proc (d: diskpage)
+	m: mempage := pagemap$lookup (pm, d)
+		except when not_there: return end
+	swapout (d, m)
+	free_mem (d)
+	end write_to_disk
+
+swapin = proc (d: diskpage, m: mempage)
+	v: sequence[any] := diskpage$read (d)
+	i: word := 0
+	for x:any in sequence[any]$elements (v) do
+		m[i] := x
+		i := i + 1
+		end
+	end swapin
+
+swapout = proc (d: diskpage, m: mempage)
+	v: sequence[any] := sequence[any]$new ()
+	for i:word in word$from_to (0, d.size-1) do
+		sequence[any]$addh (v, m[i])	% Hack!
+		end
+	diskpage$write (d, v)
+	end swapout
+
+%
+%	Debugging routines for the PAGE cluster.
+%
+
+print = proc (p: cvt, s: stream)
+	tagcase p
+	    tag no:	stream$puts ("Null", s)
+	    tag yes (d: diskpage):
+			diskpage$print (d, s)
+	    end
+	end print
+
+print_pagemap = proc (s: stream)
+	pagemap$print (pm, s)
+	end print_pagemap
+
+end page
+
+%
+%	The pagemap.
+%
+
+pagemap = cluster is create, enter, lookup, remove, elements,
+	print
+
+	info = record [name: diskpage, value: mempage]
+	rep = array[info]
+
+create = proc () returns (cvt)
+	return (rep$new ())
+	end create
+
+enter = proc (pm: cvt, d: diskpage, m: mempage) signals (duplicate_entry)
+	for x: info in rep$elements (pm) do
+		if x.name = d then signal duplicate_entry end
+		end
+	rep$addh (pm, info${name: d, value: m})
+	end enter
+
+lookup = proc (pm: cvt, d: diskpage) returns (mempage) signals (not_there)
+	for x: info in rep$elements (pm) do
+		if x.name = d then return (x.value) end
+		end
+	signal not_there
+	end lookup
+
+remove = proc (pm: cvt, d: diskpage)
+	for i: word in rep$indexes (pm) do
+		if pm[i].name = d then
+			top: info := rep$remh (pm)
+			if top.name ~= d then
+				pm[i] := top
+				end
+			return
+			end
+		end
+	end remove
+
+elements = iter (pm: cvt) yields (diskpage)
+	for x: info in rep$elements (pm) do
+		yield (x.name)
+		end
+	end elements
+
+%
+%	Debugging routines for the PAGEMAP cluster.
+%
+
+print = proc (pm: cvt, s: stream)
+	stream$putl ("Pagemap:", s)
+	for i: info in rep$elements (pm) do
+		stream$puts ("  name=", s)
+		diskpage$print (i.name, s)
+		stream$puts ("  value=", s)
+		mempage$print (i.value, s)
+		stream$putl ("", s)
+		end
+	stream$putl ("", s)
+	end print
+
+	end pagemap
+
+%
+%	Miscellaneous Procedures
+%
+
+findsize = proc (size: word) returns (word) signals (badsize)
+
+	% The possible page sizes are encoded into integers in
+	% the range 0 to MAXSIZENO.  This procedure returns
+	% the size number for the smallest page size not smaller
+	% than the specified size.
+
+	if size<0 then signal badsize end
+	if size=0 then return (0) end
+	for i: word in word$from_to (1, MAXSIZENO) do
+		if size<=2**i then return (i) end
+		end
+	signal badsize
+	end findsize
+
+sizetab = proc (sizeno: word) returns (word) signals (badsize)
+
+	% This procedure returns a page size given its encoding.
+
+	if sizeno<0 cor sizeno>MAXSIZENO then signal badsize end
+	if sizeno=0 then return (0) end
+	return (2**sizeno)
+	end sizetab

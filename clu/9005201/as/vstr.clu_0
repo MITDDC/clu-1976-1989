@@ -1,0 +1,72 @@
+bigint = word
+
+vstream = cluster is create, addnum, output
+
+	ai = array[int]
+	hi = heap[int]
+	rep = record [
+		name: string,
+		sum: bigint,
+		vals: hi
+		]
+	bigunparse = bigint$dunparse
+
+create = proc (s: string) returns (cvt)
+	return (rep${
+		name: s,
+		sum: int2big (0),
+		vals: hi$create (int$lt)})
+	end create
+
+addnum = proc (s: cvt, v: int)
+	hi$insert (s.vals, v)
+	s.sum := s.sum + int2big (v)
+	end addnum
+
+output = proc (x: cvt, s: stream)
+	a: ai := h2a (x.vals)
+	stream$puts ("Statistics on ", s)
+	stream$putl (x.name, s)
+	stream$puts ("  Count = ", s)
+	stream$putl (int$unparse (ai$size(a)), s)
+	stream$puts ("  Nonzero Count = ", s)
+	stream$putl (int$unparse (nzc (a)), s)
+	stream$puts ("  Total = ", s)
+	stream$putl (bigunparse (x.sum), s)
+	stream$puts ("  Low Value = ", s)
+	stream$putl (int$unparse (ai$bottom (a)), s)
+	stream$puts ("  High Value = ", s)
+	stream$putl (int$unparse (ai$top (a)), s)
+	stream$puts ("  Average = ", s)
+	stream$putl (bigunparse (x.sum/int2big(ai$size(a))), s)
+	stream$puts ("  Median = ", s)
+	stream$putl (int$unparse (a[ai$size(a)/2]), s)
+	stream$puts ("  90% value = ", s)
+	stream$putl (int$unparse (a[ai$size(a)*9/10]), s)
+	stream$putl ("", s)
+	end output
+
+h2a = proc (x: hi) returns (ai)
+	a: ai := ai$create (0)
+	while ~hi$empty (x) do
+		ai$addh (a, hi$remove (x))
+		end
+	return (a)
+	end h2a
+
+nzc = proc (a: ai) returns (int)
+	c: int := 0
+	for v: int in ai$elements (a) do
+		if v ~= 0 then c := c + 1 end
+		end
+	return (c)
+	end nzc
+
+int2big = proc (i: int) returns (bigint)
+	if i>=0
+		then return (bigint$create (0, i))
+		else return (bigint$create (-1, i))
+		end
+	end int2big
+
+end vstream

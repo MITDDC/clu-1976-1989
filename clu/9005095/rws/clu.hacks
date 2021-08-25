@@ -1,0 +1,131 @@
+The following "extensions" have been made to the CLU language, via the CLU compiler.
+Of these extensions, only the first two come for free.  There is a special compiler
+directive:
+	# extend
+which makes the rest of them legal.
+	# normal
+makes them illegal.  These can appear between modules, but not within modules.
+Thus, you cannot extend for one operation of a cluster.
+
+General selector-type typespecs.
+
+	An identifier can be used in the same way as RECORD and ONEOF, e.g.
+
+		struct[a: int, b: bool]
+
+	The identifier must be bound to a selector-type DU, such as record or oneof.
+
+
+Equates to DUs.
+
+	Equates of the following form are legal:
+
+		idn = PATHNAME string
+
+	The string is assumed to be a pathname in the library.
+	(At the moment, a pathname is simply a DU name.)
+
+	Example uses:
+
+		struct = pathname "record";
+		st = struct[a: int, b: bool];
+
+		int_ = pathname "int";
+		int_ = cluster is ... end int_;
+
+
+Types as objects.
+
+	Types can be used as objects, and typespecs can be used as expressions.
+	The operations on types are equal, similar, and copy.
+
+
+TYPE_OF.
+
+	The type of an object may be obtained (as an object) with the procedure TYPE_OF.
+
+
+New modules.
+
+	The keywords SELECTOR, APPLYTYPE, and MONITOR can be used in place of CLUSTER.
+	SELECTOR and APPLYTYPE modules exists only for the purpose of writing (in CLU)
+	the specifications of the proctype and itertype generators, and of selector-type
+	generators such as record and oneof; as such, they can be type-checked, but
+	cannot be compiled.
+
+
+Own variables.
+
+	Modules can have own variables.  Procedure and iterator own variables must
+	be declared after the equates, and before the statements, of the module body.
+	Cluster own variables must be declared after the equates, and before the
+	operations, of the module.  There are two forms of declaration:
+
+		OWN idn : typespec := expression ;
+		OWN decl { , decl } := invocation ;
+
+	where a "decl" has the form
+
+		idn { , idn } : typespec
+
+	Own variables are currently per generator, not per instantiation.  Thus,
+	own variables should not depend on module parameters (although this is not
+	checked).  Procedure and iterator own variables are initialized when the
+	module is first called.  Cluster own variables are initialized at the first
+	call to an operation.
+
+
+Force statement.
+
+	There is a new statement of the form:
+
+		FORCE idn1 : idn2 = expression where ;
+
+	where "where" is a standard WHERE clause.  The meaning of this statement
+	is roughly equivalent to
+
+		idn3: any := expression;
+		idn2: type := TYPE_OF(expression);
+		idn1: idn2 := FORCE[idn2](idn3);
+
+	except that the type (idn2) is dynamically checked to insure that the
+	appropriate operations exist, and idn2 can actually be used as a typespec
+	in the remainder of the scope. If the force fails, an "illegal_force"
+	condition is raised.
+
+	Currently this statement can only be type-checked, not compiled.
+
+----	Extra Special Features    ----
+
+You can tell the compiler to generate code even if there are semantic errors, with
+	eval value$assn(".allow" true)
+Also, when creating DU specs, this will allow specs to be created even though
+referenced abstractions are undefined.  This hack should be used with care,
+and only as a temporary measure. You can turn it off with
+	eval value$unassn(".allow").
+
+To cause all binary files produced to have second name "foo", do
+	eval value$assn(".binary_name2" "foo")
+Do not do a value$unassn(".binary_name2")!  Instead, do
+	eval value$assn(".binary_name2" "bin")
+
+To cause output to go to the TTY, unless redirected, do
+	eval value$assn(".tty_output" true)
+To turn this off, do
+	eval value$unassn(".tty_output")
+
+To cause FORCE[type](...)to be the null operation, do
+	eval value$assn(".no_force" true)
+To turn this off, do
+	eval value$unassn(".no_force")
+
+To tell CLU not to die after executing the jcl line, do
+	eval value$assn(".live" true)
+To turn this off, do
+	eval value$unassn(".live")
+
+Note futher that these variables can be set from the jcl line, by typing
+	name [ = expression ]
+before or after the command, but prior to the arguments. The defalt value
+of the expression is true.  For example,
+	:clu .live -check .tty_output = true foo

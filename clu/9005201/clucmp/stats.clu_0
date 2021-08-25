@@ -1,0 +1,363 @@
+þ}9	÷¨9ôåý;³»timeñ"^ åecord[days, hours, mins, secs, msecs: int];
+slot		= record[count: int, error: int, time: time];
+slotlist	= array[slot];
+entry		= record[user: str,
+			 slots: slotlist];
+entrylist	= array[entry];
+parse_		= 1;
+check_		= 2;
+clumac_		= 3;
+binary_		= 4;
+specs_		= 5;
+cmpenv_		= 6;
+total_		= 7;
+
+stats = proc () signals (stats_munged);
+	day, tim: str := date_time();
+	if file$exists("clu;dsk:clu stat'")
+	   then if file$exists("clu;dsk:clu raw")
+		   then rec: entrylist := get_raw_stats();
+			generate(rec, "stat'", "raw'");
+			update(rec, day, tim);
+			day, tim := date_time();
+		   else signal stats_munged;
+		   end;
+	elseif file$exists("clu;dsk:clu raw'")
+	   then sys$rename("clu;dsk:clu raw'", "clu raw"); end;
+	sys$rename("clu;dsk:clu stat", "clu stat'");
+	   except when rename_failed: return; end;
+	rec: entrylist := get_raw_stats();
+	   except when bad_stats: rec := entrylist$create(1);
+				  generate(rec, "ostat", "raw");
+		  end;
+	generate(rec, "stat'", "raw'");
+	update(rec, day, tim);
+	end stats;
+
+get_raw_stats = proc () returns (entrylist) signals (bad_stats);
+	begin
+	f: file := file$open_read("clu;dsk:clu raw");
+	rec: entrylist := entrylist$predict(1, 10);
+	while file$peek(f) ~= '!' do
+		slots: slotlist := slotlist$create(1);
+		entrylist$addh(rec, entry${user:  file$gets(f, '\n'),
+					   slots: slots});
+		while file$peek(f) ~= '\n' do
+			count: int := int$parse(file$gets(f, '\t'));
+			error: int := int$parse(file$gets(f, '\t'));
+			days: int := int$parse(file$gets(f, '\t'));
+			hours: int := int$parse(file$gets(f, '\t'));
+			mins: int := int$parse(file$gets(f, '\t'));
+			secs: int := int$parse(file$gets(f, '\t'));
+			msecs: int := int$parse(file$gets(f, '\n'));
+			slotlist$addh(slots, slot${count: count,
+						   error: error,
+						   time:  time${days:  days,
+								hours: hours,
+								mins:  mins,
+								secs:  secs,
+								msecs: msecs}});
+			end;
+		file$getc(f);
+		end;
+	file$close(f);
+	return(rec);
+	end; except others: signal bad_stats; end;
+	end get_raw_stats;
+
+generate = proc (rec: entrylist, ins: str, outs: str);
+	get_stats(rec, ins);
+	f: file := file$open_write("clu;dsk:clu " || outs);
+	for ent: entry in entrylist$elements(rec) do
+		file$puts(f, ent.user);
+		file$putc(f, '\n');
+		for slt: slot in slotlist$elements(ent.slots) do
+			file$puti(f, slt.count);
+			file$putc(f, '\t');
+			file$puti(f, slt.error);
+			file$putc(f, '\t');
+			t: time := slt.time;
+			file$puti(f, t.days);
+			file$putc(f, '\t');
+			file$puti(f, t.hours);
+			file$putc(f, '\t');
+			file$puti(f, t.mins);
+			file$putc(f, '\t');
+			file$puti(f, t.secs);
+			file$putc(f, '\t');
+			file$puti(f, t.msecs);
+			file$putc(f, '\n');
+			end;
+		file$putc(f, '\n');
+		end;
+	file$putc(f, '!');
+	file$close(f);
+	end generate;
+
+get_stats = proc (rec: entrylist, ins: str);
+	f: file := file$open_read("clu;dsk:clu " || ins);
+	   except when open_failed: return; end;
+	while true do
+		s: str := file$gets(f, '\n');
+		if s = "" then continue; end;
+		t1: int := str$indexc('\t', s);
+		rs: str := str$rest(s, t1 + 1);
+		t2: int := str$indexc('\t', rs);
+		user: str := str$substr(rs, 1, t2 - 1);
+		rs := str$rest(rs, t2 + 1);
+		t2 := str$indexc('\t', rs);
+		rs := str$rest(rs, t2 + 1);
+		t2 := str$indexc('.', rs);
+		secs: int := int$parse(str$substr(rs, 1, t2 - 1));
+		msecs: int := int$parse(str$substr(rs, t2 + 1, 3));
+		cc: char := s[t1 - 1];
+		c: char;
+		w: int;
+		if cc = 'e'
+		   then	c := s[t1 - 2];
+		   else c := cc;
+		   end;
+		if c = 'P'
+		   then w := parse_
+		elseif c = 'C'
+		   then w := check_
+		elseif c = 'M'
+		   then w := clumac_
+		elseif c = 'B'
+		   then w := binary_;
+		elseif c = 'S'
+		   then w := specs_;
+		else w := cmpenv_; end;
+		ent: entry := find_entry(rec, user);
+		slt: slot := ent.slots[w];
+		slt.count := slt.count + 1;
+		if cc = 'e' then slt.error := slt.error + 1; end;
+		add_time(slt.time, 0, 0, 0, secs, msecs);
+		end; except when eof: ; end;
+	file$close(f);
+	end get_stats;
+
+update = proc (rec: entrylist, day: str, tim: str);
+	file$delete("clu;dsk:clu raw");
+	outf: file := file$open_append("clu;dsk:clu ostat");
+	inf: file := file$open_read("clu;dsk:clu stat'");
+	while true do
+		file$puts(outf, file$gets(inf, '\n'));
+		file$putc(outf, '\n');
+		end;
+	   except when eof: ; end;
+	file$close(outf);
+	file$close(inf);
+	file$delete("clu;dsk:clu stat'");
+	sys$rename("clu;dsk:clu raw'", "clu raw");
+	for ent: entry in entrylist$elements(rec) do
+		slots: slotlist := ent.slots;
+		tslt: slot := slots[total_];
+		for i: int in int$from_to_by(parse_, cmpenv_, 1) do
+			slt: slot := slots[i];
+			tslt.count := tslt.count + slt.count;
+			tslt.error := tslt.error + slt.error;
+			t: time := slt.time;
+			add_time(tslt.time, t.days, t.hours, t.mins, t.secs, t.msecs);
+			end;
+		end;
+	outf := file$open_write("clu;dsk:clu stats");
+	file$puts(outf, "CLU Statistics as of ");
+	file$puts(outf, day);
+	file$putc(outf, ' ');
+	file$puts(outf, tim);
+	print_stats(outf, rec, total_, " Total");
+	print_stats(outf, rec, binary_, "Binary");
+	print_stats(outf, rec, clumac_, "Clumac");
+	print_stats(outf, rec, check_, " Check");
+	print_stats(outf, rec, parse_, " Parse");
+	print_stats(outf, rec, specs_, " Specs");
+	print_stats(outf, rec, cmpenv_, "CmpEnv");
+	file$close(outf);
+	end update;
+
+print_stats = proc (f: file, rec: entrylist, i: int, s: str);
+	h: int := entrylist$size(rec);
+	for k: int in int$from_to_by(1, h - 1, 1) do
+		for j: int in int$from_to_by(k + 1, h, 1) do
+			if less_time(rec[k].slots[i].time, rec[j].slots[i].time)
+			   then ent: entry := rec[k];
+				rec[k] := rec[j];
+				rec[j] := ent;
+			   end;
+			end;
+		end;
+	count: int := 0;
+	error: int := 0;
+	ttime: time := time${days, hours, mins, secs, msecs: 0};
+	file$puts(f, "\n\nUser     ");
+	file$puts(f, s);
+	file$puts(f, "   %Error      C.P.U. Time   Average\n\n");
+	for ent: entry in entrylist$elements(rec) do
+		slt: slot := ent.slots[i];
+		if slt.count = 0 then continue; end;
+		file$puts(f, ent.user);
+		file$puts(f, "\t ");
+		puti6(f, slt.count);
+		count := count + slt.count;
+		puts(f, percent_string(slt.error, slt.count), 6);
+		file$puts(f, "   ");
+		error := error + slt.error;
+		t: time := slt.time;
+		puts(f, time_string(t), 14);
+		file$puts(f, "   ");
+		add_time(ttime, t.days, t.hours, t.mins, t.secs, t.msecs);
+		div_time(t, slt.count);
+		puts(f, time_string(t), 7);
+		file$putc(f, '\n');
+		end;
+	file$puts(f, "\nTotals\t ");
+	puti6(f, count);
+	puts(f, percent_string(error, count), 6);
+	file$puts(f, "   ");
+	puts(f, time_string(ttime), 14);
+	file$puts(f, "   ");
+	div_time(ttime, count);
+	puts(f, time_string(ttime), 7);
+	file$puts(f, "\n\n");
+	end print_stats;
+
+find_entry = proc (rec: entrylist, user: str) returns (entry);
+	for ent: entry in entrylist$elements(rec) do
+		if ent.user = user
+		   then return(ent); end;
+		end;
+	ent: entry :=
+		entry${user: user,
+		       slots: slotlist$fill_copy(1, total_,
+				slot${count: 0, error: 0,
+				      time: time${days, hours, mins, secs, msecs: 0}})};
+	entrylist$addh(rec, ent);
+	return(ent);
+	end find_entry;
+
+less_time = proc (t1, t2: time) returns (bool);
+	if t1.days ~= t2.days
+	   then return(t1.days < t2.days);
+	elseif t1.hours ~= t2.hours
+	   then return(t1.hours < t2.hours);
+	elseif t1.mins ~= t2.mins
+	   then return(t1.mins < t2.mins)
+	elseif t1.secs ~= t2.secs
+	   then return(t1.secs < t2.secs)
+	else return(t1.msecs < t2.msecs); end;
+	end less_time;
+
+puti6 = proc (f: file, i: int);
+	s: str := int$unparse(i);
+	for i in int$from_to_by(1, 6 - str$size(s), 1) do
+		file$putc(f, ' ');
+		end;
+	file$puts(f, s);
+	file$puts(f, "   ");
+	end puti6;
+
+puts = proc (f: file, s: str, i: int);
+	for i in int$from_to_by(1, i - str$size(s), 1) do
+		file$putc(f, ' ');
+		end;
+	file$puts(f, s);
+	end puts;
+
+add_time = proc (t: time, days, hours, mins, secs, msecs: int);
+	msecs := msecs + t.msecs;
+	if msecs >= 1000
+	   then secs := secs + msecs / 1000;
+		msecs := msecs // 1000;
+	   end;
+	secs := secs + t.secs;
+	if secs >= 60
+	   then mins := mins + secs / 60;
+		secs := secs // 60;
+	   end;
+	mins := mins + t.mins;
+	if mins >= 60
+	   then hours := hours + mins / 60;
+		mins := mins // 60;
+	   end;
+	hours := hours + t.hours;
+	if hours >= 24
+	   then days := days + hours / 24;
+		hours := hours // 24;
+	   end;
+	t.days := t.days + days;
+	t.hours := hours;
+	t.mins := mins;
+	t.secs := secs;
+	t.msecs := msecs;
+	end add_time;
+
+div_time = proc (t: time, n: int);
+	i: int := t.days;
+	t.days := i / n;
+	res, rem: int := do_div(t.hours, 24, i // n, n);
+	t.hours := res;
+	res, rem := do_div(t.mins, 60, rem, n);
+	t.mins := res;
+	res, rem := do_div(t.secs, 60, rem, n);
+	t.secs := res;
+	res, rem := do_div(t.msecs + n/2, 1000, rem, n);
+	t.msecs := res;
+	end div_time;
+
+do_div = proc (a, b, c, d: int) returns (int, int);
+	begin
+	  t: int := a + b * c;
+	  return(t / d, t // d);
+	end; except when overflow : ; end;
+	res: int := a / d;
+	rem: int := a // d;
+	for i: int in int$from_to_by(1, b, 1) do
+		rem := rem + c;
+		if rem >= d
+		   then res := res + 1;
+			rem := rem - d;
+		   end;
+		end;
+	return(res, rem);
+	end do_div;
+
+time_string = proc (t: time) returns (str);
+	s: str;
+	b: bool := false;
+	if t.days > 0
+	   then s := str$append(int$unparse(t.days), ':');
+		b := true;
+	   end;
+	if b
+	   then s := str$append(s || str$rest(int$unparse(t.hours + 100), 2), ':');
+	elseif t.hours > 0
+	   then s := str$append(int$unparse(t.hours), ':');
+		b := true;
+	end;
+	if b
+	   then s := str$append(s || str$rest(int$unparse(t.mins + 100), 2), ':');
+	elseif t.mins > 0
+	   then s := str$append(int$unparse(t.mins), ':');
+		b := true;
+	end;
+	if b
+	   then s := s || str$rest(int$unparse(t.secs + 100), 2);
+	   else s := int$unparse(t.secs);
+	   end;
+	return(str$append(s, '.') || str$substr(int$unparse(t.msecs + 1005), 2, 2));
+	end time_string;
+
+percent_string = proc (top, bot: int) returns (str);
+	s: str := "";
+	for i: int in int$from_to_by(1, 5, 1) do
+		d: int := top / bot;
+		if d > 0  cor  s ~= ""  cor  i > 2
+		   then	s := s || int$unparse(d);
+			if i = 3
+			   then s := str$append(s, '.'); end;
+		   end;
+		top := (top // bot) * 10;
+		end;
+	return(s);
+	end percent_string;

@@ -1,0 +1,734 @@
+%	PENV	CLU
+%
+%	CLU 3.1 compiler:  parser environment
+
+p_env = cluster is	create,			% CE, file, file -> p_env
+			new_env,		% p_env, file ->
+			reset,			% p_env, CE, file, file ->
+			hack,			% p_env ->
+			unhack,			% p_env ->
+			is_hacked,		% p_env -> bool
+			get_peek1,		% p_env -> token
+			peek,			% p_env, int -> token
+			next_token,		% p_env -> token
+			get_line,		% p_env -> line
+			begin_body,		% p_env, bodykind ->
+			end_body,		% p_env ->
+			in_body,		% p_env, bodykind -> bool
+			get_idn,		% p_env, str -> idn
+			get_unknown_type,	% p_env -> typespec
+			get_null_type,		% p_env -> typespec
+			get_bool_type,		% p_env -> typespec
+			get_int_type,		% p_env -> typespec
+			get_real_type,		% p_env -> typespec
+			get_char_type,		% p_env -> typespec
+			get_str_type,		% p_env -> typespec
+			get_type_type,		% p_env -> typespec
+			get_cvt_type,		% p_env -> typespec
+			get_any_type,		% p_env -> typespec
+			get_array_fake,		% p_env -> DUfake
+			get_record_fake,	% p_env -> DUfake
+			get_oneof_fake,		% p_env -> DUfake
+			get_proc_fake,		% p_env -> DUfake
+			get_iter_fake,		% p_env -> DUfake
+			get_bad_expr,		% p_env -> expr
+			assume,			% p_env, str ->
+			get_err,		% p_env -> parerr
+			put_err,		% p_env, parerr ->
+			reset_err,		% p_env ->
+			err,			% p_env, str, parerr ->
+			set_deftype,		% p_env, bool, bool ->
+			in_proc,		% p_env -> bool
+			specd_vals,		% p_env -> bool
+			get_clustr,		% p_env -> str
+			get_applystr,		% p_env -> str
+			put_clustr,		% p_env, str ->
+			put_applystr;		% p_env, str ->
+
+peekentry = record[peek: token,
+		   add:  int];		% number of newlines to add in
+
+peeklist = array[peekentry];
+
+ac = array[char];
+abk = array[bodykind];
+tokenlist = array[token];
+
+ckind = int;
+ckindlist = array[ckind];
+
+% ckind		<-both->	ctokens index
+
+badch_	= 1;			_not	= 1;
+format_	= 2;			_assn	= 2;
+tab_	= 3;			_colon	= 3;
+space_	= 4;			_power	= 4;
+funny_	= 5;			_mod	= 5;
+		_excl	= 6;
+		_dollar	= 7;
+		_lparen	= 8;
+		_rparen	= 9;
+		_comma	= 10;
+		_dot	= 11;
+		_semi	= 12;
+		_lbkt	= 13;
+		_rbkt	= 14;
+		_lcurly	= 15;
+		_rcurly	= 16;
+		_sharp	= 17;
+		_add	= 18;
+		_sub	= 19;
+		_equal	= 20;
+		_and	= 21;
+quote1_	= 22;			_div	= 22;
+quote2_	= 23;			_mul	= 23;
+comnt_	= 24;			_concat	= 24;
+infix_	= 25;			_lt	= 25;
+upper_	= 26;			_le	= 26;
+digit_	= 27;			_gt	= 27;
+lower_	= 28;			_ge	= 28;
+				_nlt	= 29;
+				_nle	= 30;
+				_ngt	= 31;
+				_nge	= 32;
+				_nequal	= 33;
+				_or	= 34;
+
+rep = record[ce:       CE,		% compilation environment
+	     ckinds:   ckindlist,	% character table
+	     tokens:   tokentab,	% token table
+	     hacked:   bool,
+	     erf:      file,		% output file for errors
+	     err:      parerr,
+	     inf:      file,		% input file
+	     line:     int,		% current line number of input
+	     peek1:    token,		% first lookahead
+	     peek:     peeklist,	% remaining lookaheads
+	     past:     tokenlist,	% tokens seen on current line (plus peek1)
+	     procdef:  bool,		% are we in a procedure?
+	     specvals: bool,		% are there return/yield values?
+	     clustr:   str,		% current cluster name
+	     applystr: str,		% current procedure or iterator name
+	     bodies:   abk,		% stack of bodykinds
+	     temp:     ac];		% for hacking strings
+
+create = proc (comp: CE, inf: file, erf: file) returns (cvt);
+	e: rep := rep${ce:       comp,
+		       tokens:   tokentab$create(),
+		       ckinds:   get_ckinds(),
+		       hacked:   false,
+		       erf:      erf,
+		       err:      none,
+		       inf:      inf,
+		       line:     0,
+		       peek1:    token$make_eof(nil),
+		       peek:     peeklist$predict(1, 50),
+		       past:     tokenlist$predict(1, 50),
+		       procdef:  false,
+		       specvals: false,
+		       clustr:   "",
+		       applystr: "",
+		       bodies:   abk$predict(1, 10),
+		       temp:     ac$predict(1, 50)};
+	next_token(up(e));
+	return(e);
+	end create;
+
+new_env = proc (e: cvt, inf: file) returns (cvt);
+	e1: rep := rep$copy1(e);
+	e1.inf := inf;
+	e1.line := 0;
+	e1.peek := peeklist$predict(1, 50);
+	e1.past := tokenlist$predict(1, 50);
+	next_token(up(e1));
+	return(e1);
+	end new_env;
+
+reset = proc (e: cvt, comp: CE, inf: file, erf: file);
+	e.ce := comp;
+	tokentab$reset(e.tokens);
+	e.erf := erf;
+	e.err := none;
+	e.inf := inf;
+	e.line := 0;
+	peeklist$trim(e.peek, 1, 0);
+	tokenlist$trim(e.past, 1, 0);
+	abk$trim(e.bodies, 1, 0);
+	next_token(up(e));
+	end reset;
+
+hack = proc (e: cvt);
+	if ~e.hacked
+	   then e.hacked := true;
+		tokentab$hack(e.tokens);
+	   end;
+	end hack;
+
+unhack = proc (e: cvt);
+	if e.hacked
+	   then e.hacked := false;
+		tokentab$unhack(e.tokens);
+	   end;
+	end unhack;
+
+is_hacked = proc (e: cvt) returns (bool);
+	return(e.hacked);
+	end is_hacked;
+
+get_peek1 = proc (e: cvt) returns (token);
+	return(e.peek1);
+	end get_peek1;
+
+% num=1 in peek corresponds to looking at the first token
+
+peek = proc (e: cvt, num: int) returns (token);
+	if num = 1
+	   then return(e.peek1);
+	   else num := num - 1;
+	   end;
+	sp: peeklist := e.peek;
+	while peeklist$size(sp) < num do	% Scan until enough tokens seen
+		scanline(e);
+		end;
+	return(sp[num].peek);
+	end peek;
+
+next_token = proc (e: cvt) returns (token);
+	sp: peeklist := e.peek;
+	if peeklist$size(sp) = 0
+	   then	peeklist$trim(sp, 1, 0);
+		scanline(e);		% Scan until a token seen
+	   end;
+	pe: peekentry := peeklist$reml(sp);
+	peeklist$set_low(sp, 1);
+	if pe.add > 0				% If newlines
+	   then	tokenlist$trim(e.past, 1, 0);	% Clear current line
+		e.line := e.line + pe.add;
+	   end;
+	k: token := e.peek1;
+	tokenlist$addh(e.past, pe.peek);
+	e.peek1 := pe.peek;
+	return(k);
+	end next_token;
+
+get_line = proc (e: cvt) returns (int);
+	return(e.line);
+	end get_line;
+
+begin_body = proc (e: cvt, kind: bodykind);
+	abk$addh(e.bodies, kind);
+	end begin_body;
+
+end_body = proc (e: cvt);
+	abk$remh(e.bodies);
+	end end_body;
+
+in_body = proc (e: cvt, kind: bodykind) returns (bool);
+	for k: bodykind in abk$elements(e.bodies) do
+		if k = kind then return(true); end;
+		end;
+	return(false);
+	end in_body;
+
+get_idn = proc (e: cvt, s: str) returns (idn);
+	return(tokentab$get_idn(e.tokens, s));
+	end get_idn;
+
+get_unknown_type = proc (e: cvt) returns (typespec);
+	return(e.ce.unknown_type);
+	end get_unknown_type;
+
+get_null_type = proc (e: cvt) returns (typespec);
+	return(e.ce.null_type);
+	end get_null_type;
+
+get_bool_type = proc (e: cvt) returns (typespec);
+	return(e.ce.bool_type);
+	end get_bool_type;
+
+get_int_type = proc (e: cvt) returns (typespec);
+	return(e.ce.int_type);
+	end get_int_type;
+
+get_real_type = proc (e: cvt) returns (typespec);
+	return(e.ce.real_type);
+	end get_real_type;
+
+get_char_type = proc (e: cvt) returns (typespec);
+	return(e.ce.char_type);
+	end get_char_type;
+
+get_str_type = proc (e: cvt) returns (typespec);
+	return(e.ce.str_type);
+	end get_str_type;
+
+get_type_type = proc (e: cvt) returns (typespec);
+	return(e.ce.type_type);
+	end get_type_type;
+
+get_cvt_type = proc (e: cvt) returns (typespec);
+	return(e.ce.cvt_type);
+	end get_cvt_type;
+
+get_any_type = proc (e: cvt) returns (typespec);
+	return(e.ce.any_type);
+	end get_any_type;
+
+get_array_fake = proc (e: cvt) returns (DUfake);
+	return(e.ce.array_fake);
+	end get_array_fake;
+
+get_record_fake = proc (e: cvt) returns (DUfake);
+	return(e.ce.record_fake);
+	end get_record_fake;
+
+get_oneof_fake = proc (e: cvt) returns (DUfake);
+	return(e.ce.oneof_fake);
+	end get_oneof_fake;
+
+get_proc_fake = proc (e: cvt) returns (DUfake);
+	return(e.ce.proc_fake);
+	end get_proc_fake;
+
+get_iter_fake = proc (e: cvt) returns (DUfake);
+	return(e.ce.iter_fake);
+	end get_iter_fake;
+
+get_bad_expr = proc (e: cvt) returns (expr);
+	return(expr$create(exprabs$make_bad(nil), e.ce.unknown_type));
+	end get_bad_expr;
+
+assume = proc (e: cvt, what: str);
+	f: file := e.erf;
+	file$puti(f, e.line);		% Output line number and what happened
+	file$puts(f, ":\tmissing ");
+	file$puts(f, what);
+	file$puts(f, " - assumed present");
+	line(e, minor);
+	end assume;
+
+get_err = proc (e: cvt) returns (parerr);
+	return(e.err);
+	end get_err;
+
+put_err = proc (e: cvt, deg: parerr);
+	if deg > e.err
+	   then e.err := deg; end;
+	end put_err;
+
+reset_err = proc (e: cvt);
+	e.err := none;
+	end reset_err;
+
+err = proc (e: cvt, why: str, deg: parerr);
+	f: file := e.erf;
+	file$puti(f, e.line);		% Output line number and what happened
+	file$puts(f, ":\t");
+	file$puts(f, why);
+	line(e, deg);
+	end err;
+
+line = proc (e: rep, deg: parerr);
+	f: file := e.erf;
+	file$putc(f, '\n');
+	file$putc(f, '\t');		% Output current line and cursor position
+	past: tokenlist := e.past;
+	for i: int in int$from_to_by(1, tokenlist$size(past) - 1, 1) do
+		pt_token(past[i], f);
+		file$putc(f, ' ');
+		end;
+	file$puts(f, "|\b_ ");
+	pt_token(tokenlist$top(past), f);
+	for pk: peekentry in peeklist$elements(e.peek) do
+		if pk.add > 0 then break; end;
+		file$putc(f, ' ');
+		pt_token(pk.peek, f);
+		end;
+	file$putc(f, '\n');
+	if deg > e.err then e.err := deg; end;
+	end line;
+
+bad = proc (e: rep, text: str, why: str);
+	f: file := e.erf;
+	file$puti(f, e.line);
+	file$puts(f, ":\t");
+	file$puts(f, why);
+	if text ~= ""
+	   then	file$puts(f, ": ");
+		file$puts(f, text);
+	   end;
+	file$putc(f, '\n');
+	if minor > e.err then e.err := minor; end;
+	end bad;
+
+set_deftype = proc (e: cvt, procdef: bool, specvals: bool);
+	e.procdef := procdef;
+	e.specvals := specvals;
+	end set_deftype;
+
+in_proc = proc (e: cvt) returns (bool);
+	return(e.procdef);
+	end in_proc;
+
+specd_vals = proc (e: cvt) returns (bool);
+	return(e.specvals);
+	end specd_vals;
+
+get_clustr = proc (e: cvt) returns (str);
+	return(e.clustr);
+	end get_clustr;
+
+get_applystr = proc (e: cvt) returns (str);
+	return(e.applystr);
+	end get_applystr;
+
+put_clustr = proc (e: cvt, s: str);
+	e.clustr := s;
+	end put_clustr;
+
+put_applystr = proc (e: cvt, s: str);
+	e.applystr := s;
+	end put_applystr;
+
+% Finds all tokens on next input line (to NL) and adds them to peeklist.
+% Continues until some line with a token is finished.
+
+scanline = proc (e: rep);
+	add: int := 1;
+	ckinds: ckindlist := e.ckinds;
+	tokens: tokentab := e.tokens;
+	f: file := e.inf;
+	sp: peeklist := e.peek;
+	z: int := peeklist$size(sp);
+	while true do
+		c: char := file$getc(f);
+		   except when eof:
+				c := '\n';
+				peeklist$addh(sp, peekentry${peek: token$make_eof(nil),
+							     add:  add});
+			  end;
+		k: ckind := ckinds[char$c2i(c)];
+		if k = lower_
+		   then idn_or_key(e, c);
+		elseif k <= funny_
+		   then if c = '\n'
+			   then	if peeklist$size(sp) > z	% Any tokens added?
+				   then	peekentry$put_add(sp[z + 1], add);
+					return;
+				   else add := add + 1;
+				   end;
+			elseif k = badch_  cor  k = funny_
+			   then bad(e, str$c2s(c), "illegal character in text"); end;
+		elseif k < quote1_
+		   then peeklist$addh(sp, peekentry${peek: tokentab$get_ctoken(tokens,
+									       k),
+						     add:  0});
+		elseif k = infix_
+		   then binfixop(e, c);
+		elseif k = digit_
+		   then number(e, c);
+		elseif k = quote2_
+		   then strlit(e);
+		elseif k = quote1_
+		   then charlit(e);
+		elseif k = upper_
+		   then idn_or_key(e, char$i2c(char$c2i(c) + 32));
+		else check_comment(e); end;
+		end;
+	end scanline;
+
+% idn, name, keyword => alpha {alpha | digit}
+
+idn_or_key = proc (e: rep, c: char);
+	f: file := e.inf;
+	t: ac := e.temp;
+	ckinds: ckindlist := e.ckinds;
+	ac$trim(t, 1, 0);
+	ac$addh(t, c);
+	while true do
+		k: ckind := ckinds[char$c2i(file$peek(f))];
+		if k > upper_
+		   then ac$addh(t, file$getc(f));
+		elseif k = upper_
+		   then ac$addh(t, char$i2c(char$c2i(file$getc(f)) + 32));
+		else break; end;
+		end;
+	   except when eof: ; end;
+	peeklist$addh(e.peek, peekentry${peek: tokentab$get_token(e.tokens,
+								  str$ac2s(t)),
+					 add:  0});
+	end idn_or_key;
+
+get_ckinds = proc () returns (ckindlist);
+	return(ckindlist$[0:
+		badch_ , badch_ , badch_ , badch_ , badch_ , badch_ , badch_ , badch_ ,
+		badch_ , tab_,    format_, format_, format_, format_, badch_ , badch_ ,
+		badch_ , badch_ , badch_ , badch_ , badch_ , badch_ , badch_ , badch_ ,
+		badch_ , badch_ , badch_ , badch_ , badch_ , badch_ , badch_ , badch_ ,
+		space_,  _excl,   quote2_, _sharp,  _dollar, comnt_,  _and,    quote1_,
+		_lparen, _rparen, infix_,  _add,    _comma,  _sub,    infix_,  infix_,
+		digit_,  digit_,  digit_,  digit_,  digit_,  digit_,  digit_,  digit_,
+		digit_,  digit_,  infix_,  _semi,   infix_,  _equal,  infix_,  funny_,
+		funny_,  upper_,  upper_,  upper_,  upper_,  upper_,  upper_,  upper_,
+		upper_,  upper_,  upper_,  upper_,  upper_,  upper_,  upper_,  upper_,
+		upper_,  upper_,  upper_,  upper_,  upper_,  upper_,  upper_,  upper_,
+		upper_,  upper_,  upper_,  _lbkt,   funny_,  _rbkt,   funny_,  lower_,
+		funny_,  lower_,  lower_,  lower_,  lower_,  lower_,  lower_,  lower_,
+		lower_,  lower_,  lower_,  lower_,  lower_,  lower_,  lower_,  lower_,
+		lower_,  lower_,  lower_,  lower_,  lower_,  lower_,  lower_,  lower_,
+		lower_,  lower_,  lower_,  _lcurly, infix_,  _rcurly, infix_,  badch_ 
+	       ]);
+	end get_ckinds;
+
+% int => digit {digit}
+% real => [int] . int [exp] | int . [int] [exp] | int exp
+% exp => E [+ | -] int | e [+ | -] int | 
+
+number = proc (e: rep, c: char);
+	f: file := e.inf;
+	b: ac := e.temp;
+	ac$trim(b, 1, 0);
+	ac$addh(b, c);
+	while true do
+		c := file$peek(f);
+		if c >= '0'  cand  c <= '9'
+		   then ac$addh(b, file$getc(f));
+		elseif str$indexc(c, ".Ee") > 0
+		   then	if c = '.' then ac$addh(b, file$getc(f)); end;
+			reallit(e, b);
+			return;
+		else break; end;
+		end;
+	   except when eof: ; end;
+	res: int := int$parse(str$ac2s(b));
+	   except when overflow: bad(e, str$ac2s(b), "Integer value overflowed");
+				 res := 131071;
+		  end;
+	peeklist$addh(e.peek, peekentry${peek: token$make_int_(res),
+					 add:  0});
+	end number;
+
+reallit = proc (e: rep, a: ac);
+	f: file := e.inf;
+	begin
+	while true do
+		c: char := file$peek(f);
+		if c >= '0'  cand  c <= '9'
+		   then ac$addh(a, file$getc(f));
+		   else break;
+		   end;
+		end;
+	if str$indexc(file$peek(f), "Ee") > 0
+	   then ac$addh(a, file$getc(f));
+		c: char := file$peek(f);
+		if c = '-'  cor  c = '+'
+		   then ac$addh(a, file$getc(f)); end;
+		while true do
+			c := file$peek(f);
+			if c >= '0'  cand  c <= '9'
+			   then	ac$addh(a, file$getc(f));
+			   else break;
+			   end;
+			end;
+		end;
+	end;
+	   except when eof: ; end;
+	lit: str := str$ac2s(a);
+	res: real := real$parse(lit);
+	   except when bad_format: bad(e, lit, "Bad format for real literal");
+				   res := real$parse("131071E99");	% HACK!!!!!
+		  when overflow:   bad(e, lit, "Real value overflowed");
+				   res := real$parse("131071E99");
+		  when underflow:  bad(e, lit, "Real value underflowed");
+				   res := real$parse("131071E99");
+		  end;
+	peeklist$addh(e.peek, peekentry${peek: token$make_real_(res),
+					 add:  0});
+	end reallit;
+
+% str => " { printing except "} "
+
+strlit = proc (e: rep);
+	f: file := e.inf;
+	t: ac := e.temp;
+	ac$trim(t, 1, 0);
+	while true do
+		c: char := file$peek(f);
+		   except when eof: c := '\n'; end;
+		if c = '"'
+		   then	file$getc(f);
+			break;
+		elseif c = '\n'
+		   then	bad(e, str$ac2s(t), "Unterminated string literal");
+			break;
+		elseif c < ' '  cor  c > '~'
+		   then	bad(e, str$c2s(c), "Illegal character in string literal");
+			ac$addh(t, file$getc(f));
+		elseif c = '\\'
+		   then	file$getc(f);
+			ac$addh(t, escape(e));
+		else ac$addh(t, file$getc(f)); end;
+		end;
+	peeklist$addh(e.peek, peekentry${peek: token$make_str(str$ac2s(t)),
+					 add:  0});
+	end strlit;
+
+% char => ' (printing except ') '
+
+charlit = proc (e: rep);
+	f: file := e.inf;
+	c: char := file$peek(f);
+	   except when eof: c := '\n'; end;
+	if c = '\n'
+	   then	bad(e, "", "Stray ' at end of line");
+		return;
+	   end;
+	file$getc(f);
+	if c = '\''
+	   then bad(e, "", "Empty character literal");
+		peeklist$addh(e.peek, peekentry${peek: token$make_char_('?'),
+						 add:  0});
+		return;
+	   end;
+	if c = '\\'
+	   then c := escape(e);
+	elseif c < ' '  cor  c > '~'
+	   then bad(e, str$c2s(c), "Illegal character literal"); end;
+	if ~file$eof(f)  cand  file$peek(f) = '\''
+	   then file$getc(f);
+	   else bad(e, str$c2s(c), "Unterminated character literal");
+	   end;
+	peeklist$addh(e.peek, peekentry${peek: token$make_char_(c),
+			 		 add:  0});
+	end charlit;
+
+% escape => \' | \" | \\ | \n | \t | \p | \b | \r | \v | \ octal octal octal
+
+escape = proc (e: rep) returns (char);
+	f: file := e.inf;
+	c: char := file$peek(f);
+	   except when eof: c := '\n'; end;
+	if c = '\n'
+	   then	bad(e, "", "Empty escape sequence");
+		return('?');
+	   end;
+	file$getc(f);
+	if c >= 'A'  cand  c <= 'Z'
+	   then c := char$i2c(char$c2i(c) + 32); end;
+	if     c = 'n'  then return('\n');
+	elseif c = 't'  then return('\t');
+	elseif c = '\'' then return('\'');
+	elseif c = '"'  then return('"');
+	elseif c = '\\' then return('\\');
+	elseif c = 'b'  then return('\b');
+	elseif c = 'p'  then return('\p');
+	elseif c = 'r'  then return('\r');
+	elseif c = 'v'  then return('\v'); end;
+	s: str := str$c2s(c);
+	if c < '0'  cor  c > '7'
+	   then	bad(e, s, "Illegal escape sequence");
+		return('?');
+	   end;
+	n: int := 0;
+	for i: int in int$from_to_by(2, 3, 1) do
+		c := file$peek(f);
+		   except when eof: c := ' '; end;
+		if c < '0'  cor  c > '7'
+		   then	bad(e, s, "Illegal escape sequence");
+			return('?');
+		   end;
+		s := str$append(s, file$getc(f));
+		n := n * 8 + (char$c2i(c) - 48);
+		end;
+	return(char$i2c(n));
+	end escape;
+
+% binfixop => | || * ** / // < <= > >= ~ ~< ~<= ~> ~>= ~=
+
+binfixop = proc (e: rep, c: char);
+	f: file := e.inf;
+	k: ckind;
+	pc: char := file$peek(f);
+	   except when eof: pc := ' '; end;
+	if c = ':'
+	   then if pc = '='
+		   then	file$getc(f);
+			k := _assn;
+		   else k := _colon;
+		   end;
+	elseif c = '.'
+	   then if pc >= '0'  cand  pc <= '9'
+		   then b: ac := e.temp;
+			ac$trim(b, 1, 0);
+			ac$addh(b, '.');
+			reallit(e, b);
+			return;
+		   else k := _dot;
+		   end;
+	elseif c = '|'
+	   then if pc = '|'
+		   then	file$getc(f);
+			k := _concat;
+		   else k := _or;
+		   end;
+	elseif c = '*'
+	   then if pc = '*'
+		   then	file$getc(f);
+			k := _power;
+		   else k := _mul;
+		   end;
+	elseif c = '/'
+	   then if pc = '/'
+		   then	file$getc(f);
+			k := _mod;
+		   else k := _div;
+		   end;
+	elseif c = '<'
+	   then if pc = '='
+		   then	file$getc(f);
+			k := _le;
+		   else k := _lt;
+		   end;
+	elseif c = '>'
+	   then if pc = '='
+		   then	file$getc(f);
+			k := _ge;
+		   else k := _gt;
+		   end;
+	elseif pc = '<'
+	   then	file$getc(f);
+		if ~file$eof(f)  cand  file$peek(f) = '='
+		   then	file$getc(f);
+			k := _nle;
+		   else k := _nlt;
+		   end;
+	elseif pc = '>'
+	   then file$getc(f);
+		if ~file$eof(f)  cand  file$peek(f) = '='
+		   then	file$getc(f);
+			k := _nge;
+		   else k := _ngt;
+		   end;
+	elseif pc = '='
+	   then	file$getc(f);
+		k := _nequal;
+	else k := _not; end;
+	peeklist$addh(e.peek, peekentry${peek: tokentab$get_ctoken(e.tokens, k),
+					 add:  0});
+	end binfixop;
+
+% comment => % <> {printing | HT} NL
+
+check_comment = proc (e: rep);
+	f: file := e.inf;
+	ckinds: ckindlist := e.ckinds;
+	while true do
+		c: char := file$peek(f);
+		if c = '\n' then return; end;
+		if format_ >= ckinds[char$c2i(file$getc(f))]
+		   then bad(e, str$c2s(c), "Illegal character in comment"); end;
+		end;
+	   except when eof: ; end;
+	end check_comment;
+
+end p_env;

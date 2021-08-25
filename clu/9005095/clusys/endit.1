@@ -1,0 +1,956 @@
+
+basvec:	tvec+3		; vector of basic areas
+	-typlen,,typlo		; initial types vector
+	syslo-syshi,,syslo	; system stuff
+
+endit:	twvec+endlen	; This causes GC to skip the following code
+
+; fixtab is  a table  of  locations   that  is  used to  patch
+; things for  interrupt handling.  It serves  as  a  table  of
+; locations that we  MUST pass  through eventually  if we  are
+; not currently  safe  to  interrupt,  and  that  in   passing
+; through them we  become safe to  interrupt.
+
+fixtab:	chkin	; normal check in
+	qchkin	; quick check in
+	chkout	; normal check out
+	framex	; frame build check out
+	0	; end of table
+
+; We get to memout through a pushj sp,memout (or through
+; a faked call like it).  NO regs may be considered
+; scratch at this point, since we probably gronked
+; due to an alloc failing.
+; At this point we have probably screwed up $memhi by
+; our little addb rr,$memhi back there. We assume that
+; we got here by:
+;	movni	rr,xxx
+;	addb	rr,$memhi
+;	movem	nn,(rr)		; faulting instruction
+; OR by:
+;	movni	rr,xxx
+;	addb	rr,$memhi
+;	camg	rr,$stkhi
+;	 pushj	sp,memout	; possible call
+;	movem	nn,(rr)		; possible fault
+; In the case of a fault we cannot rely on rr being OK.
+; In either case what we need to do is to reset $memhi
+; to something reasonable (same for rr), and to scan back for
+; the "movni" as the place to restart after the GC.
+memout:	hrros	(sp)		; nicefy the stack
+	hrro	xr,xr		; relativize the rtn address
+	exch	xr,(sp)		; save xr, get rtn addr in xr
+memowl:	hlrz	rr,(xr)
+	trz	rr,37
+	caie	rr,(movni rr,0)
+	 soja	xr,memowl
+	xct	(xr)		; reset rr to neg value
+	movn	rr,rr
+	addb	rr,$memhi	; fix $memhi to original
+	movei	rr,0		; prevent GC barf
+	hrro	xr,xr		; we get here again soon
+	exch	xr,(sp)		; leave new rtn address on stack
+	aos	$gcreq		; request the GC
+
+; When we get to safex we know that it is safe to GC
+; provided that it has been requested. To save the return
+; we have come here via a pushj sp,safex.
+safex:	hrros	(sp)		; nicen up the stack (relativize)
+	push	sp,g0		; save regs for playing around
+	push	sp,g1
+	push	sp,rr
+safexp: ; Safexp is used when the regs are already on the stack
+	setzm	$indef		; show that we are about to handle interrupts
+	aos	$safex		; Show that we are in interrupt handler now
+	skipe	$gcreq		; check the flag
+	 jrst	gc.go		; go to the GC routine
+	skipe	$.greq		; check for ^G
+	 jrst	safexc
+	skipe	$.sreq		; and for ^S
+	 jrst	safexc
+	skipe	$inreq		; and for inferior interrupts
+	 jrst	safexc
+	jrst	safexr		; go to restoration exit	
+
+safexc:	; Check for safety for interrupts
+; The other requests must be checked for safety.
+; As a simple case we are safe to interrupt if the following
+; things are true:
+;	1: The return pc lies within the good range of the proc.
+;	2: The proc does not have its prc.ni bit on.
+;	3: Interrupts are not locked out ($intlock)
+	hlrz	g0,(pr)
+	caie	g0,(tprep)	; must be a pure part
+	 jrst	di.no
+; Now we try to get the user's pc, which may be on the stack,
+; or the stack may point to a jrst instruction which will go
+; to the proper place. In either case, we interpret the jrst
+; if it is there, since that can't really hurt.
+	hrrz	rr,-3(sp)	; get rtn address (can point to jrst)
+	hlrz	g0,(rr)		; get the instruction there
+	andi	g0,-20		; clear off garbage
+	caie	g0,(jrst)	; if not a jrst, take rtn pc straight
+	 jrst	safex1
+	move	rr,(rr)		; get that jrst (I hope)
+	tlz	rr,-20		; clear off garbage
+	tlo	rr,(movei rr,)
+	xct	rr		; get real rtn address into rr
+safex1:	; rr has rtn pc
+	movei	g0,pr.go(pr)
+	hrrz	g1,pr.err(pr)
+	addi	g1,-1(pr)
+	cail	rr,(g0)		; check for rtn address being in range
+	 cail	rr,(g1)
+	  jrst	di.no
+; check for being able to interrupt this procedure
+	hlrz	rr,pr.err(pr)
+	trne	rr,prc.ni+prc.na; can we interrupt this proc?
+	 jrst	di.no		; no
+; check for interrupts being locked off
+	skipe	$intlock	; check for the lock
+	 jrst	di.no
+; check for which interrupt to service
+di.ok:	skipe	$.greq		; a ^G request?
+	 jrst	di.gh
+	skipe	$.sreq		; a ^S request?
+	 jrst	di.sh
+	skipe	$inreq		; interrupt from inferior?
+	 jrst	di.in
+
+; When we get here we know that there are no more requests
+; that we can service at all, so we restore things to their
+; proper order in life, which is faster.
+safexr:	movei	g0,fixtab	; get address of fixup table
+	move	rr,(g0)		; grab first word
+safex3:	move	g1,1(rr)	; get normal contents
+	movem	g1,(rr)		; and replace it
+	addi	g0,1
+	skipe	rr,(g0)		; grab next word if not 0
+	 jrst	safex3
+	setzm	$safex		; leaving deferred interrupt handler
+	skipn	$indef		; did an interrupt occur while we were busy?
+	 jrst	di.no		; no, so exit
+; An interrupt occurred while we were handling an interrupt,
+; so we have to go back and fix the table AGAIN to go through safex!
+	movei	g0,fixtab
+	move	rr,(g0)
+	movei	g1,safex	; g1 has pushj sp,safex
+	hrli	g1,(pushj sp,)
+safex5:	movem	g1,(rr)
+	addi	g0,1
+	skipe	rr,(g0)		; pick up next address
+	 jrst	safex5		; and fix it up
+	jrst	safexp		; so go check for interrupts
+
+di.no:	; When we can't take the interrupt we come here
+	pop	sp,rr		; restore regs
+	pop	sp,g1
+	pop	sp,g0
+	popj	sp,		; return to caller
+
+; To get a garbage collect, just increment $gcreq and pushj through
+; to safex, which will get here eventually and cause the GC.
+
+gc.go:	; basic stuff to push before regs
+	push	sp,$types	; types vector
+	push	sp,$mtab	; module table
+	push	sp,$vtab	; vector table
+	push	sp,$trxct	; and trace routine
+	pushj	sp,savreg	; save registers
+;****	Setup registers for GC
+
+;;
+;; Arguments and initialization
+;;
+;;	Arguments are as follows:
+;;
+;;	register 1	pointer to vector of aobjn pointer for basic areas
+;;		 2	return address
+;;		 3	start of stack
+;;		 4	end of stack
+;;		 5	start of heap
+;;		 6	end of heap
+;;		 7	frame pointer
+;;		10	flags
+;;			0 - 1 => do not trim arrays
+;;			1 - 1 => purify
+;;			rest - ignored
+;;		11	first array not to trim
+;;		12	other array not to trim
+;;
+
+	setzb	11,12
+	hlrz	n1,pr.err(pr)
+	trnn	n1,prc.na	; test for array hacking
+	 jrst	gc.nah		; no hacking, go do rest of setup
+	movei	n1,3		; number of arguments to examine
+	movei	r0,-2(er)	; place on stack to start looking
+gc.nul:	skipl	r1,(r0)		; check for reference
+	 jrst	gc.nal
+	tlne	r1,relbit
+	 jrst	gc.nal
+	hlrz	n2,(r1)		; get header word
+	caie	n2,(tarep)	; must be array rep
+	 jrst	gc.nal
+	hrrz	12,11		; it is OK, so remember it in 11 and 12
+	hrrz	11,r1
+	aos	$ahack		; show that it has happened once
+gc.nal:	subi	r0,1		; bump pointer to next argument
+	sojg	n1,gc.nul	; update count and loop if more args
+
+gc.nah:	move	1,$bvec		; vector of basic aobjn's
+	move	3,$stack	; low stack
+	hrrz	4,sp		; high stack
+	hrrz	5,$memhi	; low heap
+	hrrz	6,$hheap	; high heap
+	skipn	6
+	 movei	6,gchi
+	hrrz	7,er		; frame chain
+	hrrz	10,$gcopt	; GC options in this word
+
+;****	Now we can GC !!!!
+	setzm	$gcreq		; there are no GC requests now
+	jsp	2,pgsize	; this calls the GC routine
+
+;****	Now we have returned from GC !!!!!!!!!!!!!!!!
+
+;; Return regs
+;;		 4	end of stack
+;;		 5	start of heap
+;;		 6	new "memlo" (lowest existing word for allocation)
+;;		 7	number of words "saved" by GC
+;;		10	end of heap
+
+	movei	sp,(4)		; get nice sp back again
+; fix up $stkhi (the page above sp got mapped out)
+	movei	1,(sp)		; get stack address
+	tro	1,pgsize-1	; round up to highest addr in this page
+	hrrm	1,$stkhi	; put it in memory
+; fix up $memhi & $memlo
+	hrrm	5,$memhi	; new start of heap
+	hrrm	6,$memlo	; new bottom address
+	hrli	sp,7000		; prevent pdl faults
+	hrli	7,(tint)	; # of words saved
+	movem	7,$gcsav
+	movem	10,$hheap
+; restore the registers
+	pushj	sp,rstreg
+; restore the basic area stuff
+	pop	sp,$trxct
+	pop	sp,$vtab
+	pop	sp,$mtab
+	pop	sp,$types
+
+; return to the caller
+	jrst	safexp		; go check for safe exiting
+
+;
+;****	Routines to save and restore registers on the stack.
+;	call via: pushj sp,savreg or pushj sp,rstreg
+
+savreg:	; Save all registers in safe format on the stack.
+	hrros	(sp)		; nicen up the stack
+; save the full ref regs		[3+1=4]
+	push	sp,g0		; must be same sequence as safex uses!
+	push	sp,g1
+	push	sp,rr
+; save the rsb regs (n0, n1, n2, n3)	[8+4=12]
+	irp	x,,[n0,n1,n2,n3]
+		hrrz	rr,x
+		push	sp,rr
+		hlrz	rr,x
+		push	sp,rr
+		termin
+; save the full rel regs (r0 & r1)	[4+12=16]
+	hrro	rr,r0		
+	push	sp,rr
+	hlrz	rr,r0
+	push	sp,rr
+	hrro	rr,r1		
+	push	sp,rr
+	hlrz	rr,r1
+	push	sp,rr
+
+; save mr,lr,pr				[3+16=19]
+	hrli	mr,(tref)
+	push	sp,mr
+	hrli	lr,(tref)
+	push	sp,lr
+	hrli	pr,(tref)
+	push	sp,pr
+
+; save er (points into the stack, must be rsb)	[1+19=20]
+	hrrz	er,er
+	push	sp,er
+; save right half of xr		[1+20=21]
+	hrro	xr,xr
+	push	sp,xr
+; save both halves of br	[2+21=23]
+	hrro	xr,br
+	push	sp,xr
+	hlro	xr,br
+	push	sp,xr
+; return to caller with regs saved
+	hrro	xr,-22.(sp)	; get rtn address
+	jrst	(xr)		; and leave
+
+rstreg:	; Restore registers given the format used by savreg
+	hrros	(sp)		; nicen up the return address
+	pop	sp,-23.(sp)	; move it way down into the stack
+; restore br and xr
+	hrlz	br,(sp)
+	hrr	br,-1(sp)
+	hrrz	xr,-2(sp)
+	subi	sp,3
+
+; restore mr, lr, pr, er
+	pop	sp,er
+	pop	sp,pr
+	pop	sp,lr
+	pop	sp,mr
+	hrl	lr,pr
+	hrl	pr,lr
+
+; restore the full rel regs
+	hrlz	r1,(sp)
+	hrr	r1,-1(sp)
+	hrlz	r0,-2(sp)
+	hrr	r0,-3(sp)
+	subi	sp,4
+
+; restore the rsb regs
+	irp	x,,[n3,n2,n1,n0]
+		hrlz	x,(sp)
+		hrr	x,-1(sp)
+		subi	sp,2
+		termin
+
+; restore the full ref regs & return
+	pop	sp,rr
+	pop	sp,g1
+	pop	sp,g0
+	popj	sp,
+
+;
+;	Interrupt handlers for ^G, ^S, and inferior jobs
+;
+di.gh:	; ^G handler
+	setzm	$.greq		; clear ^G request
+	setzm	$.sreq		; clear ^S request, too
+	setzm	$safex		; don't keep ints off
+	pushj	sp,savreg	; save registers
+di.gh1: mcall	%quit		; quit frame
+	pushj	sp,rstreg	; restore registers
+	jrst	safexp		; attempt to return
+
+di.sh:	; ^S handler
+	setzm	$.sreq		; clear ^S request
+	setzm	$safex		; don't keep ints off
+	pushj	sp,savreg	; save registers
+	pushj	sp,flist
+
+	hrrz	r1,er
+di.sh1:	hlrz	r0,-1(r1)	; search for last "listen" frame on stack
+	cain	r0,(rr)
+	 jrst	di.sh2
+	hrrz	r1,(r1)		; go back a frame
+	jumpn	r1,di.sh1
+	jrst	di.gh1		; if no such frame, treat as ^G
+
+di.sh2:	hrrz	er,(r1)		; get old frame ptr (below listen)
+	movei	sp,-1(r1)	; fix stack back
+	move	mr,rr		; new mr for listen
+	hrrz	n1,en.vi(mr)	; check var init
+	jumpe	n1,qsetup	; quick setup if no vars
+	jrst	setup		; normal setup otherwise
+
+; A helpful little crock to get the listen proc.
+flist:	hrros	(sp)		; clean up rtn address
+	string	ll,listen
+	hrroi	rr,ll
+	mcall	pfind,[rr]	; call to find the procedure
+	popj	sp,
+
+; An interrupt from an inferior gets handled by calling the
+; procedure that has its address in $hand with no arguments.
+di.in:	setzm	$safex		; don't keep ints off
+	setzm	$inreq		; no inferior job interrupts now
+	pushj	sp,savreg	; save regs
+	skipn	rr,$ihand	; If no handler, clear request
+	 setzm	$infer		; and exit
+	jumpe	rr,di.inx
+	mcall	(rr)		; Yes, so call it
+di.inx:	pushj	sp,rstreg	; Restore regs
+	jrst	safexp		; and exit
+
+; setup performs  the  normal stack  frame  setup  and
+; variable initialization. this code  is called via  a
+; jsp mr,setup which must reside in an entry block. it
+; builds a nice  stack frame and  sets up the  linkage
+; and procedure registers (lr and pr) and  initializes
+; the variables on the stack.
+
+setup:	hrlm	mr,(sp)		; save the entry block ptr in the left half
+	push	sp,er
+	movei	er,0(sp)	; point er at the current frame
+	move	br,en.vi(mr)	; get the variable init stuff
+	addi	sp,(br)		; and adjust the stack to allow room
+	hrri	br,1(er)	; br now has (src,,dst)
+	blt	br,(sp)		; do the transfer to init the stack
+	move	pr,en.lpr(mr)	; setup the (lr,,pr) pair
+set.t:	movs	lr,pr
+chkin:	jrst	pr.go(pr)	; go to the first instruction of the proc
+	jrst	pr.go(pr)	; duplicate for deferred interrupts
+
+; qsetup performs  the  procedure setup  for  the case  of  no
+; variable  initialization. it just builds a nice stack  frame
+; and exits through to the place where lr and pr are setup.
+
+qsetup:	hrlm	mr,(sp)		; save the entry block ptr in the left half
+	push	sp,er		; save old er (old stack frame)
+	movei	er,0(sp)	; point er at the current frame
+	move	pr,en.lpr(mr)	; setup the pure code ptr
+qset.t:	movs	lr,pr		; and the data ptr
+qchkin:	jrst	pr.go(pr)
+	jrst	pr.go(pr)	; duplicate for deferred interrupts
+
+; framer creates a frame for the benefit of the caller
+; it is called through a jsp r0,framer; and the rtn addr
+; for the frame is assumed to be in xr
+framer:	hrl	xr,mr
+	push	sp,xr
+	push	sp,er
+	movei	er,0(sp)	; point er at the current frame
+	move	pr,en.lpr(mr)
+	movs	lr,pr
+framex:	jrst	(r0)
+	jrst	(r0)	; duplicate for deferred interrupts
+
+; yield is used  inside of an  iterator to give  a value to  a
+; previous frame while keeping the current frame on the stack.
+; it is called by a jsp  xr,yield. it constructs a fake  stack
+; frame, and puts  a reference  to that stack  frame into  the
+; frame it is yielding to. the base environment is expected to
+; have a frame pointer in the  left half of (er), and this  is
+; pushed onto the  new fake   frame  at the  same place.  this
+; maintains a  linked  list of  fake  frames for  the  garbage
+; collector and for the  resume-ing of iterators. this  allows
+; iterators to occur within iterators, etc.
+
+yield:	hrrz	xr,xr
+	push	sp,xr		; save rtn address (left half 0)
+	hrrz	xr,(er)		; get the parent frame ptr
+	hll	er,(xr)		; get the iter chain into left(er)
+	push	sp,er		; save old frame & iter chain
+	hrlm	sp,(xr)		; update the old pfc to current pf
+	hrrz	xr,-1(er)	; get the return address
+	hrrz	er,(er)		; point to parent env with er (LH of er is 0)
+	aoja	xr,exitex	; cause a skip for the yield,
+				; & go to setup mr,lr,pr and exit
+
+; resume is used to resume the execution of the iterator  when
+; another object is  needed from the  iterator. it strips  off
+; the pseudo-frame,  and exits  to  the iterator,  which  then
+; appears  to   be   a  completely   normal   procedure.   the
+; pseudo-frame list is also maintained.
+
+resume:	hlr	sp,(er)		; get the old er in sp
+	move	xr,(sp)
+	hllm	xr,(er)		; unchain the pseudo-frame chain
+	hrrz	er,xr		; get the current er (left half 0 please)
+resu.t:	hrrz	xr,-1(sp)	; restore old rtn address
+	subi	sp,2		; cut back the stack
+	jrst	exitex		; go to setup mr,lr,pr and exit
+
+; itpop is used to cutback the stack for one level of iterator
+; it is up to the caller to perform the remaining transfers we
+; call this internal routine via jsp xr,itpop
+
+itpop:	hlrz	r0,(er)		; get the iter chain in r0 (a fake frame)
+	jumpe	r0,chkout	; if nothing to pop, then don't
+	move	r0,(r0)		; get the remaining iter chain
+	hllm	r0,(er)		; and unlink the current iterator
+	hrr	sp,r0		; cut the stack to the iter frame
+	hlrz	r0,-1(sp)	; grab the iterator mr
+	move	r0,en.lpr(r0)	; grab the pr for the iterator
+	sub	sp,pr.cut(r0)	; cut back the stack
+	jrst	chkout		; and return to the cutter
+
+; exitc is  the  procedure exit  routine  for exiting  with  a
+; constant result.  the  entry  to  exitc is  made  by  a  jsp
+; xr,exitc which must  occur in the  word after the  constant.
+; exitc must precede the exiter.
+
+exitc:	move	rr,-2(xr)	; grab the value from the code
+
+; exiter performs stack cleanup and adjusts the registers upon
+; normal procedure exit. a static  number of arguments can  be
+; cut back from the stack.
+
+exiter: hrrz	xr,-1(er)	; grab the rtn address
+exitit:	hrr	sp,er		; restore old stack level
+	hrrz	er,(sp)		; get the old environment
+	sub	sp,pr.cut(pr)	; cut back the arguments
+;
+; we rely on the fact that a jsp xr,yldout will setup mr,lr,pr
+; to their proper values.
+;
+yldout==:.	; we occaisionally need this label
+exitex:	; synonomous with yldout
+	hlrz	mr,-1(er)	; get the current entry block address into mr
+	move	pr,en.lpr(mr)	; reset old pr
+	movs	lr,pr		; and old lr
+chkout:	jrst	(xr)		; normally return to caller
+	jrst	(xr)		; duplicate for deferred interrupts
+
+; qexit is used for relatively quick exits from non-frame routines
+; note that n3 must be preserved in tracing!
+
+qexit:	subi	sp,(n3)		; cut back the stack
+	jrst	exitex		; and restore the world
+
+;	mexit is the exit code for returning multiple objects. the br has
+; already been set up with the appropriate source and destination stuff.
+; rr has the number of objects being returned as a mrtn value.
+
+mexit:	hrrz	xr,-1(er)	; get the return address in xr
+	hrr	sp,br		; make the stack point
+	addi	sp,-1(rr)	; at its new position
+	hrrz	er,(er)		; and the new environment ptr (really old)
+	blt	br,(sp)		; transfer the info from higher to lower
+	jrst	exitex		; go to setup (mr,pr,lr) & exit
+
+; myield is the exit code for a multiple yield. we assume that
+; we got here via a jsp br,myield; and that rr has a  multiple
+; return value  in  it. a  $fakef  macro is  assumed  to  have
+; preceded the arguments  for the myield,  and we must  update
+; the pseudo-frame chain.
+
+myield:	subi	sp,(rr)		; point stack at fake frame
+	hrrzm	xr,-1(sp)	; save the return address
+	hrrz	xr,(er)		; grab the old environment
+	hll	er,(xr)		; get the old pseudo-frame chain
+	movem	er,(sp)		; save iterator's er & pseudo-frame chain
+	hrlm	sp,(xr)		; update the pseudo-frame chain
+	addi	sp,(rr)		; point stack up there again
+	hrrz	xr,-1(er)	; get the return address
+	move	er,(er)		; point to parent env with er
+	aoja	xr,exitex	; cause a skip for the yield,
+				; & go to setup mr,lr,pr and exit
+
+; Signalling and causing are pretty much the same except that
+; signalling goes up one level and causing does not.  For now
+; both types of exceptions come here to print out something.
+
+causer:	; return address is in xr
+	hrro	r0,er		; r0 has dst frame ptr
+	jrst	siggz
+siggy:	; rr has the # of arguments
+	; er points at source frame for err
+	hrro	r0,(er)		; r0 has dst frame ptr
+	hrro	xr,-1(er)	; get return address
+siggz:	pop	sp,g0		; grab off error block
+	pop	sp,rr		; and # of args
+	movni	n1,(rr)
+	hrrz	r1,sp
+	addi	r1,1(n1)
+	hrl	r1,n1		; aobjn ptr to info pushed
+	push	sp,r1		; push info ptr
+	push	sp,td.nam(g0)	; push name of exception
+	hrro	xr,xr
+	push	sp,xr		; push rtn address for finding exception
+	hrro	r1,mr		; push src entry block
+	push	sp,r1
+	push	sp,r0		; push dst frame
+	movei	mr,%siggy
+	xct	en.set(mr)	; call siggy to handle the error
+
+; Failure can occur  in many ways.   These entries accept  the
+; failure string  in  rr,  then signal  failure  for  whatever
+; reason may be necessary. Agnew is the entry for failures  in
+; qprocs, while  Nixon  is the  entry  for failure  in  normal
+; procs.
+
+edesc	efail$,failure,[ttype(tstr)]
+
+agnew:	; for now the same as nixon
+nixon:	push	sp,rr		; push the string
+	movei	rr,1		; and the # of arguments
+	push	sp,rr
+	movei	r0,efail$
+	hrli	r0,(tref)
+	push	sp,r0		; and the error block
+	jrst	siggy		; and cause the error to occur
+
+
+; When a  proc  call  block  is  first  invoked,  this routine
+; is  entered   by  the   execution  of   a  "jsp  xr,linker",
+; which is  in the  pc.set word.  The mr   reg points  to  the
+; block. Note the  way that  the pc.str  field gets  clobbered
+; with the found thing.
+linker: hrli	xr,%linkf	; fake the frame for the call
+	push	sp,xr		; build a fake frame with rtn addr & fake mr
+	hrrz	er,er
+	push	sp,er		; link to old frame
+	push	sp,rr		; save old rr
+	push	sp,mr		; save the pcb address (assume type code is OK)
+	hlro	r0,-1(er)	; get the entry block for the calling proc
+	movei	er,-2(sp)	; get new er
+	repchk	r0,terep	; this had better be an entry block!!!
+	repchk	mr,tcrep	; this had better be a call block!!!!
+	mcall	%snap,[mr,r0]	; snap the link
+	hrrz	mr,rr		; mr must now point to entry block
+	hrrz	r1,(sp)		; get the pcb address again
+	move	rr,-1(sp)	; get back original rr
+	hrrz	er,-2(sp)	; get back the old er
+	hlrz	r0,-1(er)	; get the old mr
+	move	pr,en.lpr(r0)	; get old pr
+	movs	lr,pr		; and lr
+	hrrz	xr,-3(sp)	; get the return address also
+	subi	sp,4		; clear off saved stuff & fake frame
+	hrli	mr,(tref)
+	movem	mr,pc.str(r1)	; save the link here
+	movei	n1,linkex
+	hrrm	n1,pc.set(r1)	; change the setup code
+	jrst	lnkout
+
+; Linkex is used to make a quick call through
+; a fixed-up link block. We assume that we are
+; called with a jsp xr,linkex and that mr has
+; the address of the pcb.
+linkex:	move	mr,pc.str(mr)
+lnkout:	soja	xr,chkout	; go to original caller (& check interrupts)
+
+; Relink attempts to  refind reloded procedures  when the  old
+; one get called. It is setup  by the loader, and gets  called
+; by a jsp  xr,relink The entry  block is referred  to by  mr.
+; Note the way that the  en.typ field gets clobbered with  the
+; found thing.
+relink: hrli	xr,%linkf	; fake the frame for the call
+	push	sp,xr		; build a fake frame with rtn addr & fake mr
+	hrrz	er,er
+	push	sp,er		; link to old frame
+	push	sp,rr		; save old rr
+	hrro	mr,mr
+	push	sp,mr		; save the pcb address
+	hlro	r0,-1(er)	; get the entry block for the calling proc
+	movei	er,-2(sp)	; get new er
+	repchk	r0,terep	; this had better be an entry block!!!
+	repchk	mr,terep	; this had better be an entry block too!!!
+	args	[mr,r0]
+	string	s,%desc$refind
+	hrroi	rr,s
+	mcall	pfind,[rr]
+	camn	rr,$none
+	 croak	Can't relink procedure!
+	mcall	(rr)
+	camn	rr,$none
+	 croak	Can't relink procedure!
+	hrro	mr,rr		; mr must now point to executable block
+	hrrz	r1,(sp)		; get the entry address again
+	move	rr,-1(sp)	; get back original rr
+	hrrz	er,-2(sp)	; get back the old er
+	hlrz	r0,-1(er)	; get the old mr
+	move	pr,en.lpr(r0)	; get old pr
+	movs	lr,pr		; and lr
+	hrrz	xr,-3(sp)	; get the return address also
+	subi	sp,4		; clear off saved stuff & fake frame
+	hrli	mr,(tref)
+	movem	mr,en.typ(r1)	; save the link here
+	movei	n1,relinx
+	hrrm	n1,en.set(r1)	; change the setup code
+	jrst	lnkout
+
+; Relinx does a quick relink, based on a previous lookup.
+; It is setup by relink, and gets called by a jsp xr,relinx
+; The entry block is referred to by mr.
+	jsp	xr,relinx	; used to fixup a block
+relinx:	move	mr,en.typ(mr)
+	jrst	lnkout
+
+; Vcopy copies the vector (or any block with length in right half)
+; into a new block. g1 points at the block to be copied, rr gets
+; a ref to the new block, and n1 and r1 are clobbered.  Vcopy must
+; be called via jsp xr,vcopy
+vcopy:	move	n1,(g1)
+	alloc	(n1),n1
+	movei	br,1(rr)
+	hrli	br,1(g1)
+	hrrz	r1,rr
+	addi	r1,-1(n1)
+	cail	r1,(br)		; skip if nothing to copy
+	 blt	br,(r1)
+	jrst	chkout		; go exit & check for ints
+
+; Rcopy makes a new vector from an aobjn ptr and offset and size
+;	r1 has aobjn to stuff to copy
+;	n1 has offset from beginning (0 means 1st data item)
+;	n2 has size for resulting vector (includes header word)
+rcopy:	trne	n2,600000
+	croak	HUGE size given to rcopy (in n2).
+	hrli	n2,(tvec)	; make a vector
+	alloc	(n2),n2
+	movei	br,1(rr)	; dst for blt
+	addi	br,(n1)		; add in the offset
+	hrl	br,r1		; src for blt
+	hlre	n2,r1		; get length of transfer
+	jumpge	r1,chkout	; quick end if no transfer
+	hrrz	r1,br		; get start of dst
+	subi	r1,1(n2)	; calc end of blt
+	blt	br,(r1)		; transfer if there is something to move
+	jrst	chkout
+;	rr has ref to new vector
+;	r1 points to last data word in new vector
+;	n2 has -words transferred
+
+; amake makes an array from whatever r1 is an aobjn to
+amake:	movei	g1,0		; just in case we don't alloc
+	jumpge	r1,amake0	; if stuff to copy, do it
+	hlre	n2,r1		; get - # of words
+	movni	n2,-1(n2)	; get # of words (+1 for header)
+	hrli	n2,(tvec)	; it will be a vector
+	alloc	(n2),n2		; allocate vector
+	move	g1,rr		; save it in g1
+	movei	br,1(rr)	; dst for blt
+	hrli	br,0(r1)	; src for blt
+	movei	r0,(rr)
+	addi	r0,-1(n2)	; end of dst for blt
+	blt	br,(r0)		; transfer words
+	hrri	r1,1(rr)	; new aobjn ptr
+
+amake0:	; now allocate a new array & fill with g1 & r1
+	hrlzi	n1,(tarep)
+	alloc	3,n1
+	movem	r1,ar.rel(rr)	; fill rel slot
+	hrrzm	g1,ar.vec(rr)	; fill vector slot
+	jrst	chkout		; exit with array in rr
+;	r1 is left as aobjn to new data
+
+; Mxrout is where we come to do a quick exit from a routine
+; that was called through a "call" that xct'd a jsp xr,...
+mxrout:	hlrz	mr,-1(er)	; restore mr
+	jrst	chkout		; go exit & check for ints
+
+; A jrst frog is performed when a procedure terminates
+; (falls off the end) without executing a return.
+frog:	jsp	r1,vallex
+	croak	Procedure terminated without a return statement.
+	jrst	buggy
+
+; A jsp xr,notref; is performed when we needed a reference
+; and did not get one!
+notref:	jsp	r1,vallex
+	croak	Reference bit not set when expected.
+	jrst	buggy
+
+; A jsp xr,notrsb; is performed when we expected raw seething bits
+; and did not get them!
+notrsb:	jsp	r1,vallex
+	croak	Reference bit not clear when expected.
+	jrst	buggy
+
+; A jsp xr,badrep; is performed when the rep code expected
+; did not match the one received.
+badrep:	hrrz	n1,-2(xr)	; get rep code expected
+	jsp	r1,valley
+	croak	Rep code found (in n0) not one expected (in n1).
+	jrst	buggy
+
+; A jsp xr,badtyp; is performed when a force fails to get the
+; desired type for an any object.
+badtyp:	edesc	bdtyp0,wrong_type
+	hrroi	r0,bdtyp0	; error block
+	movei	rr,0		; no arguments
+	jrst	causer		; cause the error to happen (as if from call)
+
+vallex:	setzb	n0,n1
+; A jsp r1, valley is used to attempt to print an error msg.
+; If this attempt fails we try to valret the msg to DDT so the
+; user can see something.
+valley:	skipn	$lflag
+	 jrst	(r1)
+	setzm	$lflag
+	hrro	xr,xr
+	hrro	r0,er
+	hrro	rr,(r1)
+	sos	rr
+	args	[r0,xr,n0,n1,rr]
+	string	s,value$bleep
+	push	sp,r1
+	hrroi	r0,s
+	mcall	pfind,[r0]
+	pop	sp,r1
+	camn	rr,$none
+	 jrst	(r1)
+	mcall	(rr)
+	jrst	buggy
+
+badrtn:	croak	Bad # of arguments returned. $p to ignore.
+	jrst	chkout
+
+; typarg and typreg both attempt to get the necessary item,
+; but if they fail, we come here to try to get it
+; if successful, rr has the result on exit
+notype:	; rr has ptr to desc (maybe), r0 has link ptr
+	isrep	rr,tdrep
+	 jrst	chkout
+	skipn	r1,td.fix(rr)
+	 jrst	notyp1		; go snap the desc
+	exch	rr,r1
+
+notyp0:	movem	rr,(r0)		; fix the link
+	movem	rr,td.fix(r1)	; and the descriptor
+	jrst	chkout		; exit to caller
+
+notyp1:	; we need to snap the descriptor
+	hrro	xr,xr
+	args	[xr,rr,r0,rr]	; save regs, push parm for %desc$snap_desc
+	string	l,%desc$snap
+	hrroi	rr,l
+	mcall	pfind,[rr]
+	camn	rr,$none
+	 jrst	notyp2
+	mcall	(rr)
+	camn	rr,$none
+	 jrst	notyp3		; Could not snap it
+	pops	[r0,r1,xr]
+	jrst	notyp0
+
+notyp2: croak	Could not find %desc$snap!
+	jrst	buggy
+
+notyp3:	move	r0,(sp)
+	mcall	%dfail,[(r0)]	; show failed descriptor
+
+regsav:	block	20		; save space for registers
+
+bbuggy:	croak	$p to get a stack trace.
+buggy:	movem	17,regsav+17
+	movei	17,regsav
+	blt	17,regsav+16	; save the registers for examination
+	move	sp,regsav+sp	; restore the stack for debugging
+	mcall	frall,[$tyo]	; print all of the frames
+	hrlzi	17,regsav
+	blt	17,17		; restore the registers for display
+	jrst	bbuggy
+
+;	rget and rput are here to help with record get & put
+; operations.  The block that is in mr looks like:
+;	twvec+3
+;	jsp	xr,r.get	; or jsp xr,r.put
+;	move	rr,NNN(g0)	; or movem rr,NNN(g0)
+; The first word gets executed by the caller, through the normal
+; conventions.  The second word gets executed by the record
+; access code to either get or put the value.
+; For now, we check every thing that happens.
+r.put:	twvec+3
+	jsp	xr,r.put1
+	movem	rr,0(g0)
+;
+r.get:	twvec+3
+	jsp	xr,r.get1
+	move	rr,0(g0)
+;
+	strlit	record$put_*
+r.put1:	pop	sp,rr		; value is in rr
+	jrst	r.get1
+	strlit	record$get_*
+r.get1:	pop	sp,g0		; record object is in g0
+r.acc:	jumpge	g0,r.err
+	hlrz	n0,(g0)
+	caie	n0,(tvec)
+	 jrst	r.err
+	hrrz	n1,(g0)		; length is in n1
+	hrrz	n2,2(mr)	; get the length requested
+	jumpe	n2,r.err	; can't point at code word
+	caml	n2,n1
+	 jrst	r.err		; can't point too high, either
+	xct	2(mr)		; move it one way or the other
+	jrst	mxrout
+
+;	The idea behind the error handling is to give info
+; to our specially-named error routine, which can take care of it.
+r.err:	hrrz	n0,n2
+	jsp	r1,valley
+	croak	Record access error.
+	jrst	buggy
+
+;	A similar thing is done for oneof's, except that
+; we want to have a type code present as well.  The only
+; operation we need is one to create a new oneof object.
+o.new:	twvec+3
+	jsp	xr,o.new1
+	0
+;
+	strlit	oneof$make_*
+o.new1:	hrrz	n1,2(mr)
+	hrli	n1,(torep)
+	alloc	2,n1
+	pop	sp,1(rr)
+	jrst	mxrout
+
+o.is:	twvec+3
+	jsp	xr,o.is1
+	0
+;
+	strlit	oneof$is_*
+o.is1:	hrrz	n1,2(mr)
+	pop	sp,g0
+	jumpge	g0,o.err
+	hlrz	n0,(g0)
+	caie	n0,(torep)
+	 jrst	o.err
+	hrrz	n2,(g0)
+	move	rr,$true
+	came	n1,n2
+	 move	rr,$false
+	jrst	mxrout
+	
+o.err:	croak	oneof rep error
+	jrst	buggy
+
+o.get:	twvec+3
+	jsp	xr,o.get1
+	0
+;
+	strlit	oneof$value_*
+o.get1:	hrrz	n1,2(mr)
+	pop	sp,g0
+	jumpge	g0,o.err
+	hlrz	n0,(g0)
+	caie	n0,(torep)
+	 jrst	o.err
+	hrrz	n2,(g0)
+	move	rr,1(g0)
+	camn	n1,n2
+	 jrst	mxrout		; return with success if nice
+	edesc	o.gete,wrong_tag
+	hrroi	r1,o.gete
+	jrst	icause
+
+i.ofl:	edesc	i.ofle,overflow
+	hrroi	r1,i.ofle
+
+; come here to qsignal an edesc in r1 (no arguments)
+icause:	movei	rr,0
+	push	sp,rr
+	push	sp,r1
+	jrst	causer	
+
+ents$:	$gents
+
+endlen==.-endit
+
+refs$:	consta
+	0
+
+syshi== .
+
+	0		; sacred to GC
+stack:	block	40
+	0
+	.=.+pgsize-1
+	.=.&-pgsize
+stktop==.-1
+
+end	start

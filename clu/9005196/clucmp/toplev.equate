@@ -1,0 +1,41 @@
+%	TOPLEV EQUATE
+%
+%	CLU Compiler Version 3: top level equates
+
+ac		= array[char];
+mspecs		= oneof[specs: DUspecs,
+			none:  null];
+DUfakelist	= array[DUfake];
+mdef		= record[def:    definition,
+			 hack:   bool,
+			 gen:    DUfake,
+			 mspecs: mspecs];
+mdeflist	= array[mdef];
+stuff		= record[ce:   CE,
+			 penv: p_env,
+			 cenv: c_env,
+			 genv: g_env,
+			 inf:  file,
+			 ifs:  str,
+			 outf: file,
+			 genf: file];
+
+parse_		= 0;
+check_		= 1;
+clumac_		= 2;
+binary_		= 3;
+specs_		= 4;
+ce_		= 5;
+execute_	= 6;
+
+bad_		= 0;
+equates_	= 1;
+wait_		= 2;
+install_	= 3;
+
+proceed_	= true;
+no_proceed_	= false;
+
+no_errs_	= 0;
+minor_errs_	= 1;
+bad_errs_	= 2;

@@ -1,0 +1,393 @@
+.chapter "Statements"
+.
+.sr self chapter
+.sr exceptions 14
+.sr assign 11
+.sr scope 10.1
+.sr fetch 12.5.1
+.sr getops 12.5.2
+.sr exstmt 14.4
+.sr itermod 15.3
+.sr oneofs 9.10
+.sr procmod 15.2
+.
+.para 1
+In this section, we describe most of the statements of CLU.
+We omit discussion of the signal, exit, and
+except statements, which are used for signalling and
+handling exceptions, as described in Section exceptions.
+.para
+CLU is a statement-oriented language, i.e., statements
+are executed for their side-effects and do not return any values.
+Most statements are 2control* statements that permit the
+programmer to define how control flows through the program.
+The real work is done by the 2simple* statements:  assignment
+and invocation.
+Assignment has already been discussed in Section assign;
+the invocation statement is discussed in Section self.1 below.
+Two special statements that look like assignments but are really
+invocations are discussed in Section self.2.
+.para
+The syntax of CLU is defined to permit a control statement to
+control a group of (declarations, equates and) statements rather than
+just a single statement.
+Such a group is called a 2body*.
+Scope rules for bodies were discussed in Section scope.
+Occasionally, it is necessary to explicitly indicate that a
+group of statements should be treated like a single statement;
+this is done by the block statement, discussed in Section self.3.
+.para
+The conditional statement is discussed in Section self.4.
+Loop statements are discussed in Section self.5, as are some
+special statements that control termination of a single iteration
+or a single loop.
+The tagcase statement is discussed in Section self.6.
+Finally, a number of termination statements are discussed in
+Section self.7.
+.section "Invocation"
+.para 1
+An invocation statement invokes a procedure.
+Its form is the same as an invocation expression:
+.show
+primary ( lbkt expression, etc rbkt )
+.eshow
+The 2primary* must evaluate to a procedure object, and the
+types of the 2expressions* must be included in
+the types of the formal arguments for that procedure.
+The procedure may or may not return some results;
+if it does return results, they are discarded.
+.para
+For example, the statement
+.show
+array [int]$remh (a)
+.eshow
+will remove the top element of a (assuming a is an
+array@[int]).
+Remh also returns the top element, but it is
+discarded in this case.
+.section "Update Statements"
+.para 1
+Two special statements are provided for updating
+components of records and arrays.
+In addition they may be used with user-defined types
+with the appropriate properties.
+These statements resemble assignments syntactically, but are
+really invocations.
+.subsection "Element Update"
+.para 1
+The element update statement has the form
+.show
+primary [ expression1 ] := expression2
+.eshow
+This form is merely syntactic sugar for an invocation
+of a store operation, and is completely equivalent
+to the invocation statement
+.show
+T$store (primary, expression1, expression2)
+.eshow
+where T is the type of 2primary*.
+For example, if a is an array of integers,
+.show
+a [27] := 3
+.eshow
+is completely equivalent to the invocation statement
+.show
+array [int]$store (a, 27, 3)
+.eshow
+.para
+The element update statement is not restricted to arrays.
+The statement is legal if the corresponding invocation statement is
+legal.
+In other words, T (the type of 2primary*)
+must provide a procedure operation named 2store*,
+which takes three arguments whose types include those of
+2primary*, 2expression2*, and 2expression2*, respectively.
+In case 2primary* is an array@[S] for some type S,
+2expression1* must be an int, and 2expression2*
+must be included in S.
+.para
+We recommend that the use of 2store* for user-defined types be
+restricted to types with array-like behavior,
+e.g., that contain collections of indexable elements.
+For example, it might make sense for an associative_memory
+type to provide a store operation for changing the value
+associated with a key.
+Such types may also provide a fetch operation; see Section fetch.
+.subsection "Component Update"
+.para 1
+The component update statement has the form
+.show
+primary 1.* name := expression
+.eshow
+This form is merely syntactic sugar for an invocation of a set_name
+operation, and is completely equivalent to the invocation statement
+.show
+T$set_2name* (primary, expression)
+.eshow
+where T is the type of 2primary*.
+.para
+For example, if x has type record [first: int, second: real],
+.show
+x.first := 6
+.eshow
+is completely equivalent to
+.show
+record [first: int, second: real] $ set_first (x, 3)
+.eshow
+.para
+The component update statement is not restricted to records.
+The statement is legal if the corresponding invocation statement is legal.
+In other words, T (the type of 2primary*) must provide a procedure
+operation called set_2name*, which takes two arguments whose types
+include the types of 2primary* and 2expression*, respectively.
+When T is a record type, then T must have a selector
+called 2name*, and the type of 2expression* must be included in the
+type of the component named by that selector.
+.para
+We recommend that set_name operations be provided for user-defined
+types only if record-like behavior is desired, i.e., it is
+meaningful to permit some parts of the abstract object to be
+modified by selector name.
+In general, set_name operations should not perform any
+substantial computation, except possibly checking that the
+arguments satisfy certain constraints.
+For example, in a bank_account type, there might
+be a set_min_balance operation to set what the minimum
+balance in the account must be.
+However, 2deposit* and 2withdraw* operations make more
+sense than a set_balance operation, even though the
+set_balance operation could compute the amount deposited or
+withdrawn and enforce semantic constraints.
+.para
+In our experience, types with set_name operations occur much
+less frequently than types with get_name operations
+(see Section getops).
+.section "Block Statement"
+.para 1
+The block statement permits a group of statements to be grouped
+together into a single statement.
+Its form is
+.show
+begin body end
+.eshow
+Since the syntax already permits bodies inside control statements,
+the main use of the block statement is to group statements together for
+use with the except statement; see Section exstmt.
+.section "Conditional Statement"
+.para 1
+The form of the conditional statement is
+.show
+if expression then body
+	lcurly elseif expression then body rcurly
+	lbkt else body rbkt
+	end
+.eshow
+The 2expressions* must be of type bool.
+They are evaluated successively until one is
+found to be true.
+The 2body* corresponding to the first true 2expression*
+is executed, and the execution of the if statement then terminates.
+If none of the 2expressions* is true, then the 2body* in the
+else clause is executed (if the else clause exists).
+.para
+The elseif form provides an easy way to write a
+multi-way branch.
+It also serves as a substitute for a case statement, which CLU
+does not provide.
+.section "Loop Statements"
+.para 1
+There are two forms of loop statements:  the while statement
+and the for statement.
+Also provided are a continue statement, which terminates the
+current cycle of a loop, and a break statement, which terminates
+the innermost loop.
+These are discussed below.
+.subsection "While Statement"
+.para 1
+The while statement has the form:
+.show
+while expression do body end
+.eshow
+2Expression* must be of type bool.
+If the value of 2expression* is true, the body is
+executed, and then the entire while statement is executed again.
+When 2expression* evaluates to false, execution of the while statement terminates.
+The effect of the while statement is to repeatedly execute 2body*
+until 2expression* becomes false.
+.subsection "For Statement"
+.para 1
+The for statement invokes an iterator (see Section itermod).
+The iterator produces a sequence of 2items* (groups of zero or
+more objects) one
+item at a time;
+the body of the for statement is executed for each item in the sequence.
+.para
+The for statement has the form:
+.show
+for lbkt decl, etc rbkt in invocation do body end
+.eshow
+or
+.show
+for lbkt  idn, etc rbkt in invocation do body end
+.eshow
+The invocation must be an iterator invocation.
+The 2decl* form is used to introduce some local variables
+to serve as the loop variables, while the 2idn* form
+uses previously declared variables for this purpose.
+In either case, the variables must agree in number, order and
+type with the number, order and types of the group of objects (the item)
+yielded each time by the iterator.
+.para
+Execution of the for statement proceeds as follows.
+First the iterator is invoked, and it either yields an item or terminates.
+If the iterator yields an item, its execution is temporarily suspended,
+and the objects in the item are assigned to the loop
+variables, the 2body* is executed, and then execution of the iterator
+is resumed (from the point of suspension).
+Whenever the iterator terminates, the entire for statement terminates.
+.para
+An example of a for statement is
+.show
+a: array [int];
+   etc
+sum: int := 0;
+for x: int in array [int]$elements (a) do
+	sum := sum + x;
+	end;
+.eshow
+which will compute the sum of all the integers in an array of integers.
+.subsection "Continue Statement"
+.para 1
+The continue statement has the form
+.show
+continue
+.eshow
+Its effect is to terminate the execution of the body of the smallest loop statement
+in which it appears, and start the next cycle of that loop.
+.subsection "Break Statement"
+.para 1
+The break statement has the form
+.show
+break
+.eshow
+Its effect is to terminate execution of the smallest loop statement in which it appears.
+Execution continues with the statement following that loop.
+.para
+For example,
+.show
+sum: int := 0;
+for x: int in array [int]$elements (a) do
+	sum := sum + x;
+	if sum >= 100
+		then sum := 100;  break;
+		end;
+	end;
+.eshow
+computes the minimum of 100 and the sum of the integers in 2a*.
+.section "Tagcase Statement"
+.para 1
+The tagcase statement is a special statement provided for
+decomposing oneof objects.
+Recall that a oneof type is a discriminated union, and each oneof
+object is a pair consisting of a 2tag* and some other object,
+called the 2value*.
+(See Section oneofs).
+The tagcase statement permits the selection of a body
+to perform based on the tag of the oneof object.
+.para
+The form of the tagcase statement is
+.show
+tagcase expression
+	tagarm lcurly tagarm rcurly
+	lbkt others : body rbkt
+	end
+.eshow
+where
+.show
+tagarm   def   tag name, etc lbkt (idn: type_spec) rbkt : body
+.eshow
+The 2expression* must evaluate to a oneof object.
+The tag of this object is then matched against the
+names on the 2tagarms*.
+When a match is found, if a declaration (2idn*: 2type_spec*) exists,
+the value part of the oneof object is assigned to the local variable 2idn*.
+The body of the matching 2tagarm* is then executed;
+2idn* is defined only in that body.
+If no match is found, the body in the others arm will be executed.
+.para
+In a syntactically correct tagcase statement, the
+following constraints are satisfied.
+Recall that 2expression* must evaluate to a oneof
+object; let the type of this object be T.
+The tags named in the 2tagarms* must be a subset of the
+tags of T, and no tag may occur more than once.
+If all tags of T are present, there is no others arm;
+otherwise an others arm must be present.
+Finally, on any 2tagarm* containing a declaration
+(2idn*:@2type_spec*), 2type_spec* must equal the type specified
+as corresponding in T to the tag or tags named in the 2tagarm*.
+.para
+An example of a tagcase statement is
+.show
+x: oneof [cell: cell, null: null]
+cell = record [car: int, cdr: int_list]
+   etc
+tagcase x
+	tag null:  return (false)
+	tag cell (r: cell):  if r.car = y then return (true)
+				else x := r.cdr
+				end
+	end
+.eshow
+The tagcase statement shown might be used in a list (of integers) operation
+that determines whether some given integer (y) is on the list.
+.section "Termination Statements"
+.para 1
+CLU provides a number of termination statements.
+The return terminates execution of a procedure or iterator.
+The yield statement is used within an iterator to yield
+some values to its invoker.  These statements are discussed below.
+The break and continue have already been discussed.
+Two other termination statements, the signal statement
+and the exit statement, are discussed in Section exceptions.
+.subsection "Return Statement"
+.para 1
+The form of the return statement is:
+.show
+return lbkt (expression, etc) rbkt
+.eshow
+The return statement terminates execution of
+the containing procedure or iterator.
+If the return statement is in a procedure, the number, types
+and order of the 2expressions* must agree with the requirements stated
+in the returns clause of the procedure header (see Section procmod).
+The 2expressions* (if any) are evaluated from left to right, and
+the objects obtained become the results of the procedure.
+If the return statement occurs in an iterator no results can
+be returned.
+.para
+For example, inside a procedure 2p* with type
+.show
+proctype ( ) returns (int, char)
+.eshow
+a statement
+.show
+return (3, 'a')
+.eshow
+is legal and returns the two result objects 3 and 'a'.
+.subsection "Yield Statement"
+.para 1
+The yield statement may occur only in the body of an iterator.
+The form of the yield statement is:
+.show
+yield lbkt (expression, etc) rbkt
+.eshow
+It has the effect of suspending operation of the iterator, and
+returning control to the invoking for statement.
+If the expression list is present, the values obtained by
+evaluation of the 2expressions* (in left to right order)
+are passed to the for statement to be assigned to the
+corresponding list of identifiers.
+The number, types and order of the 2expressions* must agree with
+the requirements stated in the iterator heading.
+See Sections self.5.2 and itermod for more information.

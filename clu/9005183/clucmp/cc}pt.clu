@@ -1,0 +1,1214 @@
+%	CC_PT CLU
+%
+%	For printing a CLU 3.1 abstract syntax tree.
+%	Uses an own variable for the roving left margin.
+
+BEGIN
+	# include "clucmp/cc_syn.equate"
+	absolute_left = 0;
+	delta = 4;
+END
+
+print = proc (def: definition, f: file);
+	set_margin(absolute_left);
+	pt_newline(f);
+	pt_definition(def, f);
+	pt_newline(f);
+	end print;
+
+pt_newline = proc (f: file);
+	pt_nextline(get_margin(), f);
+	end pt_newline;
+
+pt_nextline = proc (i: int, f: file);
+	file$putc(f, '\n');
+	for j: int := 1 to i do begin
+		file$putc(f, ' ');
+		end;
+	end pt_nextline;
+
+new_margin = proc (f: file);
+	set_margin(file$column(f));
+	end new_margin;
+
+pt_strid = proc (id: strid, f: file);
+	pt_str(strid$get_str(id), f);
+	end pt_strid;
+
+pt_str = proc (s: str, f: file);
+	file$putc(f, '"');
+	pt_charseq(s, true, f);
+	file$putc(f, '"');
+	end pt_str;
+
+pt_intid = proc (id: intid, f: file);
+	file$puti(f, intid$get_int(id));
+	end pt_intid;
+
+pt_charid = proc (id: charid, f: file);
+	pt_char(charid$get_char(id), f);
+	end pt_charid;
+
+pt_char = proc (c: char, f: file);
+	file$puts(f, "'");
+	pt_charseq(str$c2s(c), false, f);
+	file$puts(f, "'");
+	end pt_char;
+
+pt_name = proc (n: name, f: file);
+	file$puts(f, name$get_str(n));
+	end pt_name;
+
+pt_idn = proc (i: idn, f: file);
+	file$puts(f, idn$get_str(i));
+	end pt_idn;
+
+pt_charseq = proc (s: str, is_str: bool, f: file);
+	for i: int := 1 to str$size(s) do begin
+		c: char := s[i];
+		j: int := char$c2i(c);
+		if j < 32
+			then begin
+			     file$putc(f, '\\');
+			     file$putc(f, char$i2c(j + 64));
+			     end;
+		else if j = 34
+			then if is_str
+				then file$puts(f, "\\\"");
+				else file$putc(f, '"');
+		else if j = 39
+			then if is_str
+				then file$putc(f, '\'');
+				else file$puts(f, "\\'");
+		else if j = 92
+			then file$puts(f, "\\\\");
+		else	file$putc(f, c);
+		end;
+	end pt_charseq;
+
+pt_constlist = proc (list: constlist, f: file);
+	pt_konstlist(list, "[]", f);
+	end pt_constlist;
+
+pt_konstlist = proc (list: constlist, brackets: str, f: file);
+	if constlist$size(list) = 0
+	   then return;
+	file$putc(f, str$fetch(brackets, 1));
+	high: int := constlist$high(list);
+	for i: int := constlist$low(list) to high do begin
+		pt_const(list[i], f);
+		if i < high
+		   then file$puts(f, ", ");
+		   else file$putc(f, str$fetch(brackets, 2));
+		end;
+	end pt_konstlist;
+
+pt_namelist = proc (list: namelist, f: file);
+	high: int := namelist$high(list);
+	for i: int := namelist$low(list) to high do begin
+		pt_name(list[i], f);
+		if i < high then file$puts(f, ", ");
+		end;
+	end pt_namelist;
+
+pt_idnlist = proc (list: idnlist, f: file);
+	high: int := idnlist$high(list);
+	for i: int := idnlist$low(list) to high do begin
+		pt_idn(list[i], f);
+		if i < high then file$puts(f, ", ");
+		end;
+	end pt_idnlist;
+
+pt_typelist = proc (list: typelist, f: file);
+	high: int := typelist$high(list);
+	for i: int := typelist$low(list) to high do begin
+		pt_typespec(list[i], f);
+		if i < high then file$puts(f, ", ");
+		end;
+	end pt_typelist;
+
+pt_stmtlist = proc (list: stmtlist, f: file);
+	high: int := stmtlist$high(list);
+	for i: int := stmtlist$low(list) to high do begin
+		pt_stmt(list[i], f);
+		file$putc(f, ';');
+		if i < high then pt_newline(f);
+		end;
+	end pt_stmtlist;
+
+pt_exprlist = proc (list: exprlist, f: file);
+	high: int := exprlist$high(list);
+	for i: int := exprlist$low(list) to high do begin
+		pt_expr(list[i], f);
+		if i < high then file$puts(f, ", ");
+		end;
+	end pt_exprlist;
+
+pt_equatelist = proc (list: equatelist, f: file);
+	high: int := equatelist$high(list);
+	for i: int := equatelist$low(list) to high do begin
+		pt_equate(list[i], f);
+		file$putc(f, ';');
+		if i < high then pt_newline(f);
+		end;
+	end pt_equatelist;
+
+pt_apply = proc (op: apply, f: file);
+	pt_idn(op.idn, f);
+	pt_constlist(op.parms, f);
+	end pt_apply;
+
+pt_clusterop = proc (op: clusterop, f: file);
+	pt_typespec(op.type_, f);
+	file$putc(f, '$');
+	pt_name(op.name, f);
+	pt_constlist(op.parms, f);
+	end pt_clusterop;
+
+pt_oneup = proc (up1: oneup, f: file);
+	pt_typespec(up1.type_, f);
+	file$puts(f, "$make_");
+	pt_name(up1.sel, f);
+	file$putc(f, '(');
+	pt_const(up1.obj, f);
+	file$putc(f, ')');
+	end pt_oneup;
+
+pt_constref = proc (ref: constref, f: file);
+	pt_idn(ref.idn, f);
+	pt_constlist(ref.parms, f);
+	end pt_constref;
+
+pt_const = proc (c: const, f: file);
+	pt_constabs(const$get_print(c), f);
+	end pt_const;
+
+pt_constabs = proc (ca: constabs, f: file);
+	x: constabs := ca;
+	tagcase x in
+	   int_:% (x: intid):
+		pt_intid(x, f);
+	   bool_:% (x: bool):
+		file$puts(f, if x then "true" else "false");
+	   char_:% (x: charid):
+		pt_charid(x, f);
+	   str:% (x: strid):
+		pt_strid(x, f);
+	   null_:
+		file$puts(f, "nil");
+	   oneup:% (x: oneup):
+		pt_oneup(x, f);
+	   type_:% (x: typespec):
+		pt_typespec(x, f);
+	   force_:% (x: typespec):
+		begin
+		file$puts(f, "force[");
+		pt_typespec(x, f);
+		file$putc(f, ')');
+		end;
+	   apply:% (x: apply):
+		pt_apply(x, f);
+	   op:% (x: clusterop):
+		pt_clusterop(x, f);
+	   parm:% (x: idn):
+		pt_idn(x, f);
+	   ref:% (x: constref):
+		pt_constref(x, f);
+	   unknown:% (x: expr):
+		pt_expr(x, f);
+	   bad:
+		file$puts(f, "?const?");
+	   end;
+	end pt_constabs;
+
+pt_opname = proc (op: opname, f: file);
+	pt_name(op.name, f);
+	pt_constlist(op.parms, f);
+	end pt_opname;
+
+pt_opnamelist = proc (list: opnamelist, f: file);
+	high: int := opnamelist$high(list);
+	for i: int := opnamelist$low(list) to high do begin
+		pt_opname(list[i], f);
+		if i < high then file$puts(f, ", ");
+		end;
+	end pt_opnamelist;
+
+pt_operdecl = proc (dec: operdecl, f: file);
+	pt_opnamelist(dec.opers, f);
+	file$puts(f, ": ");
+	pt_typespec(dec.type_, f);
+	end pt_operdecl;
+
+pt_operdecllist = proc (list: operdecllist, f: file);
+	high: int := operdecllist$high(list);
+	for i: int := operdecllist$low(list) to high do begin
+		pt_operdecl(list[i], f);
+		if i < high
+		   then begin
+			file$putc(f, ',');
+			pt_newline(f);
+			end;
+		end;
+	end pt_operdecllist;
+
+pt_typeset = proc (set: typeset, f: file);
+	margin: int := get_margin();
+	file$puts(f, "{ ");
+	pt_idn(set.idn, f);
+	file$puts(f, " | ");
+	mar: int := file$column(f);
+	pt_idn(set.idn, f);
+	file$puts(f, " has ");
+	new_margin(f);
+	pt_operdecllist(set.ops, f);
+	file$putc(f, ';');
+	set_margin(mar);
+	pt_newline(f);
+	pt_equatelist(set.equates, f);
+	file$putc(f, '}');
+	set_margin(margin);
+	end pt_typeset;
+
+pt_rename = proc (tab: rename, f: file);
+	pt_namelist(tab.old, f);
+	file$puts(f, " to ");
+	pt_name(tab.new, f);
+	end pt_rename;
+
+pt_renamelist = proc (list: renamelist, f: file);
+	margin: int := get_margin();
+	high: int := renamelist$high(list);
+	file$putc(f, '[');
+	new_margin(f);
+	for i: int := renamelist$low(list) to high do begin
+		pt_rename(list[i], f);
+		if i < high
+		   then begin
+			file$putc(f, ',');
+			pt_newline(f);
+			end;
+		end;
+	file$putc(f, ']');
+	set_margin(margin);
+	end pt_renamelist;
+
+pt_equateval = proc (val: equateval, f: file);
+	x: equateval := val;
+	tagcase x in
+	   const:% (const):
+		pt_const(x, f);
+	   typeset:% (x: typeset):
+		pt_typeset(x, f);
+	   rename:% (x: renamelist):
+		pt_renamelist(x, f);
+	   end;
+	end pt_equateval;
+
+pt_equate = proc (equ: equate, f: file);
+	pt_idn(equate$get_idn(equ), f);
+	file$puts(f, " = ");
+	pt_equateval(equate$get_val(equ), f);
+	end pt_equate;
+
+pt_exception = proc (x: exception, f: file);
+	pt_name(x.name, f);
+	if typelist$size(x.types) = 0 then return;
+	file$putc(f, '(');
+	pt_typelist(x.types, f);
+	file$putc(f, ')');
+	end pt_exception;
+
+pt_exceptionlist = proc (list: exceptionlist, f: file);
+	high: int := exceptionlist$high(list);
+	for i: int := exceptionlist$low(list) to high do begin
+		pt_exception(list[i], f);
+		if i < high then file$puts(f, ", ");
+		end;
+	end pt_exceptionlist;
+
+pt_restrictkind = proc (k: restrictkind, f: file);
+	x: restrictkind := k;
+	tagcase x in
+	   has_:% (x: operdecllist):
+		begin
+		margin: int := get_margin();
+		file$puts(f, "has ");
+		new_margin(f);
+		pt_operdecllist(x, f);
+		set_margin(margin);
+		end;
+	   idn:% (x: idn):
+		begin
+		file$puts(f, "in ");
+		pt_idn(x, f);
+		end;
+	   set:% (x: typeset):
+		begin
+		margin: int := get_margin();
+		file$puts(f, "in ");
+		new_margin(f);
+		pt_typeset(x, f);
+		set_margin(margin);
+		end;
+	   end;
+	end pt_restrictkind;
+
+pt_restrict = proc (rest: restrict, f: file);
+	pt_idn(rest.idn, f);
+	pt_restrictkind(rest.kind, f);
+	end pt_restrict;
+
+pt_restrictlist = proc (list: restrictlist, f: file);
+	high: int := restrictlist$high(list);
+	for i: int := restrictlist$low(list) to high do begin
+		pt_restrict(list[i], f);
+		if i < high
+		   then begin
+			file$putc(f, ',');
+			pt_newline(f);
+			end;
+		end;
+	end pt_restrictlist;
+
+pt_body = proc (bod: body, f: file);
+	pt_equatelist(bod.equates, f);
+	if equatelist$size(bod.equates) > 0
+	   then pt_newline(f);
+	pt_stmtlist(bod.stmts, f);
+	end pt_body;
+
+pt_decl = proc (dec: decl, f: file);
+	pt_idnlist(dec.idns, f);
+	file$puts(f, ": ");
+	pt_typespec(dec.type_, f);
+	end pt_decl;
+
+pt_decllist = proc (list: decllist, f: file);
+	high: int := decllist$high(list);
+	for i: int := decllist$low(list) to high do begin
+		pt_decl(list[i], f);
+		if i < high then file$puts(f, ", ");
+		end;
+	end pt_decllist;
+
+pt_applyspek = proc (spec: applyspec, op: str, val: str, f: file);
+	margin: int := get_margin();
+	posn: int;
+	pt_idn(spec.idn, f);
+	file$puts(f, " = ");
+	file$puts(f, op);
+	posn := file$column(f) + 1;
+	if decllist$size(spec.parms) > 0
+	   then begin
+		file$puts(f, " [");
+		pt_decllist(spec.parms, f);
+		file$putc(f, ']');
+		end;
+	file$puts(f, " (");
+	pt_decllist(spec.args, f);
+	file$putc(f, ')');
+	if typelist$size(spec.vals) > 0
+	   then begin
+		file$putc(f, ' ');
+		file$puts(f, val);
+		file$puts(f, " (");
+		pt_typelist(spec.vals, f);
+		file$putc(f, ')');
+		end;
+	if exceptionlist$size(spec.sigs) > 0
+	   then begin
+		file$puts(f, " signals (");
+		pt_exceptionlist(spec.sigs, f);
+		file$putc(f, ')');
+		end;
+	if restrictlist$size(spec.where_) > 0
+	   then begin
+		pt_nextline(posn, f);
+		file$puts(f, "where ");
+		new_margin(f);
+		pt_restrictlist(spec.where_, f);
+		set_margin(margin);
+		end;
+	file$putc(f, ';');
+	set_margin(margin + delta);
+	pt_newline(f);
+	pt_body(spec.body, f);
+	pt_newline(f);
+	file$puts(f, "end ");
+	pt_idn(spec.idn, f);
+	set_margin(margin);
+	end pt_applyspek;
+
+pt_applyspec = proc (spec: applyspec, f: file);
+	pt_applyspek(spec, "oper", "vals", f);
+	end pt_applyspec;
+
+pt_operdefn = proc (op: operdefn, f: file);
+	x: operdefn := op;
+	tagcase x in
+	   proc_:% (x: applyspec):
+		pt_applyspek(x, "proc", "returns", f);
+	   iter_:% (x: applyspec):
+		pt_applyspek(x, "iter", "yields", f);
+	   end;
+	end pt_operdefn;
+
+pt_operdefnlist = proc (list: operdefnlist, f: file);
+	high: int := operdefnlist$high(list);
+	for i: int := operdefnlist$low(list) to high do begin
+		pt_operdefn(list[i], f);
+		file$putc(f, ';');
+		if i < high
+		   then begin
+			pt_newline(f);
+			pt_newline(f);
+			end;
+		end;
+	end pt_operdefnlist;
+
+pt_cluspec = proc (spec: cluspec, f: file);
+	margin: int := get_margin();
+	ops: idnlist := spec.ops;
+	high: int := idnlist$high(ops);
+	pt_idn(spec.idn, f);
+	file$puts(f, " = cluster ");
+	posn: int := file$column(f);
+	if decllist$size(spec.parms) > 0
+	   then begin
+		file$putc(f, '[');
+		pt_decllist(spec.parms, f);
+		file$puts(f, "] ");
+		end;
+	file$puts(f, "is ");
+	new_margin(f);
+	for i: int := idnlist$low(ops) to high do begin
+		pt_idn(ops[i], f);
+		if i < high
+		   then begin
+			file$putc(f, ',');
+			pt_newline(f);
+			end;
+		end;
+	if restrictlist$size(spec.where_) > 0
+	   then begin
+		pt_nextline(posn, f);
+		file$puts(f, "where ");
+		new_margin(f);
+		pt_restrictlist(spec.where_, f);
+		end;
+	file$putc(f, ';');
+	set_margin(margin);
+	pt_newline(f);
+	pt_newline(f);
+	pt_equatelist(spec.equates, f);
+	if equatelist$size(spec.equates) > 0
+	   then begin
+		pt_newline(f);
+		pt_newline(f);
+		end;
+	pt_operdefnlist(spec.body, f);
+	pt_newline(f);
+	pt_newline(f);
+	file$puts(f, "end ");
+	pt_idn(spec.idn, f);
+	end pt_cluspec;
+
+pt_definition = proc (def: definition, f: file);
+	x: definition := def;
+	tagcase x in
+	   equates:% (x: equatelist):
+		pt_equatelist(x, f);
+	   proc_:% (x: applyspec):
+		begin
+		pt_applyspek(x, "proc", "returns", f);
+		file$putc(f, ';');
+		end;
+	   iter_:% (x: applyspec):
+		begin
+		pt_applyspek(x, "iter", "yields", f);
+		file$putc(f, ';');
+		end;
+	   clu:% (x: cluspec):
+		begin
+		pt_cluspec(x, f);
+		file$putc(f, ';');
+		end;
+	   end;
+	end pt_definition;
+
+pt_declinit = proc (dec: declinit, f: file);
+	pt_decllist(dec.decls, f);
+	file$puts(f, " := ");
+	pt_expr(dec.expr, f);
+	end pt_declinit;
+
+pt_invoke = proc (inv: invoke, f: file);
+	pt_expr(inv.apply, f);
+	file$putc(f, '(');
+	pt_exprlist(inv.args, f);
+	file$putc(f, ')');
+	tab: renaming := inv.rename;
+	tagcase tab in
+	   idn:% (tab: idn):
+		begin
+		file$putc(f, '!');
+		pt_idn(tab, f);
+		end;
+	   list:% (tab: renamelist):
+		begin
+		file$putc(f, '!');
+		pt_renamelist(tab, f);
+		end;
+	   out: ;
+	   end;
+	end pt_invoke;
+
+pt_assn = proc (asn: assn, f: file);
+	pt_idnlist(asn.left, f);
+	file$puts(f, " := ");
+	pt_exprlist(asn.right, f);
+	end pt_assn;
+
+pt_sugarassn = proc (asn: sugarassn, f: file);
+	pt_expr(asn.left, f);
+	file$puts(f, " := ");
+	pt_expr(asn.right, f);
+	end pt_sugarassn;
+
+pt_whilestmt = proc (ws: whilestmt, f: file);
+	margin: int := get_margin();
+	file$puts(f, "while ");
+	pt_expr(ws.test, f);
+	file$puts(f, " do");
+	set_margin(margin + delta);
+	pt_newline(f);
+	pt_body(ws.body, f);
+	pt_newline(f);
+	file$puts(f, "end");
+	set_margin(margin);
+	end pt_whilestmt;
+
+pt_forvars = proc (vars: forvars, f: file);
+	x: forvars := vars;
+	tagcase x in
+	   old:% (x: idnlist):
+		pt_idnlist(x, f);
+	   new:% (x: decllist):
+		pt_decllist(x, f);
+	   end;
+	end pt_forvars;
+
+pt_forstmt = proc (fs: forstmt, f: file);
+	margin: int := get_margin();
+	file$puts(f, "for ");
+	pt_forvars(fs.vars, f);
+	file$puts(f, " in ");
+	pt_invoke(fs.call, f);
+	file$puts(f, " do");
+	set_margin(margin + delta);
+	pt_newline(f);
+	pt_body(fs.body, f);
+	pt_newline(f);
+	file$puts(f, "end");
+	set_margin(margin);
+	end pt_forstmt;
+
+pt_ifarm = proc (arm: ifarm, f: file);
+	margin: int := get_margin();
+	new_margin(f);
+	pt_expr(arm.test, f);
+	pt_newline(f);
+	file$puts(f, "then ");
+	new_margin(f);
+	pt_body(arm.body, f);
+	set_margin(margin);
+	end pt_ifarm;
+
+pt_ifarmlist = proc (list: ifarmlist, f: file);
+	margin: int := get_margin();
+	high: int := ifarmlist$high(list);
+	low: int := ifarmlist$low(list);
+	file$puts(f, "if ");
+	new_margin(f);
+	pt_ifarm(list[low], f);
+	for i: int := low + 1 to high do begin
+		pt_newline(f);
+		file$puts(f, "elseif ");
+		pt_ifarm(list[i], f);
+		end;
+	set_margin(margin);
+	end pt_ifarmlist;
+
+pt_ifstmt = proc (ifs: ifstmt, f: file);
+	pt_ifarmlist(ifs.arms, f);
+	mbod: mbody := ifs.else_;
+	tagcase mbod in
+	   body:% (mbod: body):
+		begin
+		margin: int := get_margin();
+		pt_newline(f);
+		file$puts(f, "   else ");
+		new_margin(f);
+		pt_body(mbod, f);
+		set_margin(margin);
+		end;
+	   none: ;
+	   end;
+	pt_newline(f);
+	file$puts(f, "   end");
+	end pt_ifstmt;
+
+pt_tagarm = proc (arm: tagarm, f: file);
+	margin: int := get_margin();
+	file$puts(f, "tag ");
+	pt_namelist(arm.tags, f);
+	dec: mdecl := arm.var;
+	tagcase dec in
+	   decl:% (dec: decl):
+		begin
+		file$puts(f, " (");
+		pt_decl(dec, f);
+		file$putc(f, ')');
+		end;
+	   none: ;
+	   end;
+	file$putc(f, ':');
+	set_margin(margin + delta);
+	pt_newline(f);
+	pt_body(arm.body, f);
+	set_margin(margin);
+	end pt_tagarm;
+
+pt_tagarmlist = proc (list: tagarmlist, f: file);
+	high: int := tagarmlist$high(list);
+	for i: int := tagarmlist$low(list) to high do begin
+		pt_tagarm(list[i], f);
+		if i < high then pt_newline(f);
+		end;
+	end pt_tagarmlist;
+
+pt_tagstmt = proc (ts: tagstmt, f: file);
+	margin: int := get_margin();
+	file$puts(f, "tagcase ");
+	pt_expr(ts.obj, f);
+	set_margin(margin + delta);
+	pt_newline(f);
+	pt_tagarmlist(ts.arms, f);
+	mbod: mbody := ts.others_;
+	tagcase mbod in
+	   body:% (mbod: body):
+		begin
+		pt_newline(f);
+		file$puts(f, "others:");
+		set_margin(margin + 2 * delta);
+		pt_newline(f);
+		pt_body(mbod, f);
+		end;
+	   none: ;
+	   end;
+	set_margin(margin);
+	pt_nextline(margin + delta, f);
+	file$puts(f, "end");
+	end pt_tagstmt;
+
+pt_error = proc (err: error, f: file);
+	args: exprlist := err.args;
+	pt_name(err.name, f);
+	if exprlist$size(args) = 0
+	   then return;
+	file$putc(f, '(');
+	pt_exprlist(args, f);
+	file$putc(f, ')');
+	end pt_error;
+
+pt_whendecl = proc (dec: whendecl, f: file);
+	x: whendecl := dec;
+	tagcase x in
+	   decls:% (x: decllist):
+		 begin
+		 file$putc(f, '(');
+		 pt_decllist(x, f);
+		 file$putc(f, ')');
+		 end;
+	   star: file$puts(f, "(*)");
+	   none: ;
+	   end;
+	end pt_whendecl;
+
+pt_handler = proc (h: handler, f: file);
+	margin: int := get_margin();
+	file$puts(f, "when ");
+	new_margin(f);
+	pt_namelist(h.names, f);
+	pt_whendecl(h.vars, f);
+	file$putc(f, ':');
+	set_margin(margin + delta);
+	pt_newline(f);
+	pt_body(h.body, f);
+	set_margin(margin);
+	end pt_handler;
+
+pt_handlerlist = proc (list: handlerlist, f: file);
+	high: int := handlerlist$high(list);
+	for i: int := handlerlist$low(list) to high do begin
+		pt_handler(list[i], f);
+		if i < high then pt_newline(f);
+		end;
+	end pt_handlerlist;
+
+pt_othersarm = proc (arm: othersarm, f: file);
+	margin: int := get_margin();
+	file$puts(f, "others");
+	dec: mdecl := arm.decl;
+	tagcase dec in
+	   decl:% (dec: decl):
+		begin
+		file$puts(f, " (");
+		pt_decl(dec, f);
+		file$putc(f, ')');
+		end;
+	   none: ;
+	   end;
+	file$putc(f, ':');
+	set_margin(margin + delta);
+	pt_newline(f);
+	pt_body(arm.body, f);
+	set_margin(margin);
+	end pt_othersarm;
+
+pt_exceptstmt = proc (ex: exceptstmt, f: file);
+	margin: int := get_margin();
+	pt_stmt(ex.stmt, f);
+	file$putc(f, ';');
+	pt_nextline(margin + delta, f);
+	file$puts(f, "except");
+	set_margin(margin + delta + 3);
+	pt_newline(f);
+	pt_handlerlist(ex.arms, f);
+	moth: mothersarm := ex.others_;
+	tagcase moth in
+	   arm:% (moth: othersarm):
+		begin
+		pt_newline(f);
+		pt_othersarm(moth, f);
+		end;
+	   none: ;
+	   end;
+	pt_newline(f);
+	file$puts(f, "end");
+	set_margin(margin);
+	end pt_exceptstmt;
+
+pt_stmt = proc (s: stmt, f: file);
+	pt_stmtabs(stmt$get_abs(s), f);
+	end pt_stmt;
+
+pt_stmtabs = proc (sa: stmtabs, f: file);
+	x: stmtabs := sa;
+	tagcase x in
+	   decl:% (x: decl):
+		pt_decl(x, f);
+	   declinit:% (x: declinit):
+		pt_declinit(x, f);
+	   assn:% (x: assn):
+		pt_assn(x, f);
+	   sugarassn:% (x: sugarassn):
+		pt_sugarassn(x, f);
+	   invoke:% (x: invoke):
+		pt_invoke(x, f);
+	   while_:% (x: whilestmt):
+		pt_whilestmt(x, f);
+	   for_:% (x: forstmt):
+		pt_forstmt(x, f);
+	   if_:% (x: ifstmt):
+		pt_ifstmt(x, f);
+	   tag_:% (x: tagstmt):
+		pt_tagstmt(x, f);
+	   return_:% (x: exprlist):
+		begin
+		file$puts(f, "return");
+		if exprlist$size(x) = 0
+		   then return;
+		file$putc(f, '(');
+		pt_exprlist(x, f);
+		file$putc(f, ')');
+		end;
+	   yield_:% (x: exprlist):
+		begin
+		file$puts(f, "yield");
+		if exprlist$size(x) = 0
+		   then return;
+		file$putc(f, '(');
+		pt_exprlist(x, f);
+		file$putc(f, ')');
+		end;
+	   signal_:% (x: error):
+		begin
+		file$puts(f, "signal ");
+		pt_error(x, f);
+		end;
+	   break_:
+		file$puts(f, "break");
+	   body:% (x: body):
+		begin
+		margin: int := get_margin();
+		file$puts(f, "begin");
+		set_margin(margin + delta);
+		pt_newline(f);
+		pt_body(x, f);
+		set_margin(margin);
+		pt_newline(f);
+		file$puts(f, "end");
+		end;
+	   except_:% (x: exceptstmt, f):
+		pt_exceptstmt(x, f);
+	   bad: file$puts(f, "?stmt?");
+	   end;
+	end pt_stmtabs;
+
+pt_applytyp = proc (typ: applytype, op: str, val: str, f: file);
+	file$puts(f, op);
+	file$puts(f, " (");
+	pt_typelist(typ.args, f);
+	file$putc(f, ')');
+	if typelist$size(typ.vals) > 0
+	   then begin
+		file$putc(f, ' ');
+		file$puts(f, val);
+		file$puts(f, " (");
+		pt_typelist(typ.vals, f);
+		file$putc(f, ')');
+		end;
+	if exceptionlist$size(typ.sigs) > 0
+	   then begin
+		file$puts(f, " signals (");
+		pt_exceptionlist(typ.sigs, f);
+		file$putc(f, ')');
+		end;
+	end pt_applytyp;
+
+pt_applytype = proc (typ: applytype, f: file);
+	pt_applytyp(typ, "opertype", "vals", f);
+	end pt_applytype;
+
+pt_atype = proc (typ: atype, f: file);
+	pt_idn(typ.idn, f);
+	pt_constlist(typ.parms, f);
+	end pt_atype;
+
+pt_dutype = proc (typ: dutype, f: file);
+	file$puts(f, DU$get_unique(typ.mod));
+	pt_constlist(typ.parms, f);
+	end pt_dutype;
+
+pt_fieldspek = proc (spec: fieldspec, space: int, f: file);
+	pt_name(spec.sel, f);
+	file$putc(f, ':');
+	for i: int := file$column(f) to space do begin
+		file$putc(f, ' ');
+		end;
+	pt_typespec(spec.type_, f);
+	end pt_fieldspek;
+
+pt_fieldspec = proc (spec: fieldspec, f: file);
+	pt_fieldspek(spec, str$size(name$get_str(spec.sel)) + 1, f);
+	end pt_fieldspec;
+
+pt_seltype = proc (list: fieldspeclist, mod: str, f: file);
+	margin: int := get_margin();
+	high: int := fieldspeclist$high(list);
+	space: int := 0;
+	file$puts(f, mod);
+	file$putc(f, '[');
+	new_margin(f);
+	for i: int := fieldspeclist$low(list) to high do begin
+		size: int := str$size(name$get_str(list[i].sel));
+		if size > space then space := size;
+		end;
+	space := space + file$column(f) + 1;
+	for i: int := fieldspeclist$low(list) to high do begin
+		pt_fieldspek(list[i], space, f);
+		if i < high
+		   then begin
+			file$putc(f, ',');
+			pt_newline(f);
+			end;
+		end;
+	file$putc(f, ']');
+	set_margin(margin);
+	end pt_seltype;
+
+pt_fieldspeclist = proc (list: fieldspeclist, f: file);
+	pt_seltype(list, "select", f);
+	end pt_fieldspeclist;
+
+pt_othertype = proc (ot: othertype, f: file);
+	x: othertype := ot;
+	tagcase x in
+	   apply:% (x: apply):
+		begin
+		file$puts(f, "type_of(");
+		pt_apply(x, f);
+		file$putc(f, ')');
+		end;
+	   op:% (x: clusterop):
+		begin
+		file$puts(f, "type_of(");
+		pt_clusterop(x, f);
+		file$putc(f, ')');
+		end;
+	   return_:% (x: typespec):
+		begin
+		file$puts(f, "return_type(");
+		pt_typespec(x, f);
+		file$putc(f, ')');
+		end;
+	   end;
+	end pt_othertype;
+
+pt_typespec = proc (typ: typespec, f: file);
+	pt_typeabs(typespec$get_print(typ), f);
+	end pt_typespec;
+
+pt_typeabs = proc (ta: typeabs, f: file);
+	x: typeabs := ta;
+	tagcase x in
+	   bool_:	file$puts(f, "bool");
+	   int_:	file$puts(f, "int");
+	   str:		file$puts(f, "string");
+	   char_:	file$puts(f, "char");
+	   null_:	file$puts(f, "null");
+	   any_:	file$puts(f, "any");
+	   type_:	file$puts(f, "type");
+	   cvt_:	file$puts(f, "cvt");
+	   rep_:	file$puts(f, "rep", f);
+	   record_:% (x: fieldspeclist):
+			pt_seltype(x, "record", f);
+	   oneof_:% (x: fieldspeclist):
+			pt_seltype(x, "oneof", f);
+	   array_:% (x: typespec):
+			begin
+			file$puts(f, "array[");
+			pt_typespec(x, f);
+			file$putc(f, ']');
+			end;
+	   proc_:% (x: applytype):
+			pt_applytyp(x, "proctype", "returns", f);
+	   iter_:% (x: applytype):
+			pt_applytyp(x, "itertype", "yields", f);
+	   abstract:% (x: atype):
+			pt_atype(x, f);
+	   du:% (x: dutype):
+			pt_dutype(x, f);
+	   parm:% (x: idn):
+			pt_idn(x, f);
+	   other:% (x: othertype):
+			pt_othertype(x, f);
+	   unknown:	file$puts(f, "?type?");
+	   end;
+	end pt_typeabs;
+
+pt_infixop = proc (op: infixop, f: file);
+	s: str;
+	tagcase op in
+	   pow:		s := "**";
+	   mod:		s := "//";
+	   div:		s := "/";
+	   mul:		s := "*";
+	   cat:		s := "||";
+	   add:		s := "+";
+	   sub:		s := "-";
+	   lt:		s := "<";
+	   nge:		s := "~>=";
+	   le:		s := "<=";
+	   ngt:		s := "~>";
+	   gt:		s := ">";
+	   nle:		s := "~<=";
+	   ge:		s := ">=";
+	   nlt:		s := "~<";
+	   eq:		s := "=";
+	   neq:		s := "~=";
+	   and:		s := "&";
+	   cand_:	s := "cand";
+	   or:		s := "|";
+	   cor_:	s := "cor";
+	   end;
+	file$puts(f, s);
+	end pt_infixop;
+
+pt_infix = proc (inf: infix, f: file);
+	lp: int := get_expr_prec(inf.left);
+	cp: int := get_prec(inf.op);
+	rp: int := get_expr_prec(inf.right);
+	if cor(lp < cp, cand(cp = 5, lp = 5))
+	   then begin
+		file$putc(f, '(');
+		pt_expr(inf.left, f);
+		file$putc(f, ')');
+		end;
+	   else pt_expr(inf.left, f);
+	file$putc(f, ' ');
+	pt_infixop(inf.op, f);
+	file$putc(f, ' ');
+	if cand(rp <= cp, ~cand(cp = 5, rp = 5))
+	   then begin
+		file$putc(f, '(');
+		pt_expr(inf.right, f);
+		file$putc(f, ')');
+		end;
+	   else pt_expr(inf.right, f);
+	end pt_infix;
+
+get_expr_prec = proc (x: expr) returns (int);
+	xa: exprabs := expr$get_abs(x);
+	tagcase xa in
+	   infix: return(get_prec(xa.op));
+	   out:   return(6);
+	   end;
+	end get_expr_prec;
+
+get_prec = proc (op: infixop) returns (int);
+	tagcase op in
+	   pow:				return(5);
+	   mod, div, mul:		return(4);
+	   cat, add, sub:		return(3);
+	   lt, nge, le, ngt, gt,
+	   nle, ge, nlt, eq, neq:	return(2);
+	   and, cand_:			return(1);
+	   or, cor_:			return(0);
+	   end;
+	end get_prec;
+
+pt_get_sugar = proc (ref: get_sugar, f: file);
+	pt_expr(ref.object, f);
+	file$putc(f, '.');
+	pt_name(ref.sel, f);
+	end pt_get_sugar;
+
+pt_fetch_sugar = proc (ref: fetch_sugar, f: file);
+	pt_expr(ref.object, f);
+	file$putc(f, '[');
+	pt_expr(ref.index, f);
+	file$putc(f, ']');
+	end pt_fetch_sugar;
+
+pt_arraycons = proc (cons: arraycons, f: file);
+	pt_typespec(cons.type_, f);
+	file$puts(f, "$[");
+	mx: mexpr := cons.low;
+	tagcase mx in
+	   one:% (mx: expr):
+		begin
+		pt_expr(mx, f);
+		file$puts(f, ": ");
+		end;
+	   none: ;
+	   end;
+	pt_exprlist(cons.elts, f);
+	file$putc(f, ']');
+	end pt_arraycons;
+
+pt_field = proc (fld: field, f: file);
+	pt_namelist(fld.sels, f);
+	file$puts(f, ": ");
+	pt_expr(fld.val, f);
+	end pt_field;
+
+pt_fieldlist = proc (list: fieldlist, f: file);
+	high: int := fieldlist$high(list);
+	for i: int := fieldlist$low(list) to high do begin
+		pt_field(list[i], f);
+		if i < high
+		   then begin
+			file$putc(f, ',');
+			pt_newline(f);
+			end;
+		end;
+	end pt_fieldlist;
+
+pt_recordcons = proc (cons: recordcons, f: file);
+	margin: int := get_margin();
+	pt_typespec(cons.type_, f);
+	file$puts(f, "${");
+	new_margin(f);
+	pt_fieldlist(cons.fields, f);
+	file$putc(f, '}');
+	set_margin(margin);
+	end pt_recordcons;
+
+pt_bracketref = proc (ref: bracketref, f: file);
+	pt_idn(ref.idn, f);
+	pt_constlist(ref.parms, f);
+	end pt_bracketref;
+
+pt_expr = proc (ex: expr, f: file);
+	pt_exprabs(expr$get_abs(ex), f);
+	end pt_expr;
+
+pt_exprabs = proc (ea: exprabs, f: file);
+	x: exprabs := ea;
+	tagcase x in
+	   infix:% (x: infix):
+		pt_infix(x, f);
+	   null_:
+		file$puts(f, "nil");
+	   bool_:% (x: bool):
+		file$puts(f, if x then "true" else "false");
+	   str:% (x: strid):
+		pt_strid(x, f);
+	   int_:% (x: intid):
+		pt_intid(x, f);
+	   char_:% (x: charid):
+		pt_charid(x, f);
+	   idn:% (x: idn):
+		pt_idn(x, f);
+	   not:% (x: expr):
+		begin
+		file$putc(f, '~');
+		pt_expr(x, f);
+		end;
+	   minus:% (x: expr):
+		begin
+		file$putc(f, '-');
+		pt_expr(x, f);
+		end;
+	   get:% (x: get_sugar):
+		pt_get_sugar(x, f);
+	   fetch:% (x: fetch_sugar):
+		pt_fetch_sugar(x, f);
+	   invoke:% (x: invoke):
+		pt_invoke(x, f);
+	   a_cons:% (x: arraycons):
+		pt_arraycons(x, f);
+	   r_cons:% (x: recordcons):
+		pt_recordcons(x, f);
+	   apply:% (x: apply):
+		pt_apply(x, f);
+
+	   op:% (x: clusterop):
+		pt_clusterop(x, f);
+	   force_:% (x: typespec):
+		begin
+		file$puts(f, "force[");
+		pt_typespec(x, f);
+		file$putc(f, ']');
+		end;
+	   up_:% (x: expr, f):
+		begin
+		file$puts(f, "up(");
+		pt_expr(x, f);
+		file$putc(f, ')');
+		end;
+	   down_:% (x: expr):
+		begin
+		file$puts(f, "down(");
+		pt_expr(x, f);
+		file$putc(f, ')');
+		end;
+	   ref:% (x: bracketref):
+		pt_bracketref(x, f);
+	   bad:
+		file$puts(f, "?expr?");
+	   end;
+	end pt_exprabs;

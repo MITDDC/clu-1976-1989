@@ -1,0 +1,112 @@
+.nr chapter 5
+.chapter "Proving an Implementation Correct"
+	Establishing program correctness can be described as a two step process.
+Its overall goal is to show that a
+program correctly implements a concept that exists in someone's mind.  The first step in
+this process
+is to provide a mathematical description of the concept.  This
+can be done by a formal specification technique.  Then the program is
+proved equivalent to the specification by formal, analytic means.  This chapter is
+concerned with the second part of this process, discussing how to show the correctness
+of programs that implemendt data abstractions specifed by state machines.
+	Here, the homomorphism property will be used in the proofs.
+In general, this involves
+showing the following.  Assume there is a class of abstract objects 6A*
+with abstract
+operations 4w*a1, ..., 4w*an.  Furthermore, suppose that x*
+is the concrete representation of an abstract object belonging to 6A*.  Hence, in
+general, x* will be a collection or record of concrete variables.  Let 6C*
+be the
+collection of all such x*.  Finally, suppose that 4w*c1, ...,
+4w*cn are the concrete operations that purport to be implementations of the
+abstract operations 4w*a1, ..., 4w*an.  Then, the
+homomorphism property involves defining a representation function, rep, mapping
+from 6C* onto 6A* and showing for each i, 1<_i<_n,
+			4w*ai(rep(x*) = rep(4w*ci(x*)).
+	Before attempting such a proof, two steps must be performed.  First, the
+concrete representation of a data abstraction must be characterized.  This is discussed
+in Section 6.1.  Then the representation function must be described.  For our purposes,
+this involves showing how to map the collection of concrete objects 6C*
+onto the state set
+of a state machine specification.  Section 6.2 is concerned with this issue and the
+problem of adapting the homomorphism property to the particular needs of state machine
+specifications.
+.section "The Concrete Representation"
+	A concrete implementation of a data abstraction specified by a state machine
+will usually consist of a collection of several variables to represent the state set and
+a gropu of operations that pruport to implement the O-functions and V-functions of the
+machine.  Some of thses operations will implement O-functions and others will implement
+derived and non-derived V-functions.  Note that it is unnecesary to implement hidden
+V-functions since they are inaccesible.
+	All of these operations will access or modify the concrete objects that are used
+to represent the state set of the state machine.  We shall denote the set of these
+concrete objects by 6C*.  If a concrete operation 4w*c implements an
+O-function 4w*, then 4w*c is a mapping from 6C* \x D4w* into
+6C*.  If it implements a V-function, then it is a mapping from 6C* \x
+D4w* into R4w*.  By adopting this view, we are making 6C* an
+explicit parameter of each operation.  This may differ from the actual syntax of the
+implemetation language but clarifies the operation of procedures that operate through
+side effects.
+	We must now describe 6C*.
+.sr c 6C*
+In general, c is a subset of the set of all possible values that the concrete
+variables may take.  For example, in the finite integer set example of Chapter 5,
+		c  6S*A.array \x 6S*COUNT
+.br
+This set is too large to use as the domain of the represenation function.  There are
+two ways to describe c!.
+.sp 10
+	The other method is to use a 2concrete invariant*, Ic.  This is a
+predicate defining some relationship between the concrete variables and thus placing
+a constraint on the possible combinations of values that they may take.  Then,
+			c = {x | Ic(x)}
+.br
+For the finite integer set implemetation, Ic is
+
+
+
+.section "The Represenation Function"
+	Having described the concrete representation c!, we acn now define a
+mapping rep from c onto the state set of a state machine specification.  In
+general, we can not map c directly onto the state set due to equivalences between
+different states.
+	For example, consider the specifictaion of bounded_stack in Chapter 3.
+Assuming that its state set is a subset of Dstack \x Ddepth, the two states
+		S1 = ({(1,1)},{(@,0)})
+	and
+		S2 = (4p*,{(@,0)})
+.br
+are equivalent as far as a user of the machine is concerned.  Remember stack is hidden
+from users.
+	Here,
+		S1 = NEXT(NEXT(Q ,push(1)),pop)
+.br
+and S2 = Q , the initial state of the machine.  Now let
+		S3 = NEXT(Q ,push(1))
+.br
+and suppose rep(C) = S3 and rep(DELETE(C)) = Q.  If the homomorphism
+property is to hold, NEXT(rep(C),delete) must equal rep(DELETE(C)).  But
+	NEXT(rep(C),delete) = S1 7=* Q
+	For this reason, it is necessary to msp c onto equivalence classes of the
+state set.  Equivalent states are defined a follows.
+
+.sr el 8*
+.keep
+.ls 1
+	Definition
+	Two states S1 and S2 of a state machine specification SM are
+	2equivalent* if for any
+		S1* = O-Eval(...O-Eval(O-Eval(S1, o1)(a1)),o2((a2)),...,(on(an))
+		S2* = O-Eval(...O-Eval(O-Eval(S2, o1)(a1)),o2((a2)),...,(on(an)) 7=*
+.br
+where oi is an O-function of SM, ai8*Doi and n_>0
+	either
+			S1* = S2* = error
+	or
+		V-Eval(S1*,v) = V-Eval(S2*,v)
+.br
+where v is any non-derived or derived V-function of SM
+.end_keep
+.ls 2
+
+We shall denote the equivalence class of a state S by S.

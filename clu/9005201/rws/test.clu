@@ -1,0 +1,8 @@
+p = proc () returns (bool);
+	if 3 = 0  cand  4 = 5
+	   then return(true);
+	elseif 4 = 0  cand  4 = 5
+	   then return(true);
+	else return(false);
+	end;
+	end p;

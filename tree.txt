@@ -1,0 +1,712 @@
+clu
+├── [Aug 24 11:22]  100260
+│   ├── [Aug 24 11:22]  clu
+│   │   ├── [Apr  8  1977]  clu.stat
+│   │   ├── [Apr  8  1977]  clucg.fbin
+│   │   ├── [Apr  8  1977]  clued.fbin
+│   │   ├── [Apr  7  1977]  clumud.2_0
+│   │   ├── [Apr  8  1977]  clusav.2_15
+│   │   ├── [Apr  7  1977]  clusav.3_0x
+│   │   ├── [Apr  8  1977]  messag.2_15
+│   │   ├── [Apr  7  1977]  messag.3_0x
+│   │   ├── [Jul  3  1976]  oclucg.1
+│   │   ├── [Jul 10  1976]  oclued.1
+│   │   └── [Apr  7  1977]  sysmsg.2_0
+│   ├── [Aug 24 11:22]  clucmp
+│   │   ├── [Apr  8  1977]  clu2.loader
+│   │   ├── [Apr  8  1977]  gk.nbin
+│   │   ├── [Apr  8  1977]  pgluer.mud
+│   │   ├── [Apr  8  1977]  stampr.mud
+│   │   └── [Apr  8  1977]  stampr.nbin
+│   ├── [Aug 24 11:22]  cluser
+│   │   ├── [Apr  8  1977]  _save_.0
+│   │   ├── [Apr  7  1977]  brff.clu
+│   │   ├── [Apr  7  1977]  brff.cmud
+│   │   ├── [Apr  8  1977]  cc}lex.clu
+│   │   ├── [Apr  8  1977]  cc}par.clu
+│   │   ├── [Apr  8  1977]  cc}par.doc
+│   │   ├── [Apr  8  1977]  cc}par.list
+│   │   ├── [Apr  8  1977]  cc}pse.clu
+│   │   └── [Apr  7  1977]  t2.a
+│   ├── [Aug 24 11:22]  clusys
+│   │   ├── [Apr  7  1977]  clu3.loader
+│   │   ├── [Apr  7  1977]  clux.fbins
+│   │   ├── [Apr  7  1977]  cluxcg.fbin
+│   │   ├── [Apr  7  1977]  int.1
+│   │   ├── [Mar  6  1977]  int._old_
+│   │   ├── [Apr  7  1977]  int.bin
+│   │   ├── [Apr  7  1977]  listen.6
+│   │   ├── [Apr  7  1977]  listen.7
+│   │   ├── [Apr  7  1977]  listen._old_
+│   │   ├── [Apr  7  1977]  listen.bin
+│   │   ├── [Apr  7  1977]  listen.err
+│   │   ├── [Apr  7  1977]  load.38
+│   │   ├── [Apr  7  1977]  load.39
+│   │   ├── [Apr  3  1977]  load._old_
+│   │   ├── [Apr  6  1977]  ocluxc.1
+│   │   ├── [Apr  7  1977]  start.1
+│   │   ├── [Apr  7  1977]  start._old_
+│   │   ├── [Apr  7  1977]  table.29
+│   │   ├── [Apr  7  1977]  table._old_
+│   │   ├── [Apr  7  1977]  test.1
+│   │   ├── [Apr  7  1977]  test._old_
+│   │   ├── [Apr  7  1977]  test.bin
+│   │   ├── [Apr  7  1977]  z.bin
+│   │   └── [Apr  7  1977]  z.err
+│   ├── [Aug 24 11:22]  rws
+│   │   ├── [Apr  5  1977]  ezclu.r
+│   │   └── [Apr  5  1977]  ezclu.rmacs
+│   └── [Aug 24 11:22]  sys2
+│       └── [Apr  6  1977]  ts.clux
+├── [Aug 24 11:22]  1100350
+│   └── [Aug 24 11:22]  emacs
+│       └── [Feb 23  1981]  clu._ej
+├── [Aug 24 11:22]  3100053
+│   └── [Aug 24 11:22]  jerryb
+│       ├── [Dec 16  1977]  clu.22
+│       ├── [Dec 16  1977]  clu.23
+│       ├── [Dec 16  1977]  clu.24
+│       ├── [Dec 16  1977]  clu.25
+│       ├── [Dec 16  1977]  clu.26
+│       ├── [Dec 16  1977]  clu.27
+│       └── [Dec 16  1977]  clu.xgp
+├── [Aug 24 11:22]  3100129
+│   ├── [Aug 24 11:22]  as
+│   │   ├── [Jan 23  1977]  cluio.r
+│   │   ├── [Jan 24  1977]  clukey.r
+│   │   ├── [Jan 30  1977]  clupap.header
+│   │   ├── [Mar 10  1977]  clupap.r
+│   │   └── [Mar 11  1977]  clupap.xgp
+│   └── [Aug 24 11:22]  csg
+│       ├── [Jan 27  1977]  clup0.25
+│       ├── [Mar 11  1977]  clup0.26
+│       ├── [Mar 10  1977]  clup2.34
+│       ├── [Mar 11  1977]  clup2.35
+│       ├── [Jan 24  1977]  clup3.15
+│       ├── [Mar 10  1977]  clup3.16
+│       ├── [Feb 10  1977]  clup4.26
+│       ├── [Jan 24  1977]  clup6.12
+│       ├── [Jan 24  1977]  clup7.12
+│       ├── [Oct 25  1976]  clupro.47
+│       └── [Jan 26  1977]  clutz.1
+├── [Aug 24 11:44]  7005372
+│   ├── [Dec  6  1977]  gcargs.1
+│   ├── [Dec  6  1977]  gcpure.1
+│   └── [Dec  6  1977]  gcpure.bin
+├── [Aug 24 11:22]  7005675
+│   └── [Aug 24 11:22]  byron
+│       └── [Jun 15  1982]  clu.info
+├── [Aug 24 11:22]  7005797
+│   └── [Aug 24 11:22]  as
+│       ├── [Apr  3  1978]  am.clu
+│       └── [Apr  3  1978]  sam.clu
+├── [Aug 24 11:22]  7005895
+│   └── [Aug 24 11:22]  clu
+│       ├── [Mar 31  1978]  action.refman
+│       ├── [Apr  2  1978]  except.refman
+│       ├── [Apr  4  1978]  exprs.refman
+│       ├── [Mar 31  1978]  e}d.refman
+│       ├── [Apr  5  1978]  gram.refman
+│       ├── [Apr  5  1978]  io.refman
+│       ├── [Apr  4  1978]  lex.refman
+│       ├── [Apr  4  1978]  module.refman
+│       ├── [Mar 30  1978]  newio.refman
+│       ├── [Apr 18  1978]  opdefs.refman
+│       ├── [Apr  5  1978]  part}a.refman
+│       ├── [Apr  5  1978]  refman.insert
+│       ├── [Mar 30  1978]  refman.r
+│       ├── [Apr  5  1978]  refman.save
+│       ├── [Apr  5  1978]  refman.sect
+│       ├── [Apr  4  1978]  stmts.refman
+│       ├── [Apr  4  1978]  syntax.refman
+│       └── [Apr  3  1978]  types.refman
+├── [Aug 24 11:22]  7006550
+│   └── [Aug 24 11:22]  clu
+│       ├── [Jun  2  1978]  action.refman
+│       ├── [Mar 27  1978]  clusym.r
+│       ├── [May 30  1978]  exampl.refman
+│       ├── [Jun  6  1978]  except.refman
+│       ├── [Jun  2  1978]  exprs.refman
+│       ├── [Jun  2  1978]  e}d.refman
+│       ├── [May 30  1978]  io.refman
+│       ├── [Jun  6  1978]  killed.refman
+│       ├── [Jun  2  1978]  lex.refman
+│       ├── [Jun  6  1978]  module.refman
+│       ├── [Jun  6  1978]  opdefs.refman
+│       ├── [Jun  2  1978]  part}a.refman
+│       ├── [Jun  6  1978]  refman.insert
+│       ├── [May 30  1978]  refman.r
+│       ├── [Jun  2  1978]  stmts.refman
+│       ├── [Jun  6  1978]  syntax.refman
+│       └── [Jun  2  1978]  types.refman
+├── [Aug 24 11:22]  7006591
+│   └── [Aug 24 11:22]  clu
+│       ├── [Jul 20  1978]  arc.manual
+│       ├── [Jul 28  1978]  except.51
+│       └── [Jul 28  1978]  except.52
+├── [Aug 24 11:22]  7006592
+│   └── [Aug 24 11:22]  csg
+│       └── [Jul 16  1978]  primes.clu
+├── [Aug 24 11:22]  7006718
+│   └── [Aug 24 11:22]  clu
+│       ├── [May  4  1978]  6170.header
+│       ├── [Jul 31  1978]  arc.manual
+│       └── [Apr 26  1978]  r.symbol
+├── [Aug 24 11:22]  7006798
+│   └── [Aug 24 11:22]  csg
+│       ├── [Sep 14  1979]  cell.clu
+│       ├── [Oct 24  1979]  cmprat.clu
+│       ├── [Sep 14  1979]  ctree.clu
+│       ├── [Sep 25  1979]  format.clu
+│       ├── [Sep 28  1979]  intlst.clu
+│       ├── [Oct 16  1979]  ntable.clu
+│       ├── [Oct 24  1979]  rat.clu
+│       └── [Sep 28  1979]  revrse.clu
+├── [Aug 24 11:22]  7007242
+│   └── [Aug 24 11:22]  as
+│       └── [Jan 28  1980]  clu.tape
+├── [Aug 24 11:22]  7007347
+│   └── [Aug 24 11:22]  clu
+│       ├── [Jan 14  1978]  6170.header
+│       ├── [Jan 14  1978]  clusym.r
+│       ├── [Jan 14  1978]  desdoc.r
+│       └── [Jan 20  1978]  refman.insert
+├── [Aug 24 11:22]  7007468
+│   └── [Aug 24 11:22]  csg
+│       ├── [Jan 24  1977]  clup1.12
+│       └── [Feb 10  1977]  clup5.13
+├── [Aug 24 11:24]  7007471
+│   ├── [Aug 24 10:11]  as
+│   │   └── [Nov 30  1977]  \clu.-ipak-
+│   └── [Aug 24 11:22]  clu
+│       ├── [Nov 16  1977]  6170.header
+│       ├── [Sep  6  1977]  6170.hinfo
+│       ├── [Nov 16  1977]  6170.r28
+│       ├── [Nov  1  1977]  clukey.r
+│       ├── [Nov  1  1977]  clukey.r28
+│       ├── [Nov 26  1977]  clup0.r
+│       ├── [Nov 26  1977]  clup1.r
+│       ├── [Nov 26  1977]  clup2.r
+│       ├── [Nov 26  1977]  clup3.r
+│       ├── [Nov 26  1977]  clup4.r
+│       ├── [Nov 26  1977]  clup5.r
+│       ├── [Nov 26  1977]  clup6.r
+│       ├── [Nov 26  1977]  clup7.r
+│       ├── [Nov 26  1977]  clupap.header
+│       ├── [Nov 26  1977]  clupap.r
+│       ├── [Nov 26  1977]  clupro.r
+│       ├── [Oct 27  1977]  clusym.r
+│       ├── [Sep 22  1977]  clusym.r28
+│       ├── [Oct 20  1977]  desdoc.r
+│       ├── [Sep 28  1977]  desdoc.r28
+│       ├── [Dec  2  1977]  except.46
+│       ├── [Dec  2  1977]  except.47
+│       ├── [Nov 18  1977]  refman.insert
+│       ├── [Nov 18  1977]  refman.r28
+│       ├── [Aug  8  1977]  rfmexc.r
+│       └── [Nov 25  1977]  xref.r
+├── [Aug 24 11:22]  7007584
+│   └── [Aug 24 11:22]  emacs1
+│       ├── [Apr  1  1989]  clu.513
+│       └── [Apr  1  1989]  clu2.2
+├── [Aug 24 11:22]  7007912
+│   └── [Aug 24 11:22]  csg
+│       └── [Feb 18  1981]  clusym.r
+├── [Aug 24 11:22]  7008387
+│   └── [Aug 24 11:22]  clu
+│       └── [Sep  4  1979]  clukey.r
+├── [Aug 24 11:22]  701369
+│   └── [Aug 24 11:22]  clu
+│       ├── [Jul 31  1978]  arc.manual
+│       ├── [Jan 14  1978]  clukey.r
+│       ├── [Jun 27  1978]  clusym.r
+│       ├── [Apr 10  1979]  move.2
+│       ├── [Apr 10  1979]  move.3
+│       ├── [Apr  9  1979]  net.move
+│       └── [Feb  1  1979]  newres.6
+├── [Aug 24 11:22]  701435
+│   └── [Aug 24 11:22]  csg
+│       └── [Apr 11  1979]  clumsg.3
+├── [Aug 24 11:22]  9005095
+│   ├── [Aug 24 11:22]  as
+│   │   ├── [Dec 21  1977]  gtrace.clu
+│   │   ├── [Dec 19  1977]  tiary.clu
+│   │   ├── [Jan  5  1978]  tidefs.clu
+│   │   ├── [Jan  9  1978]  tidk.clu
+│   │   ├── [Jan  9  1978]  tidk1.clu
+│   │   ├── [Dec 19  1977]  tigvec.clu
+│   │   ├── [Jan  5  1978]  tihack.clu
+│   │   ├── [Jan  9  1978]  timem.clu
+│   │   ├── [Jan  9  1978]  tipg.clu
+│   │   ├── [Jan  9  1978]  tipg.clumac
+│   │   ├── [Jan  9  1978]  titest.clu
+│   │   └── [Jan  9  1978]  tivec.clu
+│   ├── [Aug 24 11:22]  clu
+│   │   ├── [Jan  4  1978]  archiv.info
+│   │   ├── [Jan  6  1978]  clu.hacks
+│   │   ├── [Jan  9  1978]  clu.hacks_0
+│   │   ├── [Jan  4  1978]  clu.ostat
+│   │   ├── [Jan  6  1978]  clu.ostat_0
+│   │   ├── [Jan 11  1978]  clu.ostat_1
+│   │   ├── [Jan  4  1978]  clu.raw
+│   │   ├── [Jan  6  1978]  clu.raw_0
+│   │   ├── [Jan 11  1978]  clu.raw_1
+│   │   ├── [Jan  5  1978]  clu.stat
+│   │   ├── [Jan  9  1978]  clu.stat_0
+│   │   ├── [Jan 11  1978]  clu.stat_1
+│   │   ├── [Jan  4  1978]  clu.stats
+│   │   ├── [Jan  6  1978]  clu.stats_0
+│   │   ├── [Jan 11  1978]  clu.stats_1
+│   │   ├── [Jan  3  1978]  cludmp.3_71
+│   │   ├── [Dec 30  1977]  codgen.r
+│   │   ├── [Jan  9  1978]  refman.insert
+│   │   ├── [Jan 11  1978]  ts.clusys
+│   │   ├── [Jan 10  1978]  ts.oclusy
+│   │   └── [Jan 10  1978]  ts.x
+│   ├── [Aug 24 11:22]  clucmp
+│   │   ├── [Jan  6  1978]  %clu.output
+│   │   ├── [Jan 10  1978]  %clu.output_0
+│   │   ├── [Jan  5  1978]  agenda.1
+│   │   ├── [Jan  9  1978]  agenda.1_0
+│   │   ├── [Jan 10  1978]  ar1.base
+│   │   ├── [Jan  6  1978]  cludmp.3_72
+│   │   ├── [Jan 10  1978]  cludmp.3_73
+│   │   ├── [Jan  5  1978]  genv.clu
+│   │   ├── [Jan  5  1978]  genv.clumac
+│   │   ├── [Jan  5  1978]  gexpr.clu
+│   │   ├── [Jan  9  1978]  top1.bin
+│   │   ├── [Jan 10  1978]  top1.bin_0
+│   │   └── [Jan  9  1978]  top1.clu
+│   ├── [Aug 24 11:22]  cluser
+│   │   ├── [Jan 11  1978]  _save_.0
+│   │   ├── [Jan 11  1978]  _save_.1
+│   │   ├── [Jan 11  1978]  _save_.3
+│   │   ├── [Jan  4  1978]  ate.r
+│   │   ├── [Jan 10  1978]  ate.r_0
+│   │   ├── [Jan 10  1978]  ate1.r
+│   │   ├── [Jan 10  1978]  ate3.r
+│   │   ├── [Jan 11  1978]  chap2.r
+│   │   ├── [Jan 11  1978]  chap5.r_0
+│   │   ├── [Jan 10  1978]  chapt3.r
+│   │   ├── [Jan 11  1978]  thesis.r
+│   │   ├── [Jan 11  1978]  thesis.r_0
+│   │   ├── [Jan 11  1978]  thesis.temp
+│   │   ├── [Jan 11  1978]  thesis.xgp
+│   │   └── [Jan 11  1978]  thesis.xgp_0
+│   ├── [Aug 24 11:22]  clusrc
+│   │   ├── [Jan  9  1978]  }progs.-ipak-
+│   │   ├── [Jan  5  1978]  }r.-ipak-
+│   │   ├── [Jan  8  1978]  }r.-ipak-_0
+│   │   └── [Jan  8  1978]  }rrel.-ipak-
+│   ├── [Aug 24 11:22]  clusys
+│   │   ├── [Jan  9  1978]  clusys.init
+│   │   ├── [Jan 10  1978]  common.7
+│   │   ├── [Jan 11  1978]  common.8
+│   │   ├── [Jan  2  1978]  common._old_
+│   │   ├── [Jan 11  1978]  endit.1
+│   │   ├── [Jan 10  1978]  endit._old_
+│   │   ├── [Jan 11  1978]  except.1
+│   │   ├── [Dec 28  1977]  except._old_
+│   │   ├── [Jan 11  1978]  except.bin
+│   │   ├── [Jan 10  1978]  fullx.house
+│   │   ├── [Jan 10  1978]  gc.bin_0
+│   │   ├── [Jan  4  1978]  gc.obin
+│   │   ├── [Jan  6  1978]  gc.otop
+│   │   ├── [Jan  4  1978]  gccode.5
+│   │   ├── [Jan  7  1978]  gcincl.its
+│   │   ├── [Jan  9  1978]  gcincl.its_0
+│   │   ├── [Jan  8  1978]  gcpcod.1
+│   │   ├── [Jan  7  1978]  gcpure.macros
+│   │   ├── [Jan  6  1978]  heap.bin
+│   │   ├── [Jan 10  1978]  heap.bin_0
+│   │   ├── [Jan 10  1978]  heap.clumac
+│   │   ├── [Jan  6  1978]  pass1.2
+│   │   ├── [Jan  9  1978]  pdump.1
+│   │   ├── [Jan  9  1978]  pdump._old_
+│   │   ├── [Jan 10  1978]  start.1
+│   │   ├── [Jan  9  1978]  start._old_
+│   │   ├── [Jan 11  1978]  styx.1
+│   │   ├── [Jan  2  1978]  styx._old_
+│   │   ├── [Jan 11  1978]  styx.bin
+│   │   ├── [Jan 11  1978]  z.bin
+│   │   ├── [Jan 11  1978]  zgc.bin
+│   │   ├── [Jan 10  1978]  }xfile.%clu
+│   │   └── [Nov 11  1977]  }xfile.oclusy
+│   ├── [Aug 24 11:22]  ebm
+│   │   ├── [Jan  4  1978]  gcpure.1
+│   │   ├── [Jan  7  1978]  gcpure.1_0
+│   │   ├── [Jan 10  1978]  gcpure.2_0
+│   │   ├── [Jan  4  1978]  gcpure.bin
+│   │   └── [Jan  8  1978]  gcpure.bin_0
+│   ├── [Aug 24 11:22]  rra
+│   │   ├── [Jan 10  1978]  ar2.-clu-
+│   │   ├── [Jan 10  1978]  full.bin
+│   │   ├── [Jan 10  1978]  full.clu
+│   │   ├── [Jan 10  1978]  fullx.bin
+│   │   ├── [Jan 10  1978]  fullx.clu
+│   │   └── [Jan 11  1978]  pp.clu
+│   └── [Aug 24 11:22]  rws
+│       ├── [Jan  9  1978]  clu.hacks
+│       ├── [Jan  5  1978]  tdp.clu
+│       ├── [Jan  9  1978]  tdp.clu_0
+│       └── [Jan  6  1978]  test.clu
+├── [Aug 24 11:22]  9005143
+│   ├── [Aug 24 11:22]  ebm
+│   │   ├── [Jun 30  1977]  clurep.2
+│   │   ├── [Jul  1  1977]  gc.6
+│   │   ├── [Jun 22  1977]  gc0.1
+│   │   ├── [Jun 29  1977]  gc1.5
+│   │   ├── [Jun 29  1977]  gc2.2
+│   │   ├── [Jun 23  1977]  gc3.1
+│   │   ├── [Jun 29  1977]  gccall.2
+│   │   ├── [Jun 21  1977]  gcincl.1
+│   │   └── [Jun  6  1977]  prout.1
+│   ├── [Aug 24 11:22]  mudrst
+│   │   ├── [Jul  1  1977]  1cluxa.fix54
+│   │   └── [Jul  1  1977]  1cluxa.sav54
+│   └── [Aug 24 11:22]  rws
+│       ├── [Jun 20  1977]  ar6.x&nbin
+│       ├── [Jun 29  1977]  clucmp.r
+│       ├── [Jun 30  1977]  gt.clu
+│       └── [Jul  1  1977]  gt.cmud
+├── [Aug 24 11:22]  9005183
+│   ├── [Aug 24 11:22]  as
+│   │   ├── [Jun 13  1977]  }tape}.clu
+│   │   └── [Jun 13  1977]  }tape}.clusys
+│   ├── [Aug 24 11:22]  clu
+│   │   ├── [Mar 18  1977]  cdn060.r
+│   │   ├── [Jun 14  1977]  clu.stat
+│   │   ├── [Jun 13  1977]  clu.stat00
+│   │   └── [Jun 14  1977]  new.disk
+│   ├── [Aug 24 11:22]  clucmp
+│   │   ├── [Jun 13  1977]  cc.list
+│   │   ├── [Jun 14  1977]  cc}p1.clu
+│   │   ├── [Jun 14  1977]  cc}p1.cmud
+│   │   ├── [Jun 14  1977]  cc}p2.clu
+│   │   ├── [Jun 14  1977]  cc}p2.cmud
+│   │   ├── [Jun 14  1977]  cc}p2.nbin
+│   │   ├── [Jun 13  1977]  cc}p3.clu
+│   │   ├── [Jun 13  1977]  cc}p3.cmud
+│   │   ├── [Jun 14  1977]  cc}p3.nbin
+│   │   ├── [Jun 14  1977]  cc}pe.clu
+│   │   ├── [Jun 14  1977]  cc}pe.cmud
+│   │   ├── [Jun 14  1977]  cc}pe.nbin
+│   │   ├── [Jun 14  1977]  cc}pt.clu
+│   │   ├── [Jun 14  1977]  cc}pt.cmud
+│   │   └── [Jun 14  1977]  cc}pt.nbin
+│   ├── [Aug 24 11:22]  cluobj
+│   │   ├── [Apr 23  1977]  ts.cat
+│   │   ├── [Jun 14  1977]  ts.cexpr
+│   │   ├── [Apr 20  1977]  ts.clean
+│   │   ├── [Jun  5  1977]  ts.clusta
+│   │   ├── [Apr 23  1977]  ts.count
+│   │   ├── [Apr 20  1977]  ts.crypt
+│   │   ├── [Jun 14  1977]  ts.disku
+│   │   ├── [Apr 20  1977]  ts.ed
+│   │   ├── [Jan 30  1977]  ts.fooer
+│   │   ├── [Apr 22  1977]  ts.grep
+│   │   ├── [Apr 17  1977]  ts.gt
+│   │   ├── [Apr 20  1977]  ts.idump
+│   │   ├── [May  9  1977]  ts.init
+│   │   ├── [Apr 20  1977]  ts.input
+│   │   ├── [Apr 22  1977]  ts.ipak
+│   │   ├── [May 13  1977]  ts.libgc
+│   │   ├── [May  9  1977]  ts.mfi
+│   │   ├── [Aug  5  1976]  ts.minput
+│   │   ├── [Jun  1  1977]  ts.o
+│   │   ├── [May 20  1977]  ts.oprint
+│   │   ├── [Feb 26  1977]  ts.os
+│   │   ├── [Jun  8  1977]  ts.ostat
+│   │   ├── [Apr 23  1977]  ts.pack
+│   │   ├── [May 30  1977]  ts.parse2
+│   │   ├── [Jun  5  1977]  ts.parse3
+│   │   ├── [May 22  1977]  ts.pr
+│   │   ├── [May  9  1977]  ts.qmail
+│   │   ├── [Apr 23  1977]  ts.rmost
+│   │   ├── [Jun  5  1977]  ts.rstat
+│   │   ├── [May 22  1977]  ts.run
+│   │   ├── [Apr 20  1977]  ts.search
+│   │   ├── [Apr 20  1977]  ts.sort
+│   │   ├── [Apr 20  1977]  ts.thash
+│   │   ├── [Apr 20  1977]  ts.trim
+│   │   ├── [Apr 20  1977]  ts.typo
+│   │   ├── [Apr 20  1977]  ts.unpack
+│   │   ├── [Apr 20  1977]  ts.usort
+│   │   ├── [Apr 19  1977]  ts.utape
+│   │   ├── [Apr 20  1977]  ts.wcount
+│   │   └── [Apr 23  1977]  ts.xgprog
+│   ├── [Aug 24 11:22]  cluser
+│   │   ├── [Jun 14  1977]  parse.c
+│   │   └── [Jun 14  1977]  parse.rel
+│   ├── [Aug 24 11:22]  mudrst
+│   │   ├── [Jun  5  1977]  1cluxt.fix54
+│   │   ├── [Jun  5  1977]  1cluxt.sav54
+│   │   ├── [Jun  7  1977]  1ncluc.fix54
+│   │   ├── [Jun  7  1977]  1ncluc.sav54
+│   │   ├── [Jun  7  1977]  2ncluc.fix54
+│   │   ├── [Jun  7  1977]  2ncluc.sav54
+│   │   ├── [Jun  7  1977]  3ncluc.fix54
+│   │   ├── [Jun  7  1977]  3ncluc.sav54
+│   │   ├── [Jun  5  1977]  clup2.fix54
+│   │   └── [Jun  5  1977]  clup2.sav54
+│   ├── [Aug 24 11:22]  rws
+│   │   ├── [Jun  3  1977]  clu.clu
+│   │   ├── [Jun  3  1977]  clu.nbin
+│   │   ├── [Jun  3  1977]  clum.mud
+│   │   ├── [Jun  5  1977]  clum.nbin
+│   │   ├── [Jun  6  1977]  ncg3.clu
+│   │   ├── [Jun  6  1977]  ngt.clu
+│   │   ├── [Jun 13  1977]  parse.clu
+│   │   ├── [Jun 13  1977]  parse.cmud
+│   │   └── [Jun 11  1977]  rify.mud
+│   └── [Aug 24 11:22]  temp
+│       └── [Jun 13  1977]  rws.sav54
+├── [Aug 24 11:22]  9005196
+│   ├── [Aug 24 11:22]  clu
+│   │   ├── [Dec 14  1977]  ar9.asm
+│   │   ├── [Dec 13  1977]  basis.scores
+│   │   ├── [Nov 18  1977]  bigari.62
+│   │   ├── [Dec 14  1977]  clu.stats
+│   │   ├── [Dec 13  1977]  clucmp.estats
+│   │   ├── [Dec 15  1977]  clucmp.estats_0
+│   │   ├── [Dec 14  1977]  clucmp.ostat
+│   │   ├── [Dec 14  1977]  clucmp.stat
+│   │   ├── [Dec 15  1977]  clucmp.stat_0
+│   │   ├── [Dec 14  1977]  clucmp.stats
+│   │   └── [Dec 11  1977]  ts.clusys
+│   ├── [Aug 24 11:22]  clucmp
+│   │   ├── [Dec 14  1977]  agenda.1
+│   │   ├── [Dec 14  1977]  agenda.1_0
+│   │   ├── [Dec 13  1977]  ar1.base
+│   │   ├── [Dec 13  1977]  ar3.check
+│   │   ├── [Dec 13  1977]  cc.list
+│   │   ├── [Dec 13  1977]  cdefn1.newbin
+│   │   ├── [Dec 14  1977]  ce.clu
+│   │   ├── [Dec 14  1977]  ce.newbin
+│   │   ├── [Dec 13  1977]  ce.specs
+│   │   ├── [Dec 14  1977]  cenv.clu
+│   │   ├── [Dec 15  1977]  cenv.newbin
+│   │   ├── [Dec 14  1977]  cenv.specs
+│   │   ├── [Dec 13  1977]  cexpr2.newbin
+│   │   ├── [Dec 13  1977]  cstmt1.newbin
+│   │   ├── [Dec 15  1977]  cstmt2.clu
+│   │   ├── [Dec 13  1977]  init.newbin
+│   │   ├── [Dec 13  1977]  ownvar.newbin
+│   │   ├── [Dec 14  1977]  pdefn1.clu
+│   │   ├── [Dec 15  1977]  pdefn1.newbin
+│   │   ├── [Dec 14  1977]  penv.clu
+│   │   ├── [Dec 15  1977]  penv.newbin
+│   │   ├── [Dec 14  1977]  penv.specs
+│   │   ├── [Dec 13  1977]  sys1.newbin
+│   │   ├── [Dec 14  1977]  top1.clu
+│   │   ├── [Dec 15  1977]  top1.clu_0
+│   │   ├── [Dec 15  1977]  top1.newbin
+│   │   ├── [Dec 14  1977]  top2.clu
+│   │   ├── [Dec 15  1977]  top2.clu_0
+│   │   ├── [Dec 14  1977]  toplev.equate
+│   │   ├── [Dec 15  1977]  toplev.equate_0
+│   │   ├── [Dec 15  1977]  xref.bin
+│   │   └── [Dec 15  1977]  xref.clu
+│   ├── [Aug 24 11:22]  cluser
+│   │   ├── [Dec 15  1977]  ate.r
+│   │   ├── [Dec 14  1977]  ate1.r
+│   │   ├── [Dec 14  1977]  ate3.r
+│   │   └── [Dec 15  1977]  thesis.xgp
+│   ├── [Aug 24 11:22]  clusrc
+│   │   ├── [Dec 14  1977]  }o.-ipak-
+│   │   ├── [Dec 14  1977]  }progs.-ipak-
+│   │   ├── [Dec 12  1977]  }r.-ipak-
+│   │   ├── [Dec 15  1977]  }r.-ipak-_0
+│   │   └── [Dec 15  1977]  }rrel.-ipak-
+│   ├── [Aug 24 11:22]  clusys
+│   │   ├── [Dec 13  1977]  full.house
+│   │   ├── [Dec 15  1977]  load.1
+│   │   ├── [Dec  5  1977]  load._old_
+│   │   ├── [Dec 13  1977]  pass1.1
+│   │   ├── [Dec  9  1977]  pass1._old_
+│   │   └── [Dec  4  1977]  }xfile.full
+│   ├── [Aug 24 11:22]  rra
+│   │   ├── [Dec 13  1977]  full.bin
+│   │   ├── [Dec 13  1977]  full.clu
+│   │   └── [Dec 14  1977]  stab.clu
+│   └── [Aug 24 11:22]  rws
+│       ├── [Dec 14  1977]  nclu.xfile
+│       └── [Dec 15  1977]  nclu.xfile_0
+├── [Aug 24 11:22]  9005201
+│   ├── [Aug 24 11:22]  as
+│   │   ├── [Jan 27  1978]  pfacts.clu
+│   │   ├── [Jan 27  1978]  pfacts.clu_0
+│   │   ├── [Jan 30  1978]  pfacts.clu_1
+│   │   ├── [Jan 27  1978]  vstr.clu
+│   │   ├── [Jan 27  1978]  vstr.clu_0
+│   │   ├── [Jan 27  1978]  vstr.clu_1
+│   │   ├── [Jan 27  1978]  vstr.clumac
+│   │   └── [Jan 25  1978]  vstr.oclu
+│   ├── [Aug 24 11:22]  clu
+│   │   ├── [Jan 24  1978]  clu.ostat
+│   │   ├── [Jan 27  1978]  clu.ostat_0
+│   │   ├── [Jan 31  1978]  clu.ostat_1
+│   │   ├── [Jan 24  1978]  clu.raw
+│   │   ├── [Jan 27  1978]  clu.raw_0
+│   │   ├── [Jan 31  1978]  clu.raw_1
+│   │   ├── [Jan 25  1978]  clu.stat
+│   │   ├── [Jan 27  1978]  clu.stat_0
+│   │   ├── [Jan 27  1978]  clu.stat_1
+│   │   ├── [Jan 24  1978]  clu.stats
+│   │   ├── [Jan 27  1978]  clu.stats_0
+│   │   ├── [Jan 31  1978]  clu.stats_1
+│   │   ├── [Jan 17  1978]  cludmp.3_76
+│   │   ├── [Nov 21  1977]  stream.bin
+│   │   ├── [Jan 27  1978]  ts.xa
+│   │   ├── [Jan 31  1978]  ts.xa_0
+│   │   └── [Jan 23  1978]  }teco}.output
+│   ├── [Aug 24 11:22]  clucmp
+│   │   ├── [Jan 31  1978]  %clu.output
+│   │   ├── [Jan 24  1978]  acomm.equate
+│   │   ├── [Jan 24  1978]  aenv.bin
+│   │   ├── [Jan 27  1978]  aenv.bin_0
+│   │   ├── [Jan 31  1978]  aenv.bin_1
+│   │   ├── [Jan 25  1978]  aenv.clu
+│   │   ├── [Jan 27  1978]  aenv.clu_0
+│   │   ├── [Jan 27  1978]  aenv.clu_1
+│   │   ├── [Jan 25  1978]  aenv.clumac
+│   │   ├── [Jan 24  1978]  aenv.specs
+│   │   ├── [Jan 25  1978]  aenv.specs_0
+│   │   ├── [Jan 24  1978]  agenda.1
+│   │   ├── [Jan 26  1978]  agenda.1_0
+│   │   ├── [Jan 24  1978]  amac1.bin
+│   │   ├── [Jan 27  1978]  amac1.bin_0
+│   │   ├── [Jan 31  1978]  amac1.bin_1
+│   │   ├── [Jan 24  1978]  amac1.clu
+│   │   ├── [Jan 26  1978]  amac1.clu_0
+│   │   ├── [Jan 27  1978]  amac1.clu_1
+│   │   ├── [Jan 25  1978]  amac1.clumac
+│   │   ├── [Jan 25  1978]  amac2.bin
+│   │   ├── [Jan 27  1978]  amac2.bin_0
+│   │   ├── [Jan 31  1978]  amac2.bin_1
+│   │   ├── [Jan 24  1978]  amac2.clu
+│   │   ├── [Jan 27  1978]  amac2.clu_0
+│   │   ├── [Jan 27  1978]  amac2.clu_1
+│   │   ├── [Jan 25  1978]  amac3.clu
+│   │   ├── [Jan 27  1978]  amac8.bin
+│   │   ├── [Jan 27  1978]  amac8.clu
+│   │   ├── [Jan 27  1978]  amac9.bin
+│   │   ├── [Jan 27  1978]  amac9.clu
+│   │   ├── [Jan 31  1978]  amacro.defs
+│   │   ├── [Jan 26  1978]  amem.bin
+│   │   ├── [Jan 26  1978]  amem.clu
+│   │   ├── [Jan 25  1978]  apage.bin
+│   │   ├── [Jan 25  1978]  apage.cmac
+│   │   ├── [Jan 31  1978]  ar1.base
+│   │   ├── [Jan 31  1978]  ar5.clumac
+│   │   ├── [Jan 31  1978]  assem.defs
+│   │   ├── [Jan 24  1978]  assem.xfile
+│   │   ├── [Jan 30  1978]  assem.xload_0
+│   │   ├── [Jan 24  1978]  atop1.bin
+│   │   ├── [Jan 27  1978]  atop1.bin_0
+│   │   ├── [Jan 27  1978]  atop1.clu
+│   │   ├── [Jan 24  1978]  atop2.bin
+│   │   ├── [Jan 27  1978]  atop2.bin_0
+│   │   ├── [Jan 31  1978]  atop2.bin_1
+│   │   ├── [Jan 26  1978]  atop2.clu
+│   │   ├── [Jan 24  1978]  atop3.bin
+│   │   ├── [Jan 30  1978]  atype.equate
+│   │   ├── [Jan 27  1978]  aword.bin
+│   │   ├── [Jan 27  1978]  aword.clu
+│   │   ├── [Jan 26  1978]  aword.specs
+│   │   ├── [Jan 31  1978]  cludmp.3_77
+│   │   ├── [Jan 25  1978]  facts.bin
+│   │   ├── [Jan 27  1978]  facts.bin_0
+│   │   ├── [Jan 25  1978]  facts.cmac
+│   │   ├── [Jan 27  1978]  facts.cmac_1
+│   │   ├── [Jan 13  1978]  get%.bin
+│   │   ├── [Jan 13  1978]  get%.clu
+│   │   ├── [Jan 24  1978]  htab.bin
+│   │   ├── [Jan 24  1978]  htab.clu
+│   │   ├── [Jan 27  1978]  pfacts.bin
+│   │   ├── [Jan 25  1978]  pfacts.clu
+│   │   ├── [Jan 27  1978]  pfacts.clu_1
+│   │   ├── [Jan 25  1978]  pfacts.clumac
+│   │   ├── [Jan 27  1978]  rify.bin
+│   │   ├── [Jan 27  1978]  rify.bin_0
+│   │   ├── [Jan 31  1978]  rify.bin_1
+│   │   ├── [Jan 13  1978]  rify.clu_0
+│   │   ├── [Jan 27  1978]  rify.clumac
+│   │   ├── [Jan 27  1978]  rify.xbin
+│   │   ├── [Jan  3  1978]  stats.bin
+│   │   ├── [Dec 28  1977]  stats.clu_0
+│   │   ├── [Jan 10  1978]  tdp.bin
+│   │   ├── [Jan 31  1978]  tdp.bin_0
+│   │   ├── [Jan 10  1978]  tdp.clu_0
+│   │   └── [Jan 31  1978]  top2.bin
+│   ├── [Aug 24 11:22]  cluobj
+│   │   └── [Jan 27  1978]  ts.ohack
+│   ├── [Aug 24 11:22]  cluser
+│   │   ├── [Jan 26  1978]  app1.r
+│   │   ├── [Jan 24  1978]  chap1.r
+│   │   ├── [Jan 27  1978]  chap1.r_0
+│   │   ├── [Jan 24  1978]  chap2.r
+│   │   ├── [Jan 27  1978]  chap2.r_0
+│   │   ├── [Jan 30  1978]  chap2.r_1
+│   │   ├── [Jan 27  1978]  chap2.xgp
+│   │   ├── [Jan 24  1978]  chap5.r
+│   │   ├── [Jan 27  1978]  chap5.r_0
+│   │   ├── [Jan 31  1978]  chap5.r_1
+│   │   ├── [Jan 27  1978]  chap5.xgp
+│   │   ├── [Jan 24  1978]  chap6.r
+│   │   ├── [Jan 27  1978]  chap6.r_0
+│   │   ├── [Jan 31  1978]  chap6.r_1
+│   │   ├── [Jan 24  1978]  chapt3.r
+│   │   ├── [Jan 27  1978]  chapt3.r_0
+│   │   ├── [Jan 30  1978]  chapt3.r_1
+│   │   ├── [Jan 31  1978]  cluser.mail
+│   │   ├── [Jan 24  1978]  thesis.r
+│   │   ├── [Jan 27  1978]  thesis.r_0
+│   │   ├── [Jan 31  1978]  thesis.r_1
+│   │   ├── [Jan 24  1978]  thesis.xgp
+│   │   ├── [Jan 27  1978]  thesis.xgp_0
+│   │   └── [Jan 31  1978]  thesis.xgp_1
+│   ├── [Aug 24 11:22]  clusrc
+│   │   ├── [Jan 27  1978]  }progs.-ipak-
+│   │   ├── [Jan 25  1978]  }r.-ipak-
+│   │   ├── [Jan 30  1978]  }r.-ipak-_0
+│   │   └── [Jan 30  1978]  }rrel.-ipak-
+│   ├── [Aug 24 11:22]  clusys
+│   │   ├── [Jan 30  1978]  common.8
+│   │   ├── [Jan 31  1978]  heap.bin
+│   │   ├── [Jan 30  1978]  types.1
+│   │   ├── [Jan 27  1978]  word.1_0
+│   │   ├── [Jan 18  1978]  word._old_
+│   │   ├── [Jan 26  1978]  word._old__0
+│   │   ├── [Jan 26  1978]  word.bin
+│   │   ├── [Jan 27  1978]  word.bin_0
+│   │   └── [Jan 26  1978]  word.specs
+│   ├── [Aug 24 11:22]  rws
+│   │   ├── [Jan 27  1978]  test.clu
+│   │   ├── [Jan 30  1978]  test.clu_0
+│   │   └── [Jan 27  1978]  test.clumac
+│   └── [Aug 24 11:22]  toby
+│       ├── [Jan 24  1978]  cluman.1_0
+│       ├── [Jan 26  1978]  cluman.1_1
+│       ├── [Jan 23  1978]  cluman._old_
+│       ├── [Jan 23  1978]  cluman._old__0
+│       ├── [Jan 26  1978]  cluman._old__1
+│       └── [Jan 26  1978]  cluman.xgp
+├── [Aug 24 11:25]  9006077
+│   └── [Aug 24 09:52]  clu
+│       ├── [Aug 30  1978]  alpha.mid.10
+│       ├── [Nov 14  1979]  common.mid.36
+│       ├── [Jun  4  1978]  omega.mid.1
+│       ├── [Apr 29  1980]  pass1.mid.11
+│       ├── [May 12  1980]  types.mid.20
+│       └── [Jun  4  1978]  uuo.mid.1
+├── [Aug 24 11:22]  9006256
+│   └── [Aug 24 11:22]  sys2
+│       └── [Dec 14  1977]  ts.clufor
+└── [Aug 24 11:22]  ai_ka_arch_4of9_2817_21_2_jun_1981
+    ├── [Aug 24 11:22]  emacs
+    │   └── [Feb 23  1981]  clu._ej
+    └── [Aug 24 11:22]  emacs1
+        └── [Feb 23  1981]  clu.511
+
+98 directories, 611 files

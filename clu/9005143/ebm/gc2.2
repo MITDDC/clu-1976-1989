@@ -1,0 +1,167 @@
+;;
+;; Clu garbage collector - step 2
+;;	Stack frame transformation
+;;
+;;	The format of a frame as used in the CLU system is:
+;;			-1:  mr,,ra
+;;		ptr->	 0: ier,,oer
+;;	where:
+;;		mr = module register (rh of a ref)
+;;		ra = return address (rh of a rel)
+;;		oer = old environment register (points to a frame or = 0)
+;;		ier = iterator environment register (same format as oer)
+;;	We save two words (in the order presented)
+;;		ptr
+;;		ier,,oer
+;;	and transform the frame into this (which is acceptable to the usual
+;;	tracing routines in the garbage collector):
+;;			-1: trel,,ra
+;;		ptr->	 0: tref,,mr
+;;	A later segment restores the frames before we return from GC,
+;;	using the information saved now.
+;;
+;; First, map stack pages in at high end of usable memory
+;;
+	move	r0,sepg		;; last page
+	sub	r0,sspg
+	aoj	r0,
+	movem	r0,nspgs	;; save number of stack pages
+	move	r1,himap	;; compute first page to load
+	sub	r1,r0
+	aoj	r1,
+	movem	r1,msspg	;; save mapped stack starting page
+	movn	r0,r0
+	hrl	r1,r0		;; make aobjn pointer for corblk
+	movem	r1,pgdest
+	move	r2,sepg
+	movem	r2,pgsrc
+	.call	mapin		;; map in pages
+	 $die	Couldn't map in stack
+	movn	r0,nspgs	;; get fresh pages for saving frames
+	move	r1,msspg
+	add	r1,r0
+	movem	r1,sfsav1	;; save start of frame save area
+	hrl	r1,r0
+	movem	r1,pgdest
+	.call	getpgs		;; get the pages
+	 $die	Couldn't get memory to save frames
+;;
+;; Some local register declarations
+;;
+fptr==	10
+base==	11
+ptr==	12
+addr==	13
+;;
+;; Type codes used here
+;;
+trel==	10		;; this is not real yet!
+tref==	20		;; this is not real yet!
+;;
+;; Init save pointer (fptr), base register, and stack pointer
+;;
+	move	fptr,sfsav1	;; fptr<-0,,start of save area-1
+	lsh	fptr,pglog2
+	soj	fptr,
+	move	base,msspg	;; base<-(msspg-sspg)*pgsize
+	sub	base,sspg
+	lsh	base,pglog2
+	movei	sp,last-1	;; stack starts at end of code
+	push	sp,frame	;; push address of frame to trace from
+;;
+;; Main loop
+;;
+loop21:	hlrz	r0,sp		;; see if any more (lh of sp = count)
+	jumpe	r0,savdun
+	pop	sp,ptr		;; get pointer to a frame
+	move	addr,ptr
+	add	addr,base
+	move	r0,(addr)	;; get 0th word of frame (ier,,oer)
+	hlrz	r1,r0		;; check left half to see if fixed yet
+	cain	r1,tref		;; see if was a tref, fix up if not
+	 jrst	loop21
+	push	fptr,ptr	;; save address of frame
+	push	fptr,r0		;; and ier,,oer for after GC
+	hrrz	r0,r0
+	jumpe	r0,nuloer	;; do not trace down null pointers!
+	 camge	r0,sstart	;; make sure oer points into stack if not = 0
+	  $die	oer not in stack
+	 camle	r0,send
+	  $die	oer not in stack
+	 push	sp,r0
+nuloer:	jumpe	r1,nulier	;; do same for ier
+	 camge	r1,sstart
+	  $die	ier not in stack
+	 camle	r1,send
+	  $die	ier not in stack
+	 push	sp,r1
+nulier:	move	r0,-1(addr)	;; get -1th word of frame (mr,,ra)
+	hlrz	r1,r0		;; convert to trel,,ra and tref,,mr
+	camge	r0,sstart	;; make sure ra is not in stack
+	 jrst	.+3
+	camg	r0,send
+	 $die	return address is in stack
+	camge	r1,sstart	;; do same for mr
+	 jrst	.+3
+	camg	r1,send
+	 $die	module register points into stack
+	hrli	r0,trel		;; put in type codes
+	hrli	r1,tref
+	movem	r0,-1(addr)	;; store back the ra word
+	movem	r1,(addr)	;; store back the mr word
+	jrst	loop21		;; loop back
+;;
+;;	Save data about changed frames just below the GC area and
+;;	prepare stack for real GC work
+;;
+savdun:	hlrz	r0,fptr		;; see how many pages are being used
+	lsh	r0,-pglog2	
+	aoj	r0,
+	move	r1,gspg		;; compute page numbers for save area
+	sub	r1,r0
+	movem	r1,sfsav2
+	camn	r1,sfsav1	;; see if they need to be moved
+	 jrst	nomove
+	caml	r1,sfsav1	;; see if they are to be moved down or up
+	 jrst	moveup
+movedn:	movn	r0,r0		;; form "aobjn" ptr
+	hrl	r1,r0
+	movem	r1,pgdest
+	move	r2,sfsav1
+	movem	r2,pgsrc
+	.call	movpgs		;; put pages in right place
+	 $die	Couldn't move frame save pages
+	jrst	nomove		;; done moving pages
+moveup:	move	r2,sfsav1	;; see if overlaps in moving
+	add	r2,r0
+	camg	r2,sfsav2	;; overlaps if skips
+	 jrst	movedn		;; same code can move up if no overlap
+	move	r1,gspg		;; start one below gspg
+	movem	r1,pgdest
+	movem	r2,pgsrc
+loop22:	sos	pgdest		;; form number of dest page
+	sos	pgsrc		;; form number of page to move
+	.call	movpgs
+	 $die	Couldn't move a page
+	sojg	r0,loop22	;; go move another one
+nomove:	move	r0,sfsav2	;; compute size of stack for PDL ov
+	lsh	r0,pglog2
+	subi	r0,last
+	movei	sp,last
+	hrl	sp,r0
+	jrst	cont3
+;;
+;; Variables defined here
+;;
+nspgs:	block 1		;; number of pages in the stack
+msspg:	block 1		;; mapped stack starting page number
+sfsav1: block 1		;; start of frame save area (before being moved)
+sfsav2:	block 1		;; start of frame save area (after being moved)
+;;
+;; Constants for locality
+;;
+	consta
+;;
+;; Go to next phase
+;;
+cont3:

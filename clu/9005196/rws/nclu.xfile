@@ -1,0 +1,9 @@
+sname clucmp
+eval value$assn(".binary_name2" "newbin")
+specs cmp1 specs
+ce syntax equate, parse equate
+specs cmp2 specs, ce specs
+clu penv,pdefn1
+ce syntax equate, check equate
+clu cenv,top1
+kill

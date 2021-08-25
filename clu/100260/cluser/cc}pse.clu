@@ -1,0 +1,133 @@
+%	CC_PSE	CLU
+%
+%	Parser environment
+
+
+% Dont use 'error' here - used in clu/cc_syn.equate
+
+
+BEGIN
+
+globals = record[strs:	strtab,
+		chars:	chartab,
+		ints:	inttab,
+		types:	typetab,
+		names:	nametab,
+		idns:	idntab,
+		erf:	file];
+
+% equate for error, include ??
+
+END
+
+par_env = cluster is
+	create,		% globals -> par_env
+	get_strid,	% par_env, str -> strid
+	get_charid,	% par_env, char -> charid
+	get_intid,	% par_env, int -> intid
+	get_name,	% par_env, str -> name
+	get_idn,	% par_env, str -> idn, bool
+	get_type,	% par_env, typeabs -> typespec
+				=> dup_sel(str), dup_signal(str)
+	get_strtab,	% par_env -> strtab
+	get_chartab,	% par_env -> chartab
+	get_inttab,	% par_env -> inttab
+	get_typetab,	% par_env -> typetab
+	get_nametab,	% par_env -> nametab
+	get_idntab,	% par_env -> idntab
+	set_error,	% par_env, error ->
+	get_error,	% par_env -> error
+	get_errfile;	% par_env -> file
+
+
+rep = record[strs:	strtab,
+	     chars:	chartab,
+	     ints:	inttab,
+	     types:	typetab,
+	     names:	nametab,
+	     idns:	idntab,
+	     erf:	file,
+	     err:	error]		% what is an error????? (just a bool, or what)
+
+
+create = oper(rec: globals) returns(cvt);
+	return({strs:	rec.strs,
+		chars:	rec.chars,
+		ints:	rec.ints,
+		types:	rec.types,
+		names:	rec.names,
+		idns:	rec.idns,
+		erf:	rec.erf,
+		err:	error$make_none(nil)});		% create null error
+	end create;
+
+get_strid = oper(e: cvt, s: str) returns(strid);
+	return(strtab$get_strid(e.strs, s));
+	end get_strid;
+
+get_charid = oper(e: cvt, c: char) returns(charid);
+	return(chartab$get_charid(e.chars, c));
+	end get_charid;
+
+get_intid = oper(e: cvt, i: int) returns(intid);
+	return(inttab$get_intid(e.ints, i));
+	end get_intid;
+
+get_name = oper(e: cvt, n: str) returns(name);
+	return(nametab$get_name(e.names, n));
+	end get_name;
+
+get_idn = oper(e: cvt, id: str) returns(idn, bool);
+	return(idntab$get_idn(e.idns, id));
+	end get_idn;
+
+get_type = oper(e: cvt, ta: typeabs) returns(typespec)
+				     signals(dup_sel(str), dup_signal(str));
+	return(typetab$get_type(e.types, ta));
+		except dup_sel(s: str):	     signal(dup_sel(s));
+		       dup_signal(s: str):   signal(dup_signal(s));
+		       end;
+	end get_type;
+
+
+get_strtab = oper(e: cvt) returns(strtab);
+	return(e.strs);
+	end get_strtab;
+
+get_chartab = oper(e: cvt) returns(chartab);
+	return(e.chars);
+	end get_chartab;
+
+get_inttab = oper(e: cvt) returns(inttab);
+	return(e.ints);
+	end get_inttab;
+
+get_typetab = oper(e: cvt) returns(typetab);
+	return(e.types);
+	end get_typetab;
+
+get_nametab = oper(e: cvt) returns(nametab);
+	return(e.names);
+	end get_nametab;
+
+get_idntab = oper(e: cvt) returns(idntab);
+	return(e.idns);
+	end get_idntab;
+
+set_error = oper(e: cvt, err: error);		% if error is just a bool, then dont
+						% need err - set just makes e.err
+						% equal to true
+
+
+
+	end set_error;
+
+get_error = oper(e: cvt) returns(error);	% if just a bool then have is_error
+	return(e.err);
+	end get_error;
+
+get_errfile = oper(e: cvt) returns(file);
+	return(e.erf);
+	end get_errfile;
+
+end par_env;

@@ -1,0 +1,201 @@
+.insrt	clusys;alpha >
+cluster	except
+proc	%egregious,[info,name,rtnpc,srce,dstf],[best,sig],[0,0]
+	$label	retry
+; lower tracing on frame we are about to exit
+	hrro	r0,dstf(er)
+	hlro	r0,-1(r0)
+	repchk	r0,terep
+	$if	skipn	$styx
+	$then
+	$elf	skipn	$trsav
+	$then	call	trace$down,1,[r0]
+	$fi
+; find err list in dst frame
+	move	r1,dstf(er)
+	hlr	r1,-1(r1)
+	hrro	r0,en.lpr(r1)
+	repchk	r0,tprep
+	move	n1,pr.err(r0)
+	sub	n1,pr.nam(r0)
+	add	r0,pr.err(r0)
+	hrl	r0,n1		; r0 points at exception info
+; scan the handler list for the best match (leaving ptr in best(er) )
+	$loop
+		$if	skipge	r0
+		$then	; entire range scanned
+			$label	done
+			movei	n1,0		; default to no print
+			skipn	best(er)	; if no handler
+			 movei	n1,1		; then default to printing
+			skipe	$fhand		; if failure should propagate
+			 movei	n1,0		; then don't print
+			hrro	r0,dstf(er)
+			hrrz	r0,(r0)
+			skipn	r0
+			 movei	n1,1		; force printing on at stack bottom
+			movem	n1,sig(er)
+			skipe	$sigpr		; if signal printing is requested
+			 movei	n1,1		; then always print the failure
+			$if	skipn	n1
+			$then	call	crlf,1,[$tyo]
+				slink	lnk,Signal: 
+				call	chan$writes,2,[$tyo,lnk(lr)]
+				call	chan$writes,2,[$tyo,name(er)]
+				slink	from,	from: 
+				call	chan$writes,2,[$tyo,from(lr)]
+				$if	refchk	r0,srce(er)
+					isrep	r0,terep
+				$then	call	pname,1,[r0]
+				$else	repchk	r0,twvec
+					move	r0,1(r0)
+					move	rr,-1(r0)
+				$fi
+				call	chan$writes,2,[$tyo,rr]
+				$if	skipl	r1,info(er)
+				$then	call	crlf,1,[$tyo]
+					link	tab,tchar+11
+					call	chan$writec,2,[$tyo,tab(lr)]
+					move	r1,info(er)
+					call	print,2,[$tyo,(r1)]
+				$fi
+				call	crlf,1,[$tyo]
+				slink	l,\12No applicable handlers in: 
+				move	rr,l(lr)
+				slink	l,\12Handler found in: 
+				skipe	r1,best(er)
+				 move	rr,l(lr)
+				move	r0,dstf(er)
+				hlr	r0,-1(r0)
+				hrr	r0,en.lpr(r0)
+				add	r0,pr.nam(r0)
+				call	string$concat,2,[rr,(r0)]
+				call	chan$writes,2,[$tyo,rr]
+				$if	skipn	r0,best(er)
+				$then	hrrz	n1,1(r0)
+					hrrz	r0,dstf(er)
+					hlrz	r0,-1(r0)
+					hrro	r0,en.lpr(r0)
+					add	r0,n1
+					call	octal,1,[r0]
+					slink	l, at: 
+					call	string$concat,2,[l(lr),rr]
+					call	chan$writes,2,[$tyo,rr]
+					call	crlf,1,[$tyo]
+				$fi
+			$fi
+			$if	skipe	g1,best(er)
+			$then	$if	skipn	sig(er)
+				$then	; failure should not propagate
+					call	listen,2,[$tyi,$tyo]
+				$fi
+				move	r0,dstf(er)
+				hrro	r1,-1(r0)
+				movem	r1,rtnpc(er)	; new return pc
+				hrro	r0,(r0)
+				trne	r0,ones
+				 movem	r0,dstf(er)	; new frame
+				slink	f,failure
+				$iff	call	string$equal,2,[f(lr),name(er)]
+				$then	slink	u,Unhandled exception: 
+					call	string$concat,2,[u(lr),name(er)]
+					push	sp,rr
+					hrro	r0,sp
+					movem	r0,info(er)	; new info
+					move	rr,f(lr)
+					movem	rr,name(er)	; new name
+				$fi
+				$go	retry
+			$fi
+			; turn off interrupts (clobber local frame)
+			move	g0,info(er)	; g0 has aobjn to info to move
+			move	rr,name(er)	; rr has name of exception
+			hrrz	er,dstf(er)	; make dest frame the current one
+			hrrz	r0,2(g1)
+			add	r0,er		; point at var on stack
+			hrrz	r0,(r0)		; point at place to cut back stack
+			; pop inactive iterators
+			$loop
+				hlrz	r1,(er)	; get frame to cut back
+				caml	r0,r1
+				 $go	cutsp
+				hlrz	r1,(r1)
+				hrlm	r1,(er)	; remove an iterator
+			$pool
+			$label	cutsp
+			hrr	sp,r0		; cut back the stack
+			hrli	sp,10000	; prohibit overflow
+			; push the info
+			$if	skipl	g0
+			$then	.here	eg.l4
+				push	sp,(g0)
+				aobjn	g0,eg.l4(pr)
+			$fi
+			; if no names, push name of exception last
+			hlrz	n1,1(g1)
+			skipn	n1
+			 push	sp,rr
+			; go to the appointed place
+			hlrz	mr,-1(er)
+			move	pr,en.lpr(mr)
+			movs	lr,pr
+			hrrz	xr,1(g1)
+			add	xr,pr		; xr has return address
+			jrst	yldout		; go to handling proc
+		$fi
+		move	g0,(r0)		; get range of handler
+		move	g1,g0
+		hlre	n1,g0
+		sub	g1,n1
+		hrrz	r1,rtnpc(er)
+; test for rtnpc being in handler range
+		$if	caile	r1,(g0)	; test for low
+			caile	r1,(g1)	; and for high
+		$then	; we may have applicable handler
+			hlrz	n1,1(r0)
+			$if	skipe	n1
+			$then	; no names means catch anything
+				$label	new
+				$if	skipn	r1,best(er)
+				$then	; check to see if really better
+					hrro	g0,(r0)
+					hrrz	r1,(r1)
+					caile	r1,(g0)
+					 movem	r0,best(er)
+				$else	movem	r0,best(er)
+				$fi
+			$else	hrroi	r1,3(r0)	; point at names
+				movni	n1,(n1)
+				hrl	r1,n1		; r1 is aobjn ptr
+				.here	eg.l2
+					push	sp,r0	; save handler addr
+					push	sp,r1	; and string address
+					call	string$equal,2,[name(er),(r1)]
+					pop	sp,r1	; restore string address
+					pop	sp,r0	; and handler addr
+					camn	rr,$true
+					 $go	new
+					aobjn	r1,eg.l2(pr)
+			$fi
+		$fi
+		hlrz	n1,1(r0)	; get # of names
+		addi	n1,3
+		hrl	n1,n1
+		add	r0,n1		; look at next handler
+	$pool
+	$rtnc	$none
+corp	%egregious,[info,name,return_pc,src_entry,dst_frame],[best,sig]
+
+proc	fh.on
+	movei	n1,1
+	movem	n1,$fhand
+	$rtnc	$none
+corp	propagate_failure_
+
+proc	fh.off
+	setzm	$fhand
+	$rtnc	$none
+corp	contain_failure_
+
+retsulc	except
+.insrt	clusys;omega >
