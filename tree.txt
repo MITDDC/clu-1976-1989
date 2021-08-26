@@ -89,10 +89,13 @@ clu
 │       ├── [Jan 24  1977]  clup7.12
 │       ├── [Oct 25  1976]  clupro.47
 │       └── [Jan 26  1977]  clutz.1
-├── [Aug 24 11:44]  7005372
-│   ├── [Dec  6  1977]  gcargs.1
-│   ├── [Dec  6  1977]  gcpure.1
-│   └── [Dec  6  1977]  gcpure.bin
+├── [Aug 26 09:44]  7005372
+│   ├── [Aug 26 09:46]  clu
+│   │   └── [Nov 16  1977]  clu.order
+│   └── [Aug 26 09:44]  ebm
+│       ├── [Dec  6  1977]  gcargs.1
+│       ├── [Dec  6  1977]  gcpure.1
+│       └── [Dec  6  1977]  gcpure.bin
 ├── [Aug 24 11:22]  7005675
 │   └── [Aug 24 11:22]  byron
 │       └── [Jun 15  1982]  clu.info
@@ -709,4 +712,4 @@ clu
     └── [Aug 24 11:22]  emacs1
         └── [Feb 23  1981]  clu.511
 
-98 directories, 611 files
+100 directories, 612 files
