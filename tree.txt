@@ -53,7 +53,8 @@ clu
 │   │   ├── [Apr  7  1977]  test.bin
 │   │   ├── [Apr  7  1977]  z.bin
 │   │   └── [Apr  7  1977]  z.err
-│   ├── [Aug 24 11:22]  rws
+│   ├── [Sep  1 16:38]  rws
+│   │   ├── [Apr  2  1977]  25vgx.kst
 │   │   ├── [Apr  5  1977]  ezclu.r
 │   │   └── [Apr  5  1977]  ezclu.rmacs
 │   └── [Aug 24 11:22]  sys2
@@ -212,6 +213,9 @@ clu
 │   └── [Aug 24 11:22]  emacs1
 │       ├── [Apr  1  1989]  clu.513
 │       └── [Apr  1  1989]  clu2.2
+├── [Sep  1 16:37]  7007816
+│   └── [Sep  1 16:37]  fonts2
+│       └── [Nov 21  1977]  30vrix.ebmkst
 ├── [Aug 24 11:22]  7007912
 │   └── [Aug 24 11:22]  csg
 │       └── [Feb 18  1981]  clusym.r
@@ -230,6 +234,9 @@ clu
 ├── [Aug 24 11:22]  701435
 │   └── [Aug 24 11:22]  csg
 │       └── [Apr 11  1979]  clumsg.3
+├── [Sep  1 16:37]  701468
+│   └── [Sep  1 16:37]  fonts2
+│       └── [Jan 10  1979]  script.ebmkst
 ├── [Aug 24 11:22]  9005095
 │   ├── [Aug 24 11:22]  as
 │   │   ├── [Dec 21  1977]  gtrace.clu
@@ -703,6 +710,21 @@ clu
 │       ├── [Apr 29  1980]  pass1.mid.11
 │       ├── [May 12  1980]  types.mid.20
 │       └── [Jun  4  1978]  uuo.mid.1
+├── [Sep  1 16:37]  9006235
+│   ├── [Sep  1 16:37]  fonts1
+│   │   ├── [Jan 15  1979]  2as.kst
+│   │   └── [Oct 15  1977]  31as.kst
+│   └── [Sep  1 16:37]  fonts2
+│       ├── [Oct 17  1977]  25as.kst
+│       ├── [Nov 21  1977]  30vrix.ebmkst
+│       ├── [Apr 25  1978]  30vrx.rwskst
+│       ├── [Oct 15  1977]  31as.kst
+│       ├── [Oct  9  1978]  31sym.jcskst
+│       ├── [May 11  1976]  35as.kst
+│       ├── [Mar  2  1978]  52meta.rwskst
+│       ├── [Apr 18  1978]  nonmb1.rwskst
+│       ├── [Jan  8  1979]  script.ebmkst
+│       └── [Nov  7  1978]  spec.ebmkst
 ├── [Aug 24 11:22]  9006256
 │   └── [Aug 24 11:22]  sys2
 │       └── [Dec 14  1977]  ts.clufor
@@ -712,4 +734,4 @@ clu
     └── [Aug 24 11:22]  emacs1
         └── [Feb 23  1981]  clu.511
 
-100 directories, 612 files
+107 directories, 627 files
