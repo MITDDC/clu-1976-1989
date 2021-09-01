@@ -4,7 +4,7 @@ This repository contains a set of files from 1976-1989 (most from 1976-1978) tha
 More information and more recent versions of the programming language can be found on the [CLU homepage](http://pmg.csail.mit.edu/CLU.html).
 ## File organization and details
 ### [clu](../main/clu)
-The files within this directory are the CLU specific files from [31 different tape image files](../main/tapeimagelist.txt) in the [ToTS collection](https://archivesspace.mit.edu/repositories/2/resources/1265) that constitute the files needed to create a working version.
+The files within this directory are the CLU specific files from [34 different tape image files](../main/tapeimagelist.txt) in the [ToTS collection](https://archivesspace.mit.edu/repositories/2/resources/1265) that constitute the files needed to create a working version.
 
  Included in this set are the CLUSYS runtime from 1977-1978, and CLU compiler versions 3.x from 1978. A MDL (Muddle) "save file" of CLU version 2 is also present in the file set. Most files are from ITS backup tapes, but the [files from one TOPS-20 tape](../main/clu/9006077) are needed to compile files.
 

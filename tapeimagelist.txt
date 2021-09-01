@@ -1,9 +1,9 @@
-/tots/recovered/vol2/9006077
+/tots/recovered/vol2/9006077.tap
 /tots/recovered/vol7/100260.tap
 /tots/recovered/vol7/1100350.tap
 /tots/part7/from-john-card-2/3100053.tap
 /tots/part7/from-john-card-1/3100129.tap
-/tots/recovered/vol1/7005366
+/tots/recovered/vol1/7005366.tap
 /tots/part5/its20x/7005372
 /tots/recovered/vol5/7005675/7005675.tap
 /tots/recovered/vol5/7005797/7005797.tap
@@ -29,3 +29,6 @@
 /tots/recovered/vol2/9005201.tap
 /tots/recovered/vol2/9006256.tap
 /tots/images/ai-ka/ai_ka_arch_4of9_2817_21_2_jun_1981.tap
+/tots/images/recovered/vol8/701468/701468.tap
+/tots/images/recovered/vol6/7007816/7007816.tap
+/tots/images/recovered/vol2/9006235.tap
