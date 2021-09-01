@@ -19,7 +19,7 @@ A file tree listing the files in the [```clu```](../main/clu) directory showing 
 A list of all the tape images and their paths in the ToTS collection that these files came from.
 
 ## Preferred Citation
-[filename], CLU files, 1976-1989, Massachusetts Institute of Technology, Tapes of Tech Square (ToTS) collection, MC-0741. Massachusetts Institute of Technology, Department of Distinctive Collections, Cambridge, Massachusetts. [swh:1:dir:fbf63a1bc866c15e6956b2fc2cfca40781675493](https://archive.softwareheritage.org/swh:1:dir:fbf63a1bc866c15e6956b2fc2cfca40781675493)
+[filename], CLU files, 1976-1989, Massachusetts Institute of Technology, Tapes of Tech Square (ToTS) collection, MC-0741. Massachusetts Institute of Technology, Department of Distinctive Collections, Cambridge, Massachusetts. [swh:1:dir:d94d3d849f0272a308ca322946dfd8cb0554ff26](https://archive.softwareheritage.org/swh:1:dir:d94d3d849f0272a308ca322946dfd8cb0554ff26)
 ## Rights
 The ownership status of these files is not entirely clear. To the extent that MIT holds rights in these files, we are happy to support their broad public use.  Any questions about permissions should be directed to [permissions-lib@mit.edu](mailto:permissions-lib@mit.edu)
 ## Acknowledgements
