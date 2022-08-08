@@ -1,6 +1,7 @@
 {
     "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
     "@type": "SoftwareSourceCode",
+	"license": "https://spdx.org/licenses/MIT-0",
     "codeRepository": "https://github.com/MITDDC/clu-1976-1989",
     "dateCreated": "1976-07-03",
     "name": "CLU",
