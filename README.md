@@ -12,7 +12,7 @@ The files within this directory are the CLU specific files from [34 different ta
 ### [codemeta.json](../main/codemeta.json)
 This file is metadata about the CLU files, using the [CodeMeta Project](https://codemeta.github.io/) schema.
 ### [LICENSE.md](../main/LICENSE.md)
-File describing the details under which rights to this code. See [Rights](#rights) for additional information.
+This file describes the details about the rights to these files. See [Rights](#rights) for additional information.
 ### [README.md](../main/README.md)
 This file is the readme detailing the content and context for this repository.
 ### [tree.txt](../main/tree.txt)
